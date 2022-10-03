@@ -10,8 +10,8 @@ fn gradient_descent_test() {
     let labels = Tensor::of_slice2(&[[3.0], [7.1], [10.5], [9.0], [16.6], [20.8], [5.6], [13.0]]);
 
     let model = Linear::new(1, 1, true);
-    let optimizer = Optimizer::new(GradientDescent::new(0.01), &model);
-    for epoch in 1..=50 {
+    let optimizer = Optimizer::new(GradientDescent::new(0.001), &model);
+    for epoch in 1..=500 {
         let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
