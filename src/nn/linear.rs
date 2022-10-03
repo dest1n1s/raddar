@@ -10,10 +10,12 @@ pub struct Linear {
 
 impl super::module::Module for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
+        let weight = &self.weight.lock().unwrap();
         if let Some(bias) = &self.bias {
-            input.matmul(&self.weight.tr()) + bias
+            let bias = bias.lock().unwrap();
+            input.matmul(&weight.tr()) + &*bias
         } else {
-            input.matmul(&self.weight.tr())
+            input.matmul(&weight.tr())
         }
     }
 
