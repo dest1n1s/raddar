@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tch::Tensor;
+use crate::nn::module::Module;
 
 pub struct Optimizer {
     opt: Box<dyn OptimizerAlgorithm>,
@@ -7,11 +8,18 @@ pub struct Optimizer {
 }
 
 pub trait OptimizerAlgorithm{
-    fn step(&self, trainable_parameters: &mut Vec<Arc<Mutex<Tensor>>>);
+    fn step(&self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>);
 }
 
 impl Optimizer {
-    fn step(&mut self) {
-        self.opt.step(&mut self.trainable_parameters);
+    pub fn step(&self) {
+        self.opt.step(&self.trainable_parameters);
+    }
+
+    pub fn new(opt: impl OptimizerAlgorithm + 'static, model: &dyn Module) -> Optimizer {
+        Optimizer {
+            opt: Box::new(opt),
+            trainable_parameters: model.get_trainable_parameters()
+        }
     }
 }

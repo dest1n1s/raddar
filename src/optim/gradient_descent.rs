@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use tch::Tensor;
+use tch::{no_grad, Tensor};
 use crate::optim::optimizer::OptimizerAlgorithm;
 
 pub struct GradientDescent {
@@ -7,17 +7,20 @@ pub struct GradientDescent {
 }
 
 impl OptimizerAlgorithm for GradientDescent {
-    fn step(&self, trainable_parameters: &mut Vec<Arc<Mutex<Tensor>>>) {
+    fn step(&self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
         for parameter in trainable_parameters {
             let mut parameter = parameter.lock().unwrap();
             let grad = parameter.grad();
-            *parameter -= self.learning_rate * grad
+            no_grad(|| {
+                *parameter -= self.learning_rate * grad
+            });
+            parameter.zero_grad();
         }
     }
 }
 
 impl GradientDescent {
-    fn new(learning_rate: f64) -> GradientDescent {
+    pub fn new(learning_rate: f64) -> GradientDescent {
         GradientDescent {
             learning_rate
         }

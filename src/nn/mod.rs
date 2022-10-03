@@ -1,2 +1,2 @@
-mod module;
-mod linear;
+pub mod module;
+pub mod linear;

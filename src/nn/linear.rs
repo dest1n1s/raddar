@@ -29,11 +29,11 @@ impl super::module::Module for Linear {
 }
 
 impl Linear {
-    fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
+    pub fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
         Linear {
-            weight: Arc::new(Mutex::new(Tensor::zeros(&[output_dim, input_dim], (Kind::Float, Device::Cpu)))),
+            weight: Arc::new(Mutex::new(Tensor::zeros(&[output_dim, input_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))),
             bias: if bias {
-                Some(Arc::new(Mutex::new(Tensor::zeros(&[output_dim], (Kind::Float, Device::Cpu)))))
+                Some(Arc::new(Mutex::new(Tensor::zeros(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))))
             } else {
                 None
             },
