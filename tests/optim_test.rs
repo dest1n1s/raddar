@@ -11,7 +11,7 @@ fn gradient_descent_test() {
 
     let model = Linear::new(1, 1, true);
     let optimizer = Optimizer::new(GradientDescent::new(0.01), &model);
-    for epoch in 1..50 {
+    for epoch in 1..=50 {
         let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
