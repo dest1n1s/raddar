@@ -11,6 +11,7 @@ impl OptimizerAlgorithm for GradientDescent {
         for parameter in trainable_parameters {
             let mut parameter = parameter.lock().unwrap();
             let grad = parameter.grad();
+            // grad.print();
             no_grad(|| {
                 *parameter -= self.learning_rate * grad
             });

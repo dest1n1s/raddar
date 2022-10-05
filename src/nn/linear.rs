@@ -1,6 +1,8 @@
 use std::sync::{Arc, Mutex};
 use tch::{Device, Kind, Tensor};
 
+use super::module::Module;
+
 // A simple fully-connected layer.
 #[derive(Debug)]
 pub struct Linear {
@@ -8,7 +10,7 @@ pub struct Linear {
     pub bias: Option<Arc<Mutex<Tensor>>>,
 }
 
-impl super::module::Module for Linear {
+impl Module for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
         let weight = &self.weight.lock().unwrap();
         if let Some(bias) = &self.bias {
@@ -31,9 +33,9 @@ impl super::module::Module for Linear {
 impl Linear {
     pub fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
         Linear {
-            weight: Arc::new(Mutex::new(Tensor::zeros(&[output_dim, input_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))),
+            weight: Arc::new(Mutex::new(Tensor::ones(&[output_dim, input_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))),
             bias: if bias {
-                Some(Arc::new(Mutex::new(Tensor::zeros(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))))
+                Some(Arc::new(Mutex::new(Tensor::ones(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))))
             } else {
                 None
             },
