@@ -3,6 +3,7 @@ use raddar::{
         act_funcs::{GeLU, LeakyReLU},
         linear::Linear,
         module::Module,
+        sequential::Sequential
     },
     optim::{gradient_descent::GradientDescent, optimizer::Optimizer},
     seq,
@@ -20,7 +21,8 @@ fn sequential_test() {
         Linear::new(1, 1, true),
         LeakyReLU::new(0.01),
         Linear::new(1, 1, true),
-    ).to(tch::Device::Cuda(0));
+    );
+    model.to(tch::Device::Cuda(0));
     let optimizer = Optimizer::new(GradientDescent::new(0.0001), &model);
     for epoch in 1..=50000 {
         model.zero_grad();
