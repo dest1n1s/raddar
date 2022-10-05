@@ -20,8 +20,7 @@ pub trait Module: std::fmt::Debug + Send {
     }
 }
 
-pub trait NonParameterModule: Module {
-}
+pub trait NonParameterModule: Module {}
 
 default impl<T: NonParameterModule> Module for T {
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {

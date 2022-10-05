@@ -6,15 +6,30 @@ use tch::Tensor;
 #[derive(Debug)]
 pub struct GeLU;
 
+#[derive(Debug)]
+pub struct LeakyReLU {
+    lambda: f64,
+}
+impl LeakyReLU {
+    pub fn new(lambda: f64) -> LeakyReLU {
+        LeakyReLU { lambda: lambda }
+    }
+}
 impl NonParameterModule for GeLU {}
-
+impl NonParameterModule for LeakyReLU {}
 impl Module for GeLU {
     fn forward(&self, input: &Tensor) -> Tensor {
         let z = (input + &input.pow_tensor_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
         0.5 * input * (1 + z.tanh())
     }
 }
-
+impl Module for LeakyReLU {
+    fn forward(&self, input: &Tensor) -> Tensor {
+        let y = -input * self.lambda;
+        let condition = input.ge(0);
+        input.where_self(&condition, &y)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

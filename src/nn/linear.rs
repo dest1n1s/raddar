@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use tch::{Device, Kind, Tensor};
+use tch::{no_grad, Device, Kind, Tensor};
 
 use super::module::Module;
 
@@ -32,10 +32,20 @@ impl Module for Linear {
 
 impl Linear {
     pub fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
+        let mut weight = Tensor::empty(&[output_dim, input_dim], (Kind::Double, Device::Cpu))
+            .set_requires_grad(true);
+
+        let mut linear_bias =
+            Tensor::empty(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true);
+        // linear_bias.init(tch::nn::Init::KaimingUniform);
+        no_grad(|| {
+            weight.init(tch::nn::Init::KaimingUniform);
+            linear_bias.init(tch::nn::Init::KaimingUniform);
+        });
         Linear {
-            weight: Arc::new(Mutex::new(Tensor::ones(&[output_dim, input_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))),
+            weight: Arc::new(Mutex::new(weight)),
             bias: if bias {
-                Some(Arc::new(Mutex::new(Tensor::ones(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true))))
+                Some(Arc::new(Mutex::new(linear_bias)))
             } else {
                 None
             },

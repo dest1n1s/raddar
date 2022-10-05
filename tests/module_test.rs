@@ -1,5 +1,9 @@
 use raddar::{
-    nn::{act_funcs::GeLU, linear::Linear, module::Module},
+    nn::{
+        act_funcs::{GeLU, LeakyReLU},
+        linear::Linear,
+        module::Module,
+    },
     optim::{gradient_descent::GradientDescent, optimizer::Optimizer},
     seq,
 };
@@ -12,8 +16,11 @@ fn sequential_test() {
     let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
         .to(tch::Device::Cuda(0));
 
-    let model = Linear::new(1, 1, true);
-    model.to(tch::Device::Cuda(0));
+    let model = seq!(
+        Linear::new(1, 1, true),
+        LeakyReLU::new(0.01),
+        Linear::new(1, 1, true),
+    ).to(tch::Device::Cuda(0));
     let optimizer = Optimizer::new(GradientDescent::new(0.0001), &model);
     for epoch in 1..=50000 {
         model.zero_grad();
