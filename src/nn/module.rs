@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, ops::Deref};
+use std::sync::{Arc, Mutex};
 use tch::Tensor;
 
 pub trait Module: std::fmt::Debug + Send {
@@ -6,8 +6,7 @@ pub trait Module: std::fmt::Debug + Send {
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>>;
 }
 
-pub trait NonParameterModule: Module {
-}
+pub trait NonParameterModule: Module {}
 
 default impl<T: NonParameterModule> Module for T {
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {

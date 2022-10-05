@@ -1,5 +1,9 @@
 use raddar::{
-    nn::{act_funcs::GeLU, linear::Linear, module::{Module}},
+    nn::{
+        act_funcs::{GeLU, LeakyReLU},
+        linear::Linear,
+        module::Module,
+    },
     optim::{gradient_descent::GradientDescent, optimizer::Optimizer},
     seq,
 };
@@ -12,16 +16,15 @@ fn sequential_test() {
 
     let model = seq!(
         Linear::new(1, 1, true),
-        GeLU, 
+        LeakyReLU::new(0.01),
         Linear::new(1, 1, true),
     );
     let optimizer = Optimizer::new(GradientDescent::new(0.0001), &model);
-    for epoch in 1..=50000 {
+    for _epoch in 1..=5000 {
         let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
         // println!("epoch: {}, loss: {}", epoch, f64::from(loss));
     }
     model.forward(&inputs).print();
-    
 }
