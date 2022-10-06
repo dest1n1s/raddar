@@ -1,5 +1,6 @@
-use std::{sync::{Arc, Mutex}, ops::Deref};
-use tch::{Tensor, Device, no_grad};
+use std::{ops::Deref, sync::{Arc, Mutex}};
+
+use tch::{Device, no_grad, Tensor};
 
 pub trait Module: std::fmt::Debug + Send {
     fn forward(&self, input: &Tensor) -> Tensor;

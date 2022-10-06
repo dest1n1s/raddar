@@ -1,8 +1,6 @@
 use tch::{Reduction, Tensor};
-use raddar::nn::linear::Linear;
-use raddar::nn::module::Module;
-use raddar::optim::gradient_descent::GradientDescent;
-use raddar::optim::optimizer::Optimizer;
+use raddar::nn::{Linear, Module};
+use raddar::optim::{GradientDescent, Optimizer};
 
 #[test]
 fn gradient_descent_test() {

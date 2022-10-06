@@ -1,7 +1,8 @@
-use crate::nn::module::Module;
-use std::sync::{Arc,Mutex};
-use tch::Tensor;
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
+
+use tch::Tensor;
+use crate::nn::Module;
 
 #[derive(Debug)]
 pub struct Sequential(Vec<Box<dyn Module>>);

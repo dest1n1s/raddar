@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
+
 use tch::Tensor;
+
 use crate::nn::module::Module;
 
 pub struct Optimizer<T: OptimizerAlgorithm> {

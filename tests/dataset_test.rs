@@ -1,4 +1,4 @@
-use raddar::{dataset::dataset::Dataset, tensor_vec};
+use raddar::{dataset::Dataset, tensor_vec};
 
 #[test]
 fn dataset_test() {
@@ -9,11 +9,11 @@ fn dataset_test() {
     let mut iter = dataset.iter();
     iter.next();
     let (batch, _) = iter.next().unwrap();
-    assert!(batch.size() == [3, 1]);
+    assert_eq!(batch.size(), [3, 1]);
     let (batch, _) = iter.next().unwrap();
-    assert!(batch.size() == [2, 1]);
+    assert_eq!(batch.size(), [2, 1]);
 
     let mut iter = dataset.iter();
     let (batch, _) = iter.next().unwrap();
-    assert!(batch.size() == [3, 1]);
+    assert_eq!(batch.size(), [3, 1]);
 }

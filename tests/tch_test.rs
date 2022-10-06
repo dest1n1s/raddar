@@ -1,6 +1,5 @@
 use tch::{Device, Tensor};
 
-
 #[test]
 fn device_test() {
     tch::maybe_init_cuda();

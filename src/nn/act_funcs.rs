@@ -1,7 +1,8 @@
 use std::f64::consts::PI;
 
-use crate::nn::module::{Module, NonParameterModule};
 use tch::Tensor;
+
+use crate::nn::{Module, NonParameterModule};
 
 #[derive(Debug)]
 pub struct GeLU;

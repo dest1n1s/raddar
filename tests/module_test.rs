@@ -1,14 +1,7 @@
-use raddar::{
-    nn::{
-        act_funcs::{GeLU, LeakyReLU},
-        linear::Linear,
-        module::Module,
-        sequential::Sequential
-    },
-    optim::{gradient_descent::GradientDescent, optimizer::Optimizer},
-    seq,
-};
 use tch::{Reduction, Tensor};
+use raddar::nn::{Module, Linear, LeakyReLU};
+use raddar::optim::{GradientDescent, Optimizer};
+use raddar::seq;
 
 #[test]
 fn sequential_test() {

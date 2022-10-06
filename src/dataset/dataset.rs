@@ -1,4 +1,4 @@
-use std::{ops::Index, path::Iter, sync::Arc, cmp::min};
+use std::{cmp::min, sync::Arc};
 
 use tch::Tensor;
 

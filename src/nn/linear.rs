@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
-use tch::{no_grad, Device, Kind, Tensor};
+
+use tch::{Device, Kind, no_grad, Tensor};
 
 use super::module::Module;
 

@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
+
 use tch::{no_grad, Tensor};
+
 use crate::optim::optimizer::OptimizerAlgorithm;
 
 pub struct GradientDescent {
