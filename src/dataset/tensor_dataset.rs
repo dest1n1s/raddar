@@ -1,29 +1,20 @@
-use std::{cmp::min, sync::Arc};
+use std::{sync::Arc, cmp::min};
+
+use tch::Tensor;
+
+use super::{Dataset, DatasetIterator};
 
 #[derive(Debug)]
-pub struct SimpleDataset<T> {
-    pub inputs: Vec<Arc<T>>,
-    pub labels: Vec<Arc<T>>,
+pub struct TensorDataset {
+    pub inputs: Vec<Arc<Tensor>>,
+    pub labels: Vec<Arc<Tensor>>,
     pub size: usize,
     pub batch_size: usize,
 }
 
-pub trait Dataset
-where
-    Self: Sized,
-{
-    type DataType;
-    type BatchType;
-    fn iter(&self) -> DatasetIterator<Self>;
-    fn get_inputs(&self) -> &Vec<Arc<Self::DataType>>;
-    fn get_labels(&self) -> &Vec<Arc<Self::DataType>>;
-    fn get_size(&self) -> usize;
-    fn get_batch_size(&self) -> usize;
-}
-
-impl<T> Dataset for SimpleDataset<T> {
-    type DataType = T;
-    type BatchType = Vec<Arc<T>>;
+impl Dataset for TensorDataset {
+    type DataType = Tensor;
+    type BatchType = Tensor;
 
     fn iter(&self) -> DatasetIterator<Self> {
         DatasetIterator {
@@ -49,16 +40,26 @@ impl<T> Dataset for SimpleDataset<T> {
     }
 }
 
-pub struct DatasetIterator<'a, T: Dataset> {
-    pub dataset: &'a T,
-    pub index: usize,
+impl TensorDataset {
+    pub fn from_tensors(
+        inputs: Vec<Arc<Tensor>>,
+        labels: Vec<Arc<Tensor>>,
+        batch_size: usize,
+    ) -> Self {
+        let size = inputs.len();
+        Self {
+            inputs,
+            labels,
+            size,
+            batch_size,
+        }
+    }
 }
 
-
-impl<'a, T> Iterator for DatasetIterator<'a, SimpleDataset<T>> {
+impl<'a> Iterator for DatasetIterator<'a, TensorDataset> {
     type Item = (
-        <SimpleDataset<T> as Dataset>::BatchType,
-        <SimpleDataset<T> as Dataset>::BatchType,
+        <TensorDataset as Dataset>::BatchType,
+        <TensorDataset as Dataset>::BatchType,
     );
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -72,6 +73,6 @@ impl<'a, T> Iterator for DatasetIterator<'a, SimpleDataset<T>> {
         let batch = self.dataset.get_inputs()[self.index..end].to_vec();
         let batch_labels = self.dataset.get_labels()[self.index..end].to_vec();
         self.index = end;
-        Some((batch, batch_labels))
+        Some((Tensor::stack(&batch, 0), Tensor::stack(&batch_labels, 0)))
     }
 }
