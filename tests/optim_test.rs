@@ -11,7 +11,7 @@ fn gradient_descent_test() {
     let mut optimizer = Optimizer::new(GradientDescent::new(0.01), &model);
     for epoch in 1..=5000 {
         model.zero_grad();
-        let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
         println!("epoch: {}, loss: {}", epoch, f64::from(loss));
@@ -32,7 +32,7 @@ fn rmsprop_test() {
     let mut optimizer = Optimizer::new(AdamBuilder::default().build().unwrap(), &model);
     for epoch in 1..=5000 {
         model.zero_grad();
-        let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
         println!("epoch: {}, loss: {}", epoch, f64::from(loss));
