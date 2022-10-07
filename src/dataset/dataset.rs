@@ -1,9 +1,15 @@
 use std::{cmp::min, sync::Arc};
 
 #[derive(Debug)]
-pub struct SimpleDataset<T> {
-    pub inputs: Vec<Arc<T>>,
-    pub labels: Vec<Arc<T>>,
+pub struct SimpleDataset<InputType, LabelType> {
+    pub inputs: Vec<Arc<InputType>>,
+    pub labels: Vec<Arc<LabelType>>,
+    pub size: usize,
+    pub batch_size: usize,
+}
+
+pub struct UnsupervisedDataset<InputType> {
+    pub inputs: Vec<Arc<InputType>>,
     pub size: usize,
     pub batch_size: usize,
 }
@@ -12,18 +18,25 @@ pub trait Dataset
 where
     Self: Sized,
 {
-    type DataType;
+    type InputType;
+    type LabelType;
     type BatchType;
     fn iter(&self) -> DatasetIterator<Self>;
-    fn get_inputs(&self) -> &Vec<Arc<Self::DataType>>;
-    fn get_labels(&self) -> &Vec<Arc<Self::DataType>>;
+    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>>;
+    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>>;
     fn get_size(&self) -> usize;
     fn get_batch_size(&self) -> usize;
+    fn process_batch(
+        &self,
+        inputs: Vec<Arc<Self::InputType>>,
+        labels: Option<Vec<Arc<Self::LabelType>>>,
+    ) -> Self::BatchType;
 }
 
-impl<T> Dataset for SimpleDataset<T> {
-    type DataType = T;
-    type BatchType = Vec<Arc<T>>;
+impl<T, U> Dataset for SimpleDataset<T, U> {
+    type InputType = T;
+    type LabelType = U;
+    type BatchType = (Vec<Arc<T>>, Vec<Arc<U>>);
 
     fn iter(&self) -> DatasetIterator<Self> {
         DatasetIterator {
@@ -32,12 +45,12 @@ impl<T> Dataset for SimpleDataset<T> {
         }
     }
 
-    fn get_inputs(&self) -> &Vec<Arc<Self::DataType>> {
+    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
         &self.inputs
     }
 
-    fn get_labels(&self) -> &Vec<Arc<Self::DataType>> {
-        &self.labels
+    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
+        Some(&self.labels)
     }
 
     fn get_size(&self) -> usize {
@@ -47,6 +60,51 @@ impl<T> Dataset for SimpleDataset<T> {
     fn get_batch_size(&self) -> usize {
         self.batch_size
     }
+
+    fn process_batch(
+        &self,
+        inputs: Vec<Arc<Self::InputType>>,
+        labels: Option<Vec<Arc<Self::LabelType>>>,
+    ) -> Self::BatchType {
+        (inputs, labels.unwrap())
+    }
+}
+
+impl<T> Dataset for UnsupervisedDataset<T> {
+    type InputType = T;
+    type LabelType = ();
+    type BatchType = Vec<Arc<T>>;
+
+    fn iter(&self) -> DatasetIterator<Self> {
+        DatasetIterator {
+            dataset: self,
+            index: 0,
+        }
+    }
+
+    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
+        &self.inputs
+    }
+
+    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
+        None
+    }
+
+    fn get_size(&self) -> usize {
+        self.size
+    }
+
+    fn get_batch_size(&self) -> usize {
+        self.batch_size
+    }
+
+    fn process_batch(
+        &self,
+        inputs: Vec<Arc<Self::InputType>>,
+        _labels: Option<Vec<Arc<Self::LabelType>>>,
+    ) -> Self::BatchType {
+        inputs
+    }
 }
 
 pub struct DatasetIterator<'a, T: Dataset> {
@@ -54,12 +112,8 @@ pub struct DatasetIterator<'a, T: Dataset> {
     pub index: usize,
 }
 
-
-impl<'a, T> Iterator for DatasetIterator<'a, SimpleDataset<T>> {
-    type Item = (
-        <SimpleDataset<T> as Dataset>::BatchType,
-        <SimpleDataset<T> as Dataset>::BatchType,
-    );
+impl<'a, T: Dataset> Iterator for DatasetIterator<'a, T> {
+    type Item = T::BatchType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.dataset.get_size() {
@@ -70,8 +124,12 @@ impl<'a, T> Iterator for DatasetIterator<'a, SimpleDataset<T>> {
             self.dataset.get_size(),
         );
         let batch = self.dataset.get_inputs()[self.index..end].to_vec();
-        let batch_labels = self.dataset.get_labels()[self.index..end].to_vec();
+        let batch_labels = if let Some(labels) = self.dataset.get_labels() {
+            Some(labels[self.index..end].to_vec())
+        } else {
+            None
+        };
         self.index = end;
-        Some((batch, batch_labels))
+        Some(self.dataset.process_batch(batch, batch_labels))
     }
 }

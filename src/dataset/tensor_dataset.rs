@@ -1,4 +1,4 @@
-use std::{sync::Arc, cmp::min};
+use std::{sync::Arc};
 
 use tch::Tensor;
 
@@ -13,8 +13,9 @@ pub struct TensorDataset {
 }
 
 impl Dataset for TensorDataset {
-    type DataType = Tensor;
-    type BatchType = Tensor;
+    type InputType = Tensor;
+    type LabelType = Tensor;
+    type BatchType = (Tensor, Tensor);
 
     fn iter(&self) -> DatasetIterator<Self> {
         DatasetIterator {
@@ -23,12 +24,12 @@ impl Dataset for TensorDataset {
         }
     }
 
-    fn get_inputs(&self) -> &Vec<Arc<Self::DataType>> {
+    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
         &self.inputs
     }
 
-    fn get_labels(&self) -> &Vec<Arc<Self::DataType>> {
-        &self.labels
+    fn get_labels(&self) -> Option<&Vec<Arc<tch::Tensor>>> {
+        Some(&self.labels)
     }
 
     fn get_size(&self) -> usize {
@@ -37,6 +38,17 @@ impl Dataset for TensorDataset {
 
     fn get_batch_size(&self) -> usize {
         self.batch_size
+    }
+
+    fn process_batch(
+        &self,
+        inputs: Vec<Arc<Self::InputType>>,
+        labels: Option<Vec<Arc<tch::Tensor>>>,
+    ) -> Self::BatchType {
+        let labels = labels.unwrap();
+        let inputs = Tensor::stack(&inputs, 0);
+        let labels = Tensor::stack(&labels, 0);
+        (inputs, labels)
     }
 }
 
@@ -53,26 +65,5 @@ impl TensorDataset {
             size,
             batch_size,
         }
-    }
-}
-
-impl<'a> Iterator for DatasetIterator<'a, TensorDataset> {
-    type Item = (
-        <TensorDataset as Dataset>::BatchType,
-        <TensorDataset as Dataset>::BatchType,
-    );
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.dataset.get_size() {
-            return None;
-        }
-        let end = min(
-            self.index + self.dataset.get_batch_size(),
-            self.dataset.get_size(),
-        );
-        let batch = self.dataset.get_inputs()[self.index..end].to_vec();
-        let batch_labels = self.dataset.get_labels()[self.index..end].to_vec();
-        self.index = end;
-        Some((Tensor::stack(&batch, 0), Tensor::stack(&batch_labels, 0)))
     }
 }
