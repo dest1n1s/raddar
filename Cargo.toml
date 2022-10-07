@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tch = "0.8.0"
 anyhow = "*"
+derive_builder = "0.11.2"

@@ -1,5 +1,5 @@
 use raddar::nn::{LeakyReLU, Linear, Module};
-use raddar::optim::{GradientDescent, Optimizer, RMSProp};
+use raddar::optim::{GradientDescent, Optimizer, RMSProp, RMSPropBuilder};
 use raddar::seq;
 use tch::{Reduction, Tensor};
 
@@ -16,7 +16,7 @@ fn sequential_test() {
         Linear::new(1, 1, true),
     );
     model.to(tch::Device::Cuda(0));
-    let mut optimizer = Optimizer::new(RMSProp::default(), &model);
+    let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
     for epoch in 1..=5000 {
         model.zero_grad();
         let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);

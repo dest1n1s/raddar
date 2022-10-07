@@ -1,15 +1,24 @@
 use std::sync::{Arc, Mutex};
 
 use crate::optim::optimizer::OptimizerAlgorithm;
+use derive_builder::Builder;
 use tch::{no_grad, Tensor};
-
+#[derive(Builder)]
+#[builder(pattern = "owned")]
 pub struct RMSProp {
+    #[builder(default = "0.001")]
     learning_rate: f64,
+    #[builder(default = "0.99")]
     alpha: f64,
+    #[builder(default = "1e-8")]
     eps: f64,
+    #[builder(default = "0.")]
     weight_decay: f64,
+    #[builder(default = "0.")]
     momentum: f64,
+    #[builder(default = "None")]
     r: Option<Vec<Tensor>>,
+    #[builder(default = "None")]
     R: Option<Vec<Tensor>>,
 }
 impl OptimizerAlgorithm for RMSProp {
@@ -39,25 +48,20 @@ impl OptimizerAlgorithm for RMSProp {
         self.R = Some(vector_R);
     }
 }
-impl Default for RMSProp {
-    fn default() -> Self {
-        RMSProp::new(0.001, None, None, None, None)
-    }
-}
 impl RMSProp {
     pub fn new(
         learning_rate: f64,
-        alpha: Option<f64>,
-        eps: Option<f64>,
-        weight_decay: Option<f64>,
-        momentum: Option<f64>,
+        alpha: f64,
+        eps: f64,
+        weight_decay: f64,
+        momentum: f64,
     ) -> RMSProp {
         RMSProp {
             learning_rate: learning_rate,
-            alpha: alpha.unwrap_or(0.99),
-            eps: eps.unwrap_or(1e-8),
-            weight_decay: weight_decay.unwrap_or(0.),
-            momentum: momentum.unwrap_or(0.),
+            alpha: alpha,
+            eps: eps,
+            weight_decay: weight_decay,
+            momentum: momentum,
             r: None,
             R: None,
         }
