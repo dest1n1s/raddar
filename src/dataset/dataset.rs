@@ -107,6 +107,29 @@ impl<T> Dataset for UnsupervisedDataset<T> {
     }
 }
 
+impl<V, U> SimpleDataset<V, U> {
+    pub fn from_vectors(inputs: Vec<Arc<V>>, labels: Vec<Arc<U>>, batch_size: usize) -> Self {
+        let size = inputs.len();
+        Self {
+            inputs,
+            labels,
+            size,
+            batch_size,
+        }
+    }
+}
+
+impl<V> UnsupervisedDataset<V> {
+    pub fn from_vectors(inputs: Vec<Arc<V>>, batch_size: usize) -> Self {
+        let size = inputs.len();
+        Self {
+            inputs,
+            size,
+            batch_size,
+        }
+    }
+}
+
 pub struct DatasetIterator<'a, T: Dataset> {
     pub dataset: &'a T,
     pub index: usize,
