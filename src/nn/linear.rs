@@ -18,9 +18,9 @@ impl Module for Linear {
         let weight = &self.weight.lock().unwrap();
         if let Some(bias) = &self.bias {
             let bias = bias.lock().unwrap();
-            input.matmul(&weight.tr()) + &*bias
+            input.matmul(&weight) + &*bias
         } else {
-            input.matmul(&weight.tr())
+            input.matmul(&weight)
         }
     }
 
@@ -42,12 +42,12 @@ impl Module for Linear {
 
 impl Linear {
     pub fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
-        let mut weight = Tensor::empty(&[output_dim, input_dim], (Kind::Double, Device::Cpu))
+        let mut weight = Tensor::empty(&[input_dim, output_dim], (Kind::Double, Device::Cpu))
             .set_requires_grad(true);
 
         let mut linear_bias =
             Tensor::empty(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true);
-        // linear_bias.init(tch::nn::Init::KaimingUniform);
+        
         no_grad(|| {
             weight.init(tch::nn::Init::KaimingUniform);
             linear_bias.init(tch::nn::Init::KaimingUniform);
