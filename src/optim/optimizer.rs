@@ -10,8 +10,8 @@ pub struct Optimizer<T: OptimizerAlgorithm> {
 }
 
 pub trait OptimizerAlgorithm {
-    fn step(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>);
-    fn init(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>);
+    fn step(&mut self, training_parameters: &Vec<Arc<Mutex<Tensor>>>);
+    fn init(&mut self, training_parameters: &Vec<Arc<Mutex<Tensor>>>);
 }
 
 impl<T: OptimizerAlgorithm> Optimizer<T> {
@@ -20,10 +20,10 @@ impl<T: OptimizerAlgorithm> Optimizer<T> {
     }
 
     pub fn new(mut opt: T, model: &dyn Module) -> Optimizer<T> {
-        opt.init(&model.get_trainable_parameters());
+        opt.init(&model.get_training_parameters());
         Optimizer {
             opt,
-            trainable_parameters: model.get_trainable_parameters(),
+            trainable_parameters: model.get_training_parameters(),
         }
     }
 }

@@ -38,6 +38,14 @@ impl Module for Sequential {
         }
         result
     }
+
+    fn get_all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+        let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
+        for module in self.iter(){
+            result.append(&mut module.get_all_parameters())
+        }
+        result
+    }
 }
 
 #[macro_export]
