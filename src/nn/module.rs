@@ -35,15 +35,17 @@ pub trait Module: std::fmt::Debug + Send {
             });
         }
     }
-    
+
     fn to(&self, device: Device) {
-        self.get_trainable_parameters().iter().for_each(|param| {
+        self.get_all_parameters().iter().for_each(|param| {
             let mut param = param.lock().unwrap();
+            let requires_grad = param.requires_grad();
             no_grad(|| {
-                *param = param.to(device).set_requires_grad(true);
+                *param = param.to(device).set_requires_grad(requires_grad);
             })
         });
     }
+    
     fn zero_grad(&self) {
         self.get_trainable_parameters().iter().for_each(|param| {
             let mut param = param.lock().unwrap();
