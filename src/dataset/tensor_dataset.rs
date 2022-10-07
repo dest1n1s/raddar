@@ -24,19 +24,19 @@ impl Dataset for TensorDataset {
         }
     }
 
-    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
+    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
         &self.inputs
     }
 
-    fn get_labels(&self) -> Option<&Vec<Arc<tch::Tensor>>> {
+    fn labels(&self) -> Option<&Vec<Arc<tch::Tensor>>> {
         Some(&self.labels)
     }
 
-    fn get_size(&self) -> usize {
+    fn size(&self) -> usize {
         self.size
     }
 
-    fn get_batch_size(&self) -> usize {
+    fn batch_size(&self) -> usize {
         self.batch_size
     }
 

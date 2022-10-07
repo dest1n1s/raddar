@@ -22,10 +22,10 @@ where
     type LabelType;
     type BatchType;
     fn iter(&self) -> DatasetIterator<Self>;
-    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>>;
-    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>>;
-    fn get_size(&self) -> usize;
-    fn get_batch_size(&self) -> usize;
+    fn inputs(&self) -> &Vec<Arc<Self::InputType>>;
+    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>>;
+    fn size(&self) -> usize;
+    fn batch_size(&self) -> usize;
     fn process_batch(
         &self,
         inputs: Vec<Arc<Self::InputType>>,
@@ -45,19 +45,19 @@ impl<T, U> Dataset for SimpleDataset<T, U> {
         }
     }
 
-    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
+    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
         &self.inputs
     }
 
-    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
+    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
         Some(&self.labels)
     }
 
-    fn get_size(&self) -> usize {
+    fn size(&self) -> usize {
         self.size
     }
 
-    fn get_batch_size(&self) -> usize {
+    fn batch_size(&self) -> usize {
         self.batch_size
     }
 
@@ -82,19 +82,19 @@ impl<T> Dataset for UnsupervisedDataset<T> {
         }
     }
 
-    fn get_inputs(&self) -> &Vec<Arc<Self::InputType>> {
+    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
         &self.inputs
     }
 
-    fn get_labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
+    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
         None
     }
 
-    fn get_size(&self) -> usize {
+    fn size(&self) -> usize {
         self.size
     }
 
-    fn get_batch_size(&self) -> usize {
+    fn batch_size(&self) -> usize {
         self.batch_size
     }
 
@@ -139,15 +139,15 @@ impl<'a, T: Dataset> Iterator for DatasetIterator<'a, T> {
     type Item = T::BatchType;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.dataset.get_size() {
+        if self.index >= self.dataset.size() {
             return None;
         }
         let end = min(
-            self.index + self.dataset.get_batch_size(),
-            self.dataset.get_size(),
+            self.index + self.dataset.batch_size(),
+            self.dataset.size(),
         );
-        let batch = self.dataset.get_inputs()[self.index..end].to_vec();
-        let batch_labels = if let Some(labels) = self.dataset.get_labels() {
+        let batch = self.dataset.inputs()[self.index..end].to_vec();
+        let batch_labels = if let Some(labels) = self.dataset.labels() {
             Some(labels[self.index..end].to_vec())
         } else {
             None
