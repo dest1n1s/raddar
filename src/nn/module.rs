@@ -18,6 +18,24 @@ pub trait Module: std::fmt::Debug + Send {
         self.get_trainable_parameters()
     }
 
+    fn freeze(&mut self) {
+        for tensor in self.get_trainable_parameters() {
+            let mut tensor = tensor.lock().unwrap();
+            no_grad(|| {
+                *tensor = tensor.set_requires_grad(false);
+            });
+        }
+    }
+
+    fn unfreeze(&mut self) {
+        for tensor in self.get_trainable_parameters() {
+            let mut tensor = tensor.lock().unwrap();
+            no_grad(|| {
+                *tensor = tensor.set_requires_grad(true);
+            });
+        }
+    }
+    
     fn to(&self, device: Device) {
         self.get_trainable_parameters().iter().for_each(|param| {
             let mut param = param.lock().unwrap();
