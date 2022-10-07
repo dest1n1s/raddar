@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::{Arc, Mutex}};
+use std::{sync::{Arc, Mutex}};
 
 use tch::{Device, no_grad, Tensor};
 

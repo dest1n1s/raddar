@@ -19,7 +19,7 @@ fn sequential_test() {
     let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
     for epoch in 1..=5000 {
         model.zero_grad();
-        let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss: Tensor = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
     }

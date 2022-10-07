@@ -1,15 +1,17 @@
 use std::sync::{Arc, Mutex};
 
+use raddar_derive::CallableModule;
 use tch::{Device, Kind, no_grad, Tensor};
 
 use super::module::Module;
 
 // A simple fully-connected layer.
-#[derive(Debug)]
+#[derive(Debug, CallableModule)]
 pub struct Linear {
     pub weight: Arc<Mutex<Tensor>>,
     pub bias: Option<Arc<Mutex<Tensor>>>,
 }
+ 
 
 impl Module for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
