@@ -17,9 +17,9 @@ pub struct RMSProp {
     #[builder(default = "0.")]
     momentum: f64,
     #[builder(default = "None")]
-    r: Option<Vec<Tensor>>,
+    r1: Option<Vec<Tensor>>,
     #[builder(default = "None")]
-    R: Option<Vec<Tensor>>,
+    r2: Option<Vec<Tensor>>,
 }
 impl OptimizerAlgorithm for RMSProp {
     fn step(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
@@ -27,25 +27,25 @@ impl OptimizerAlgorithm for RMSProp {
             let mut parameter = parameter.lock().unwrap();
             let mut grad = parameter.grad();
             no_grad(|| {
-                let r = &mut self.r.as_mut().unwrap()[i];
-                let R = &mut self.R.as_mut().unwrap()[i];
+                let r1 = &mut self.r1.as_mut().unwrap()[i];
+                let r2 = &mut self.r2.as_mut().unwrap()[i];
                 grad = grad + &*parameter * self.weight_decay;
-                *r = (&*r) * self.alpha + (1. - self.alpha) * grad.square();
-                *R = self.momentum * (&*R) + &grad / (r.sqrt() + self.eps);
-                *parameter -= &*R * self.learning_rate;
+                *r1 = (&*r1) * self.alpha + (1. - self.alpha) * grad.square();
+                *r2 = self.momentum * (&*r2) + &grad / (r1.sqrt() + self.eps);
+                *parameter -= &*r2 * self.learning_rate;
             });
         }
     }
     fn init(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
-        let mut vector_r: Vec<Tensor> = Vec::new();
-        let mut vector_R: Vec<Tensor> = Vec::new();
+        let mut vector_r1: Vec<Tensor> = Vec::new();
+        let mut vector_r2: Vec<Tensor> = Vec::new();
         for parameter in trainable_parameters {
             let parameter = parameter.lock().unwrap();
-            vector_r.push(Tensor::zeros_like(&*&parameter));
-            vector_R.push(Tensor::zeros_like(&*&parameter));
+            vector_r1.push(Tensor::zeros_like(&*&parameter));
+            vector_r2.push(Tensor::zeros_like(&*&parameter));
         }
-        self.r = Some(vector_r);
-        self.R = Some(vector_R);
+        self.r1 = Some(vector_r1);
+        self.r2 = Some(vector_r2);
     }
 }
 impl RMSProp {
@@ -57,13 +57,13 @@ impl RMSProp {
         momentum: f64,
     ) -> RMSProp {
         RMSProp {
-            learning_rate: learning_rate,
-            alpha: alpha,
-            eps: eps,
-            weight_decay: weight_decay,
-            momentum: momentum,
-            r: None,
-            R: None,
+            learning_rate,
+            alpha,
+            eps,
+            weight_decay,
+            momentum,
+            r1: None,
+            r2: None,
         }
     }
 }
