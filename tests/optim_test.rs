@@ -1,5 +1,5 @@
 use tch::{Reduction, Tensor};
-use raddar::nn::{Linear, Module};
+use raddar::nn::{Linear};
 use raddar::optim::{GradientDescent, Optimizer};
 
 #[test]
@@ -10,7 +10,7 @@ fn gradient_descent_test() {
     let model = Linear::new(1, 1, true);
     let optimizer = Optimizer::new(GradientDescent::new(0.01), &model);
     for epoch in 1..=5000 {
-        let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss: Tensor = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
         println!("epoch: {}, loss: {}", epoch, f64::from(loss));

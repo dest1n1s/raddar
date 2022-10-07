@@ -19,7 +19,7 @@ fn sequential_test() {
     let optimizer = Optimizer::new(GradientDescent::new(0.0001), &model);
     for epoch in 1..=50000 {
         model.zero_grad();
-        let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss: Tensor = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
     }

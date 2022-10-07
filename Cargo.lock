@@ -418,7 +418,16 @@ name = "raddar"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "raddar_derive",
  "tch",
+]
+
+[[package]]
+name = "raddar_derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

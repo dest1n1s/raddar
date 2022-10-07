@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tch = "0.8.0"
 anyhow = "*"
+raddar_derive = { version="0.1.0", path = "./raddar_derive" }
