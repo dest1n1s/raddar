@@ -18,7 +18,7 @@ fn sequential_test() {
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
-    for epoch in 1..=5000 {
+    for _epoch in 1..=5000 {
         model.zero_grad();
         let loss: Tensor = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();

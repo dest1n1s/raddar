@@ -1,5 +1,5 @@
 use raddar::nn::{Linear, Module};
-use raddar::optim::{GradientDescent, Optimizer, RMSProp, RMSPropBuilder};
+use raddar::optim::{AdamBuilder, GradientDescent, Optimizer};
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -29,7 +29,7 @@ fn rmsprop_test() {
     let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
     let model = Linear::new(1, 1, true);
-    let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
+    let mut optimizer = Optimizer::new(AdamBuilder::default().build().unwrap(), &model);
     for epoch in 1..=5000 {
         model.zero_grad();
         let loss = model.forward(&inputs).mse_loss(&labels, Reduction::Mean);
