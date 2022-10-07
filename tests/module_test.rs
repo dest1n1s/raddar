@@ -1,3 +1,4 @@
+use raddar::nn::embedding::{OneHot, Embedding};
 use raddar::nn::{LeakyReLU, Linear, Module};
 use raddar::optim::{GradientDescent, Optimizer, RMSProp, RMSPropBuilder};
 use raddar::seq;
@@ -24,4 +25,14 @@ fn sequential_test() {
         optimizer.step();
     }
     model.forward(&inputs).print();
+}
+
+#[test]
+fn embedding_test(){
+    let inputs = Tensor::of_slice(&[1i64,2,3,4,5]);
+    let one_hot = OneHot::new(6);
+    one_hot(&inputs).print();
+
+    let embedding = Embedding::new(6, 3);
+    embedding(&inputs).print();
 }
