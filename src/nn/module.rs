@@ -12,6 +12,12 @@ pub trait Module: std::fmt::Debug + Send {
             .collect()
     }
 
+    fn trainable_parameter_size(&self) -> usize {
+        self.get_training_parameters().len()
+    }
+
+    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>);
+
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>>;
     
     fn get_all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>>{
@@ -60,4 +66,6 @@ default impl<T: NonParameterModule> Module for T {
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         return vec![];
     }
+
+    fn set_trainable_parameters(&mut self, _parameters: Vec<Arc<Mutex<Tensor>>>) {}
 }

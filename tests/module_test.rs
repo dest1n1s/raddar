@@ -1,7 +1,9 @@
-use raddar::nn::embedding::{OneHot, Embedding};
-use raddar::nn::{LeakyReLU, Linear, Module};
-use raddar::optim::{GradientDescent, Optimizer, RMSProp, RMSPropBuilder};
-use raddar::seq;
+use std::sync::{Arc, Mutex};
+
+use raddar::nn::embedding::{Embedding, OneHot};
+use raddar::nn::{Linear, Module, LeakyReLU};
+use raddar::optim::{Optimizer, RMSPropBuilder};
+use raddar::{seq, assert_tensor_eq};
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -13,14 +15,14 @@ fn sequential_test() {
 
     let model = seq!(
         Linear::new(1, 1, true),
-        // LeakyReLU::new(0.01),
+        LeakyReLU::new(0.01),
         Linear::new(1, 1, true),
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
     for _epoch in 1..=5000 {
         model.zero_grad();
-        let loss: Tensor = model(&inputs).mse_loss(&labels, Reduction::Mean);
+        let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
         loss.backward();
         optimizer.step();
     }
@@ -28,11 +30,25 @@ fn sequential_test() {
 }
 
 #[test]
-fn embedding_test(){
-    let inputs = Tensor::of_slice(&[1i64,2,3,4,5]);
+fn embedding_test() {
+    let inputs = Tensor::of_slice(&[1i64, 2, 3, 4, 5]);
     let one_hot = OneHot::new(6);
     one_hot(&inputs).print();
 
     let embedding = Embedding::new(6, 3);
     embedding(&inputs).print();
+}
+
+#[test]
+fn set_parameter_test() {
+    let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    let parameters = vec![
+        Arc::new(Mutex::new(Tensor::of_slice2(&[[1.0]]))),
+        Arc::new(Mutex::new(Tensor::of_slice(&[2.0]))),
+        Arc::new(Mutex::new(Tensor::of_slice2(&[[3.0]]))),
+        Arc::new(Mutex::new(Tensor::of_slice(&[2.0]))),
+    ];
+    model.set_trainable_parameters(parameters.clone());
+    let output = model(&Tensor::of_slice(&[1.0]));
+    assert_tensor_eq!(&output, &Tensor::of_slice(&[11.0]));
 }

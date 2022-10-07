@@ -31,6 +31,13 @@ impl Module for Linear {
             vec![self.weight.clone()]
         }
     }
+
+    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
+        self.weight = parameters[0].clone();
+        if let Some(bias) = &mut self.bias {
+            *bias = parameters[1].clone();
+        }
+    }
 }
 
 impl Linear {

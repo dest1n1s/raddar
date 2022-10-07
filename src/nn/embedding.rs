@@ -70,4 +70,8 @@ impl Module for Embedding {
     fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         vec![self.weight.clone()]
     }
+
+    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
+        self.weight = parameters[0].clone();
+    }
 }

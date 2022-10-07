@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
 use raddar_derive::CallableModule;
@@ -13,6 +13,12 @@ impl Deref for Sequential {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for Sequential {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -45,6 +51,14 @@ impl Module for Sequential {
             result.append(&mut module.get_all_parameters())
         }
         result
+    }
+
+    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
+        let mut parameters = parameters;
+        for module in self.iter_mut(){
+            let module_parameters = parameters.drain(..module.trainable_parameter_size()).collect();
+            module.set_trainable_parameters(module_parameters);
+        }
     }
 }
 
