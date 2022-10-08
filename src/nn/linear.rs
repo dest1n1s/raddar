@@ -24,7 +24,7 @@ impl Module for Linear {
         }
     }
 
-    fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         if let Some(bias) = &self.bias {
             vec![self.weight.clone(), bias.clone()]
         } else {

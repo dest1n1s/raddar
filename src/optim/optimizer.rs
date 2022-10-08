@@ -20,10 +20,10 @@ impl<T: OptimizerAlgorithm> Optimizer<T> {
     }
 
     pub fn new(mut opt: T, model: &dyn Module) -> Optimizer<T> {
-        opt.init(&model.get_training_parameters());
+        opt.init(&model.training_parameters());
         Optimizer {
             opt,
-            trainable_parameters: model.get_training_parameters(),
+            trainable_parameters: model.training_parameters(),
         }
     }
 }

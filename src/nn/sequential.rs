@@ -37,18 +37,18 @@ impl Module for Sequential {
         x
     }
 
-    fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
         for module in self.iter(){
-            result.append(&mut module.get_trainable_parameters())
+            result.append(&mut module.trainable_parameters())
         }
         result
     }
 
-    fn get_all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
         for module in self.iter(){
-            result.append(&mut module.get_all_parameters())
+            result.append(&mut module.all_parameters())
         }
         result
     }

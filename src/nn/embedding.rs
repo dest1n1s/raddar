@@ -67,7 +67,7 @@ impl Module for Embedding {
         one_hotted.type_as(&weight).matmul(&weight)
     }
 
-    fn get_trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         vec![self.weight.clone()]
     }
 
