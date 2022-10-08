@@ -3,17 +3,15 @@ use std::{
     vec,
 };
 
-use raddar_derive::CallableModule;
+use raddar_derive::{CallableModule, NonParameterModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
-use super::{Module, NonParameterModule};
+use super::{Module, Trainable};
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, NonParameterModule)]
 pub struct OneHot {
     pub num_classes: u32,
 }
-
-impl NonParameterModule for OneHot {}
 
 impl Module for OneHot {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
@@ -60,18 +58,20 @@ impl Embedding {
     }
 }
 
-impl Module for Embedding {
-    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
-        let one_hotted = (self.one_hot)(input);
-        let weight = self.weight.lock().unwrap();
-        one_hotted.type_as(&weight).matmul(&weight)
-    }
-
+impl Trainable for Embedding {
     fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         vec![self.weight.clone()]
     }
 
     fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
         self.weight = parameters[0].clone();
+    }
+}
+
+impl Module for Embedding {
+    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
+        let one_hotted = (self.one_hot)(input);
+        let weight = self.weight.lock().unwrap();
+        one_hotted.type_as(&weight).matmul(&weight)
     }
 }

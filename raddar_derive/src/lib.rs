@@ -32,3 +32,14 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
     };
     gen.into()
 }
+
+#[proc_macro_derive(NonParameterModule)]
+pub fn non_parameter_module_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+
+    let name = &ast.ident;
+    let gen = quote! {
+        impl raddar::nn::NonParameterModule for #name {}
+    };
+    gen.into()
+}

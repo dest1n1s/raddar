@@ -5,6 +5,8 @@ use raddar_derive::CallableModule;
 use tch::Tensor;
 use crate::nn::Module;
 
+use super::Trainable;
+
 #[derive(Debug, CallableModule)]
 pub struct Sequential(Vec<Box<dyn Module>>);
 
@@ -28,15 +30,7 @@ impl From<Vec<Box<dyn Module>>> for Sequential {
     }
 }
 
-impl Module for Sequential {
-    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
-        let mut x = input + 0;
-        for module in self.iter(){
-            x = module.forward(&x)
-        }
-        x
-    }
-
+impl Trainable for Sequential {
     fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
         for module in self.iter(){
@@ -59,6 +53,16 @@ impl Module for Sequential {
             let module_parameters = parameters.drain(..module.trainable_parameter_size()).collect();
             module.set_trainable_parameters(module_parameters);
         }
+    }
+}
+
+impl Module for Sequential {
+    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
+        let mut x = input + 0;
+        for module in self.iter(){
+            x = module.forward(&x)
+        }
+        x
     }
 }
 

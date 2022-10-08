@@ -2,9 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use tch::{no_grad, Device, Tensor};
 
-pub trait Module: std::fmt::Debug + Send {
-    fn forward(&self, input: &Tensor) -> Tensor;
-
+pub trait Trainable: std::fmt::Debug + Send {
     fn training_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         self.trainable_parameters()
             .into_iter()
@@ -68,9 +66,13 @@ pub trait Module: std::fmt::Debug + Send {
     }
 }
 
+pub trait Module: Trainable {
+    fn forward(&self, input: &Tensor) -> Tensor;
+}
+
 pub trait NonParameterModule: Module {}
 
-default impl<T: NonParameterModule> Module for T {
+impl<T: NonParameterModule> Trainable for T {
     fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
         return vec![];
     }
