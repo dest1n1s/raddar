@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{Linear, Module, LeakyReLU};
+use raddar::nn::{Linear, Module, LeakyReLU, Trainable};
 use raddar::optim::{Optimizer, RMSPropBuilder};
 use raddar::{seq, assert_tensor_eq};
 use tch::{Reduction, Tensor};

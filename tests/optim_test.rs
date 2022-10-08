@@ -1,4 +1,4 @@
-use raddar::nn::{Linear, Module};
+use raddar::nn::{Linear, Trainable};
 use raddar::optim::{AdamBuilder, GradientDescent, Optimizer};
 use tch::{Reduction, Tensor};
 
