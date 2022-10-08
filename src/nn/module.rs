@@ -24,6 +24,14 @@ pub trait Module: std::fmt::Debug + Send {
         self.get_trainable_parameters()
     }
 
+    fn init(&mut self, init: tch::nn::Init) {
+        no_grad(|| {
+            for parameter in self.get_trainable_parameters() {
+                parameter.lock().unwrap().init(init);
+            }
+        });
+    }
+
     fn freeze(&mut self) {
         for tensor in self.get_trainable_parameters() {
             let mut tensor = tensor.lock().unwrap();
