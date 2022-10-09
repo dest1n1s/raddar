@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use raddar::core::StateDict;
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{Linear, Module, LeakyReLU, Trainable};
-use raddar::optim::{Optimizer, RMSPropBuilder};
-use raddar::{seq, assert_tensor_eq};
+use raddar::nn::{LeakyReLU, Linear, Module, Trainable};
+use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
+use raddar::{assert_tensor_eq, seq};
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -16,11 +16,15 @@ fn sequential_test() {
 
     let model = seq!(
         Linear::new(1, 1, true),
-        LeakyReLU::new(0.01),
+        // LeakyReLU::new(0.01),
         Linear::new(1, 1, true),
     );
     model.to(tch::Device::Cuda(0));
-    let mut optimizer = Optimizer::new(RMSPropBuilder::default().build().unwrap(), &model);
+    let mut optimizer = Optimizer::new(
+        RMSPropBuilder::default().build().unwrap(),
+        &model,
+        Some(StepLRBuilder::default().build().unwrap()),
+    );
     for _epoch in 1..=5000 {
         model.zero_grad();
         let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);

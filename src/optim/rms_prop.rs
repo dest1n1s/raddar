@@ -47,6 +47,13 @@ impl OptimizerAlgorithm for RMSProp {
         self.r1 = Some(vector_r1);
         self.r2 = Some(vector_r2);
     }
+    fn learning_rate(&self) -> f64 {
+        self.learning_rate
+    }
+
+    fn set_learning_rate(&mut self, lr: f64) {
+        self.learning_rate = lr;
+    }
 }
 impl RMSProp {
     pub fn new(

@@ -1,5 +1,5 @@
 use raddar::nn::{Linear, Trainable};
-use raddar::optim::{AdamBuilder, GradientDescent, Optimizer};
+use raddar::optim::{AdamBuilder, GradientDescent, Optimizer, StepLRBuilder};
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -8,7 +8,11 @@ fn gradient_descent_test() {
     let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
     let model = Linear::new(1, 1, true);
-    let mut optimizer = Optimizer::new(GradientDescent::new(0.01), &model);
+    let mut optimizer = Optimizer::new(
+        GradientDescent::new(0.01),
+        &model,
+        Some(StepLRBuilder::default().build().unwrap()),
+    );
     for epoch in 1..=5000 {
         model.zero_grad();
         let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
@@ -29,7 +33,11 @@ fn rmsprop_test() {
     let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
     let model = Linear::new(1, 1, true);
-    let mut optimizer = Optimizer::new(AdamBuilder::default().build().unwrap(), &model);
+    let mut optimizer = Optimizer::new(
+        AdamBuilder::default().learning_rate(0.01).build().unwrap(),
+        &model,
+        Some(StepLRBuilder::default().build().unwrap()),
+    );
     for epoch in 1..=5000 {
         model.zero_grad();
         let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);

@@ -17,6 +17,13 @@ impl OptimizerAlgorithm for GradientDescent {
         }
     }
     fn init(&mut self, _trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {}
+    fn learning_rate(&self) -> f64 {
+        self.learning_rate
+    }
+
+    fn set_learning_rate(&mut self, lr: f64) {
+        self.learning_rate = lr;
+    }
 }
 
 impl GradientDescent {
