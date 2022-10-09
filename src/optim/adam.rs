@@ -54,4 +54,11 @@ impl OptimizerAlgorithm for Adam {
             })
         }
     }
+    fn learning_rate(&self) -> f64 {
+        self.learning_rate
+    }
+
+    fn set_learning_rate(&mut self, lr: f64) {
+        self.learning_rate = lr;
+    }
 }
