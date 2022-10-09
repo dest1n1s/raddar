@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 tch = "0.8.0"
-anyhow = "*"
+anyhow = "1.0.65"
 raddar_derive = { version="0.1.0", path = "./raddar_derive" }
 derive_builder = "0.11.2"
+itertools = "0.10.5"

@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use raddar_derive::CallableModule;
 use tch::Tensor;
+use crate::core::StateDict;
 use crate::nn::Module;
 
 use super::Trainable;
@@ -31,12 +32,13 @@ impl From<Vec<Box<dyn Module>>> for Sequential {
 }
 
 impl Trainable for Sequential {
-    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
-        let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
-        for module in self.iter(){
-            result.append(&mut module.trainable_parameters())
+    fn trainable_parameters(&self) -> StateDict {
+        let mut state_dict = StateDict::new();
+        for (i, module) in self.iter().enumerate() {
+            let child = module.trainable_parameters();
+            state_dict.append_child(i.to_string(), child)
         }
-        result
+        state_dict
     }
 
     fn all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
@@ -45,14 +47,6 @@ impl Trainable for Sequential {
             result.append(&mut module.all_parameters())
         }
         result
-    }
-
-    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
-        let mut parameters = parameters;
-        for module in self.iter_mut(){
-            let module_parameters = parameters.drain(..module.trainable_parameter_size()).collect();
-            module.set_trainable_parameters(module_parameters);
-        }
     }
 }
 
