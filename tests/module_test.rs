@@ -1,10 +1,7 @@
-use std::sync::{Arc, Mutex};
-
-use raddar::core::StateDict;
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{Linear, Module, Trainable};
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
-use raddar::{assert_tensor_eq, seq};
+use raddar::seq;
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -43,4 +40,3 @@ fn embedding_test() {
     let embedding = Embedding::new(6, 3);
     embedding(&inputs).print();
 }
-
