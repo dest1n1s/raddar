@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap},
     fmt::{Display, Formatter},
     ops::Deref,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, Weak},
@@ -24,7 +24,7 @@ pub struct StateDict {
 pub struct StateDictData {
     pub name: RwLock<String>,
     pub parent: RwLock<Weak<StateDictData>>,
-    pub parameters: RwLock<HashMap<String, StateValue>>,
+    pub parameters: RwLock<BTreeMap<String, StateValue>>,
 }
 
 impl Deref for StateDict {
@@ -40,7 +40,7 @@ impl StateDict {
         let data = StateDictData {
             name: RwLock::new("".to_owned()),
             parent: RwLock::new(Weak::new()),
-            parameters: RwLock::new(HashMap::new()),
+            parameters: RwLock::new(BTreeMap::new()),
         };
         Self {
             arc: Arc::new(data),
@@ -51,13 +51,13 @@ impl StateDict {
         self.arc.clone()
     }
 
-    pub fn from_map(parameters: HashMap<String, Arc<Mutex<Tensor>>>) -> Self {
+    pub fn from_map(parameters: BTreeMap<String, Arc<Mutex<Tensor>>>) -> Self {
         let this = Self::new();
-        let parameters_map: BTreeMap<_, _> = parameters.into_iter().collect();
-        let mut parameters = HashMap::new();
-        let mut current_child: Option<HashMap<String, Arc<Mutex<Tensor>>>> = None;
+        let parameter_map = parameters;
+        let mut parameters = BTreeMap::new();
+        let mut current_child: Option<BTreeMap<String, Arc<Mutex<Tensor>>>> = None;
         let mut current_child_name = "".to_owned();
-        for (key, value) in parameters_map {
+        for (key, value) in parameter_map {
             let mut split = key.split(".");
             let first = split.next().unwrap();
             if split.next().is_none() {
@@ -75,7 +75,7 @@ impl StateDict {
                     }
                 }
                 if current_child.is_none() {
-                    current_child = Some(HashMap::new());
+                    current_child = Some(BTreeMap::new());
                     current_child_name = first.to_owned();
                 }
                 current_child
@@ -114,7 +114,7 @@ impl StateDictData {
         }
     }
 
-    pub fn parameters(&self) -> RwLockReadGuard<'_, HashMap<String, StateValue>> {
+    pub fn parameters(&self) -> RwLockReadGuard<'_, BTreeMap<String, StateValue>> {
         self.parameters.read().unwrap()
     }
 
@@ -156,15 +156,15 @@ impl StateDictData {
         }
     }
 
-    pub fn to_map(&self) -> HashMap<String, Arc<Mutex<Tensor>>> {
-        let mut parameters = HashMap::new();
+    pub fn to_map(&self) -> BTreeMap<String, Arc<Mutex<Tensor>>> {
+        let mut parameters = BTreeMap::new();
         for (key, value) in &*self.parameters() {
             match value {
                 StateValue::Tensor(tensor) => {
                     parameters.insert(key.clone(), tensor.clone());
                 }
                 StateValue::ChildStateDict(state_dict) => {
-                    let map: HashMap<String, Arc<Mutex<Tensor>>> = state_dict.to_map();
+                    let map: BTreeMap<String, Arc<Mutex<Tensor>>> = state_dict.to_map();
                     for (child_key, child_value) in map {
                         parameters.insert(format!("{}.{}", key, child_key), child_value);
                     }

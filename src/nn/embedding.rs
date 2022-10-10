@@ -1,6 +1,6 @@
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Mutex},
-    collections::HashMap,
 };
 
 use raddar_derive::{CallableModule, NonParameterModule};
@@ -62,7 +62,7 @@ impl Embedding {
 
 impl Trainable for Embedding {
     fn trainable_parameters(&self) -> StateDict {
-        let mut result = HashMap::new();
+        let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.weight.clone());
         StateDict::from_map(result)
     }

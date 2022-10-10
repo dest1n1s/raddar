@@ -1,4 +1,7 @@
-use std::{sync::{Arc, Mutex}, collections::HashMap};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use raddar_derive::CallableModule;
 use tch::{no_grad, Device, Kind, Tensor};
@@ -16,7 +19,7 @@ pub struct Linear {
 
 impl Trainable for Linear {
     fn trainable_parameters(&self) -> StateDict {
-        let mut result = HashMap::new();
+        let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.weight.clone());
         if let Some(bias) = &self.bias {
             result.insert("bias".to_owned(), bias.clone());
