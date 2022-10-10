@@ -36,8 +36,20 @@ fn load_parameter_test() {
     .collect();
     let state_dict = StateDict::from_map(parameters);
     model.load_trainable_parameters(state_dict.clone());
+    println!("model: {}", model.trainable_parameters());
     let output = model(&Tensor::of_slice(&[1.0]));
     assert_tensor_eq!(&output, &Tensor::of_slice(&[11.0]));
+}
+
+#[test]
+fn read_nonexistent_parameter_test() {
+    let model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    model
+        .trainable_parameters()
+        .child_state_dict("0")
+        .unwrap()
+        .tensor("nonexistent")
+        .expect_err("Exist tensor named nonexistent in state dict");
 }
 
 #[test]

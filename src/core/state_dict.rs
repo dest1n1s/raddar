@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, Weak},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Ok};
 use itertools::Itertools;
 use tch::{no_grad, Tensor};
 
@@ -144,8 +144,8 @@ impl StateDictData {
         }
     }
 
-    pub fn child_state_dict(&self, module_name: String) -> Result<StateDict> {
-        match self.parameters().get(&module_name) {
+    pub fn child_state_dict(&self, module_name: &str) -> Result<StateDict> {
+        match self.parameters().get(module_name) {
             Some(StateValue::ChildStateDict(state_dict)) => Ok(state_dict.clone()),
             _ => Err(anyhow!(
                 "No such module: {} in {}",
@@ -168,7 +168,7 @@ impl StateDictData {
                     }
                 }
                 Some(StateValue::ChildStateDict(child_state_dict)) => {
-                    child_state_dict.load(state_dict.child_state_dict(key.to_owned()).unwrap());
+                    child_state_dict.load(state_dict.child_state_dict(key).unwrap());
                 }
                 _ => (),
             }
@@ -212,20 +212,10 @@ impl StateDictData {
 
 impl Display for StateDict {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let parameters = self.parameters.read().unwrap();
-        let mut parameters: Vec<_> = parameters.iter().collect();
-        parameters.sort_by(|(a, _), (b, _)| a.cmp(b));
-        for (key, value) in parameters {
-            match value {
-                StateValue::Tensor(tensor) => {
-                    writeln!(f, "{}: {:?}", key, tensor.lock().unwrap())?;
-                }
-                StateValue::ChildStateDict(state_dict) => {
-                    writeln!(f, "{}:", key)?;
-                    write!(f, "{}", state_dict)?;
-                }
-            }
+        let map = self.to_map();
+        for (key, value) in map {
+            writeln!(f, "{}: {:?}", key, value.lock().unwrap())?;
         }
-        Ok(())
+        std::fmt::Result::Ok(())
     }
 }
