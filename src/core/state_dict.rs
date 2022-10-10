@@ -1,7 +1,8 @@
 use std::{
-    collections::{BTreeMap},
+    collections::BTreeMap,
     fmt::{Display, Formatter},
     ops::Deref,
+    path::Path,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, Weak},
 };
 
@@ -94,6 +95,24 @@ impl StateDict {
         }
         *this.parameters.write().unwrap() = parameters;
         this
+    }
+
+    pub fn from_npz<T: AsRef<Path>>(path: T) -> Result<StateDict> {
+        Ok(Self::from_map(
+            Tensor::read_npz(path)?
+                .into_iter()
+                .map(|(key, tensor)| (key, Arc::new(Mutex::new(tensor))))
+                .collect(),
+        ))
+    }
+
+    pub fn from_ot<T: AsRef<Path>>(path: T) -> Result<StateDict> {
+        Ok(Self::from_map(
+            Tensor::load_multi(path)?
+                .into_iter()
+                .map(|(key, tensor)| (key, Arc::new(Mutex::new(tensor))))
+                .collect(),
+        ))
     }
 
     pub fn append_child(&mut self, module_name: String, child: StateDict) {

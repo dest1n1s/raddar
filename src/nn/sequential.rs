@@ -64,7 +64,7 @@ impl Module for Sequential {
 macro_rules! seq {
     ($($x:expr),* $(,)?) => {
         {
-            $crate::nn::sequential::Sequential::from(vec![$(Box::new($x) as Box<dyn Module>,)*])
+            $crate::nn::sequential::Sequential::from(vec![$(Box::new($x) as Box<dyn $crate::nn::Module>,)*])
         }
     };
 }
