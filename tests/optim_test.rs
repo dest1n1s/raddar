@@ -1,5 +1,5 @@
 use raddar::nn::{Linear, Trainable};
-use raddar::optim::{AdamBuilder, GradientDescent, Optimizer, StepLRBuilder};
+use raddar::optim::{AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer};
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -11,7 +11,7 @@ fn gradient_descent_test() {
     let mut optimizer = Optimizer::new(
         GradientDescent::new(0.01),
         &model,
-        Some(StepLRBuilder::default().build().unwrap()),
+        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
     );
     for epoch in 1..=5000 {
         model.zero_grad();
@@ -36,7 +36,7 @@ fn rmsprop_test() {
     let mut optimizer = Optimizer::new(
         AdamBuilder::default().learning_rate(0.01).build().unwrap(),
         &model,
-        Some(StepLRBuilder::default().build().unwrap()),
+        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
     );
     for epoch in 1..=5000 {
         model.zero_grad();
