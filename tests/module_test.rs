@@ -1,9 +1,7 @@
-use std::sync::{Arc, Mutex};
-
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{LeakyReLU, Linear, Module, Trainable};
+use raddar::nn::{Linear, Module, Trainable};
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
-use raddar::{assert_tensor_eq, seq};
+use raddar::seq;
 use tch::{Reduction, Tensor};
 
 #[test]
@@ -41,18 +39,4 @@ fn embedding_test() {
 
     let embedding = Embedding::new(6, 3);
     embedding(&inputs).print();
-}
-
-#[test]
-fn set_parameter_test() {
-    let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
-    let parameters = vec![
-        Arc::new(Mutex::new(Tensor::of_slice2(&[[1.0]]))),
-        Arc::new(Mutex::new(Tensor::of_slice(&[2.0]))),
-        Arc::new(Mutex::new(Tensor::of_slice2(&[[3.0]]))),
-        Arc::new(Mutex::new(Tensor::of_slice(&[2.0]))),
-    ];
-    model.set_trainable_parameters(parameters.clone());
-    let output = model(&Tensor::of_slice(&[1.0]));
-    assert_tensor_eq!(&output, &Tensor::of_slice(&[11.0]));
 }

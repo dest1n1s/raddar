@@ -1,7 +1,12 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use raddar_derive::CallableModule;
 use tch::{no_grad, Device, Kind, Tensor};
+
+use crate::core::StateDict;
 
 use super::{module::Module, Trainable};
 
@@ -13,19 +18,13 @@ pub struct Linear {
 }
 
 impl Trainable for Linear {
-    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn trainable_parameters(&self) -> StateDict {
+        let mut result = BTreeMap::new();
+        result.insert("weight".to_owned(), self.weight.clone());
         if let Some(bias) = &self.bias {
-            vec![self.weight.clone(), bias.clone()]
-        } else {
-            vec![self.weight.clone()]
+            result.insert("bias".to_owned(), bias.clone());
         }
-    }
-
-    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
-        self.weight = parameters[0].clone();
-        if let Some(bias) = &mut self.bias {
-            *bias = parameters[1].clone();
-        }
+        StateDict::from_map(result)
     }
 }
 

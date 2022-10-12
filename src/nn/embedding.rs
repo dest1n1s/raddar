@@ -1,10 +1,12 @@
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Mutex},
-    vec,
 };
 
 use raddar_derive::{CallableModule, NonParameterModule};
 use tch::{no_grad, Device, Kind, Tensor};
+
+use crate::core::StateDict;
 
 use super::{Module, Trainable};
 
@@ -59,12 +61,10 @@ impl Embedding {
 }
 
 impl Trainable for Embedding {
-    fn trainable_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
-        vec![self.weight.clone()]
-    }
-
-    fn set_trainable_parameters(&mut self, parameters: Vec<Arc<Mutex<Tensor>>>) {
-        self.weight = parameters[0].clone();
+    fn trainable_parameters(&self) -> StateDict {
+        let mut result = BTreeMap::new();
+        result.insert("weight".to_owned(), self.weight.clone());
+        StateDict::from_map(result)
     }
 }
 
