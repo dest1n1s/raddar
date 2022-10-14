@@ -3,6 +3,8 @@
 #![feature(specialization)]
 #![feature(fn_traits)]
 #![feature(unboxed_closures)]
+#![feature(generic_const_exprs)]
+#![feature(slice_flatten)]
 
 extern crate self as raddar;
 

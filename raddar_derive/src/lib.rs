@@ -9,20 +9,24 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
 
     let name = &ast.ident;
+
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     let gen = quote! {
-        impl Fn<(&Tensor, )> for #name {
+        impl #impl_generics Fn<(&Tensor, )> for #name #ty_generics #where_clause {
             extern "rust-call" fn call(&self, input: (&Tensor, )) -> tch::Tensor {
                 self.forward(input.0)
             }
         }
         
-        impl FnMut<(&Tensor, )> for #name {
+        impl #impl_generics FnMut<(&Tensor, )> for #name #ty_generics #where_clause {
             extern "rust-call" fn call_mut(&mut self, input: (&Tensor, )) -> tch::Tensor {
                 self.forward(input.0)
             }
         }
         
-        impl FnOnce<(&Tensor, )> for #name {
+        impl #impl_generics FnOnce<(&Tensor, )> for #name #ty_generics #where_clause {
             type Output = Tensor;
         
             extern "rust-call" fn call_once(self, input: (&Tensor, )) -> Tensor {
@@ -38,8 +42,12 @@ pub fn non_parameter_module_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
 
     let name = &ast.ident;
+
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     let gen = quote! {
-        impl raddar::nn::NonParameterModule for #name {}
+        impl #impl_generics raddar::nn::NonParameterModule for #name #ty_generics #where_clause {}
     };
     gen.into()
 }
