@@ -1,11 +1,12 @@
 use raddar::nn::{Linear, Trainable};
 use raddar::optim::{AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer};
-use tch::{Reduction, Tensor};
+use raddar::tensor;
+use tch::Reduction;
 
 #[test]
 fn gradient_descent_test() {
-    let inputs = Tensor::of_slice2(&[[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
-    let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
+    let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
+    let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
     let model = Linear::new(1, 1, true);
     let mut optimizer = Optimizer::new(
@@ -27,10 +28,11 @@ fn gradient_descent_test() {
         f64::from(&*model.bias.unwrap().lock().unwrap())
     );
 }
+
 #[test]
 fn rmsprop_test() {
-    let inputs = Tensor::of_slice2(&[[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
-    let labels = Tensor::of_slice2(&[[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
+    let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
+    let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
     let model = Linear::new(1, 1, true);
     let mut optimizer = Optimizer::new(

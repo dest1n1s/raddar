@@ -36,13 +36,15 @@ impl Module for LeakyReLU {
 
 #[cfg(test)]
 mod tests {
+    use crate::tensor;
+
     use super::*;
 
     #[test]
     fn gelu_test() {
-        let input = Tensor::of_slice2(&[[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
+        let input = tensor!(&[[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
         let output = GeLU.forward(&input);
-        let expected = Tensor::of_slice2(&[
+        let expected = tensor!(&[
             [0.8413],
             [2.9960],
             [5.0000],

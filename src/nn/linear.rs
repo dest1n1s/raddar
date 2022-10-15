@@ -1,20 +1,17 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::BTreeMap;
 
 use raddar_derive::CallableModule;
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::StateDict;
+use crate::core::{Cellable, StateDict, TensorCell};
 
 use super::{module::Module, Trainable};
 
 // A simple fully-connected layer.
 #[derive(Debug, CallableModule)]
 pub struct Linear {
-    pub weight: Arc<Mutex<Tensor>>,
-    pub bias: Option<Arc<Mutex<Tensor>>>,
+    pub weight: TensorCell,
+    pub bias: Option<TensorCell>,
 }
 
 impl Trainable for Linear {
@@ -53,12 +50,8 @@ impl Linear {
             linear_bias.init(tch::nn::Init::KaimingUniform);
         });
         Linear {
-            weight: Arc::new(Mutex::new(weight)),
-            bias: if bias {
-                Some(Arc::new(Mutex::new(linear_bias)))
-            } else {
-                None
-            },
+            weight: weight.cell(),
+            bias: if bias { Some(linear_bias.cell()) } else { None },
         }
     }
 }

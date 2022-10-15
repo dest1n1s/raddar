@@ -1,11 +1,26 @@
-use tch::kind::Element;
+use std::sync::{Arc, Mutex};
+
+use tch::{kind::Element, Tensor};
+
+pub type TensorCell = Arc<Mutex<Tensor>>;
+
+pub trait Cellable {
+    fn cell(self) -> TensorCell;
+}
+
+impl Cellable for Tensor {
+    fn cell(self) -> TensorCell {
+        Arc::new(Mutex::new(self))
+    }
+}
 
 /// Create a [`Vec<Arc<Tensor>>`] from an array of 1d arrays.
 #[macro_export]
 macro_rules! tensor_vec {
     ($($x:expr),* $(,)?) => {
         {
-            vec![$(std::sync::Arc::new(tch::Tensor::of_slice(& $x)),)*]
+            use raddar::tensor;
+            vec![$(std::sync::Arc::new(tensor!($x)),)*]
         }
     };
 }
@@ -168,7 +183,7 @@ impl<
 #[macro_export]
 macro_rules! tensor {
     ($a:expr) => {{
-        use raddar::util::ElementNestedArray;
+        use raddar::core::ElementNestedArray;
         let data = $a;
         let shape: &[i64] = &data.shape();
         let flattened_array = data.flat();

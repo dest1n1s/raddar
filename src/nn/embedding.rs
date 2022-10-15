@@ -1,12 +1,9 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::BTreeMap;
 
 use raddar_derive::{CallableModule, NonParameterModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::StateDict;
+use crate::core::{Cellable, StateDict, TensorCell};
 
 use super::{Module, Trainable};
 
@@ -35,7 +32,7 @@ impl OneHot {
 pub struct Embedding {
     pub num_embeddings: i64,
     pub embedding_dim: i64,
-    pub weight: Arc<Mutex<Tensor>>,
+    pub weight: TensorCell,
     one_hot: OneHot,
 }
 
@@ -54,7 +51,7 @@ impl Embedding {
         Self {
             num_embeddings,
             embedding_dim,
-            weight: Arc::new(Mutex::new(weight)),
+            weight: weight.cell(),
             one_hot: OneHot::new(num_embeddings as u32),
         }
     }

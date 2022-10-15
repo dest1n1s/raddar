@@ -1,6 +1,4 @@
-use std::sync::{Arc, Mutex};
-
-use crate::optim::optimizer::OptimizerAlgorithm;
+use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
 use derive_builder::Builder;
 use tch::{no_grad, Tensor};
 #[derive(Builder)]
@@ -22,7 +20,7 @@ pub struct RMSProp {
     r2: Option<Vec<Tensor>>,
 }
 impl OptimizerAlgorithm for RMSProp {
-    fn step(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
+    fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         for (i, parameter) in trainable_parameters.iter().enumerate() {
             let mut parameter = parameter.lock().unwrap();
             let mut grad = parameter.grad();
@@ -36,7 +34,7 @@ impl OptimizerAlgorithm for RMSProp {
             });
         }
     }
-    fn init(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
+    fn init(&mut self, trainable_parameters: &Vec<TensorCell>) {
         let mut vector_r1: Vec<Tensor> = Vec::new();
         let mut vector_r2: Vec<Tensor> = Vec::new();
         for parameter in trainable_parameters {
