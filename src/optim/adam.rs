@@ -45,7 +45,6 @@ impl OptimizerAlgorithm for Adam {
                 let m = &mut self.m.as_mut().unwrap()[i];
                 let v = &mut self.v.as_mut().unwrap()[i];
                 grad = grad + &*parameter * self.weight_decay;
-
                 *v = (&*v) * self.betas.1 + (1. - self.betas.1) * grad.square();
                 *m = (&*m) * self.betas.0 + (1. - self.betas.0) * &grad;
                 let m_hat = &*m / (1. - self.betas.0.powi(self.step));

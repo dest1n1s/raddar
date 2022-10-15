@@ -1,12 +1,13 @@
 pub use act_funcs::*;
+pub use conv::*;
+pub use embedding::*;
 pub use linear::*;
 pub use module::*;
 pub use sequential::*;
-pub use embedding::*;
 
-
-pub mod module;
-pub mod linear;
 pub mod act_funcs;
-pub mod sequential;
+pub mod conv;
 pub mod embedding;
+pub mod linear;
+pub mod module;
+pub mod sequential;
