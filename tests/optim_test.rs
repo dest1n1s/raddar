@@ -1,6 +1,6 @@
-use raddar::nn::{Linear, Trainable};
+use raddar::nn::{Linear, LinearConfigBuilder, Trainable};
 use raddar::optim::{AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer};
-use raddar::tensor;
+use raddar::{new_module, tensor};
 use tch::Reduction;
 
 #[test]
@@ -8,7 +8,7 @@ fn gradient_descent_test() {
     let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
     let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
-    let model = Linear::new(1, 1, true);
+    let model = new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)];
     let mut optimizer = Optimizer::new(
         GradientDescent::new(0.01),
         &model,
@@ -34,7 +34,7 @@ fn rmsprop_test() {
     let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
     let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
 
-    let model = Linear::new(1, 1, true);
+    let model = new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)];
     let mut optimizer = Optimizer::new(
         AdamBuilder::default().learning_rate(0.01).build().unwrap(),
         &model,

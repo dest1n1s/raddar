@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use derive_builder::Builder;
 use raddar_derive::CallableModule;
 use tch::{no_grad, Device, Kind, Tensor};
 
@@ -12,8 +13,16 @@ use super::{module::Module, Trainable};
 pub struct Linear {
     pub weight: TensorCell,
     pub bias: Option<TensorCell>,
+    pub config: LinearConfig,
 }
-
+#[derive(Builder, Debug)]
+#[builder(pattern = "owned")]
+pub struct LinearConfig {
+    pub input_dim: i64,
+    pub output_dim: i64,
+    #[builder(default = "true")]
+    pub bias: bool,
+}
 impl Trainable for Linear {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
@@ -38,7 +47,10 @@ impl Module for Linear {
 }
 
 impl Linear {
-    pub fn new(input_dim: i64, output_dim: i64, bias: bool) -> Linear {
+    pub fn new(config: LinearConfig) -> Linear {
+        let input_dim = config.input_dim;
+        let output_dim = config.output_dim;
+        let bias = config.bias;
         let mut weight = Tensor::empty(&[input_dim, output_dim], (Kind::Double, Device::Cpu))
             .set_requires_grad(true);
 
@@ -52,6 +64,7 @@ impl Linear {
         Linear {
             weight: weight.cell(),
             bias: if bias { Some(linear_bias.cell()) } else { None },
+            config,
         }
     }
 }

@@ -1,20 +1,22 @@
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{Linear, MaxPooling1D, MaxPooling2D, Trainable};
+use raddar::nn::{
+    Conv1d, Conv1dConfigBuilder, Linear, LinearConfigBuilder, MaxPooling1D, MaxPooling2D, Trainable,
+};
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
-use raddar::{assert_tensor_eq, seq, tensor};
+use raddar::{assert_tensor_eq, new_module, seq, tensor};
 use tch::Reduction;
 
 #[test]
 fn sequential_test() {
-    let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]])
-        .to(tch::Device::Cuda(0));
+    let inputs =
+        tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]).to(tch::Device::Cuda(0));
     let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
         .to(tch::Device::Cuda(0));
 
     let model = seq!(
-        Linear::new(1, 1, true),
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
         // LeakyReLU::new(0.01),
-        Linear::new(1, 1, true),
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(

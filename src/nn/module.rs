@@ -83,3 +83,16 @@ impl<T: NonParameterModule> Trainable for T {
         StateDict::new()
     }
 }
+
+#[macro_export]
+macro_rules! new_module {
+    ($type:ty, $config_builder_type:ty, ($($field:ident=$value:expr),*)) => {
+        {
+            let mut builder = <$config_builder_type>::default();
+            $(
+                builder = builder.$field($value);
+            )*
+            <$type>::new(builder.build().unwrap())
+        }
+    };
+}
