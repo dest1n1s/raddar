@@ -41,8 +41,8 @@ fn load_npz_test() {
     let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
     let state_dict = StateDict::from_npz(Path::new("./tests/serialize_test.npz")).unwrap();
     model.load_trainable_parameters(state_dict.clone());
-    let output = model(&tensor!([2.0]));
-    assert_tensor_eq!(&output, &tensor!([0.1818]));
+    let output = model(&tensor!([2.0f32]));
+    assert_tensor_eq!(&output, &tensor!([0.1818f32]));
 }
 
 #[test]
@@ -50,6 +50,6 @@ fn load_ot_test() {
     let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
     let state_dict = StateDict::from_ot(Path::new("./tests/serialize_test.ot")).unwrap();
     model.load_trainable_parameters(state_dict.clone());
-    let output = model(&tensor!([2.0]));
-    assert_tensor_eq!(&output, &tensor!([0.1818]));
+    let output = model(&tensor!([2.0f32]));
+    assert_tensor_eq!(&output, &tensor!([0.1818f32]));
 }
