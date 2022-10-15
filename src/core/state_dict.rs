@@ -165,7 +165,7 @@ impl StateDictData {
                     if let StateValue::Tensor(value) = value {
                         let value = value.lock().unwrap();
                         no_grad(|| {
-                            tensor.copy_(&value);
+                            *tensor = value.shallow_clone();
                         });
                     }
                 }
