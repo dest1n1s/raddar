@@ -3,13 +3,17 @@ use std::path::Path;
 use raddar::{
     assert_tensor_eq,
     core::{Cellable, StateDict},
-    nn::{Linear, Trainable},
+    new_module,
+    nn::{Linear, LinearConfigBuilder, Trainable},
     seq, tensor,
 };
 
 #[test]
 fn load_parameter_test() {
-    let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    let mut model = seq!(
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+    );
     let parameters = vec![
         ("0.weight".to_owned(), tensor!([[1.0]]).cell()),
         ("0.bias".to_owned(), tensor!([2.0]).cell()),
@@ -27,7 +31,10 @@ fn load_parameter_test() {
 
 #[test]
 fn read_nonexistent_parameter_test() {
-    let model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    let model = seq!(
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)]
+    );
     model
         .trainable_parameters()
         .child_state_dict("0")
@@ -38,7 +45,10 @@ fn read_nonexistent_parameter_test() {
 
 #[test]
 fn load_npz_test() {
-    let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    let mut model = seq!(
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+    );
     let state_dict = StateDict::from_npz(Path::new("./tests/serialize_test.npz")).unwrap();
     model.load_trainable_parameters(state_dict.clone());
     let output = model(&tensor!([2.0f32]));
@@ -47,7 +57,10 @@ fn load_npz_test() {
 
 #[test]
 fn load_ot_test() {
-    let mut model = seq!(Linear::new(1, 1, true), Linear::new(1, 1, true),);
+    let mut model = seq!(
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+    );
     let state_dict = StateDict::from_ot(Path::new("./tests/serialize_test.ot")).unwrap();
     model.load_trainable_parameters(state_dict.clone());
     let output = model(&tensor!([2.0f32]));
