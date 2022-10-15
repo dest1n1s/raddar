@@ -1,9 +1,7 @@
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
-
 use raddar_derive::CallableModule;
 use tch::Tensor;
-use crate::core::StateDict;
+use crate::core::{StateDict, TensorCell};
 use crate::nn::Module;
 
 use super::Trainable;
@@ -41,8 +39,8 @@ impl Trainable for Sequential {
         state_dict
     }
 
-    fn all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
-        let mut result: Vec<Arc<Mutex<Tensor>>> = vec![];
+    fn all_parameters(&self) -> Vec<TensorCell> {
+        let mut result: Vec<TensorCell> = vec![];
         for module in self.iter(){
             result.append(&mut module.all_parameters())
         }

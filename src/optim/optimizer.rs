@@ -1,8 +1,4 @@
-use std::sync::{Arc, Mutex};
-
-use tch::Tensor;
-
-use crate::nn::module::Module;
+use crate::{nn::module::Module, core::TensorCell};
 
 pub struct Optimizer<T, U>
 where
@@ -10,14 +6,14 @@ where
     U: SchedulerAlgorithm,
 {
     opt: T,
-    trainable_parameters: Vec<Arc<Mutex<Tensor>>>,
+    trainable_parameters: Vec<TensorCell>,
     scheduler: Option<U>,
     step: i32,
 }
 
 pub trait OptimizerAlgorithm {
-    fn step(&mut self, training_parameters: &Vec<Arc<Mutex<Tensor>>>);
-    fn init(&mut self, training_parameters: &Vec<Arc<Mutex<Tensor>>>);
+    fn step(&mut self, training_parameters: &Vec<TensorCell>);
+    fn init(&mut self, training_parameters: &Vec<TensorCell>);
     fn learning_rate(&self) -> f64;
     fn set_learning_rate(&mut self, lr: f64);
 }

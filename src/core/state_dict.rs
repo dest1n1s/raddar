@@ -3,16 +3,18 @@ use std::{
     fmt::{Display, Formatter},
     ops::Deref,
     path::Path,
-    sync::{Arc, Mutex, RwLock, RwLockReadGuard, Weak},
+    sync::{Arc, RwLock, RwLockReadGuard, Weak},
 };
 
 use anyhow::{anyhow, Result, Ok};
 use itertools::Itertools;
 use tch::{no_grad, Tensor};
 
+use super::{TensorCell, Cellable};
+
 #[derive(Debug, Clone)]
 pub enum StateValue {
-    Tensor(Arc<Mutex<Tensor>>),
+    Tensor(TensorCell),
     ChildStateDict(StateDict),
 }
 
@@ -52,11 +54,11 @@ impl StateDict {
         self.arc.clone()
     }
 
-    pub fn from_map(parameters: BTreeMap<String, Arc<Mutex<Tensor>>>) -> Self {
+    pub fn from_map(parameters: BTreeMap<String, TensorCell>) -> Self {
         let this = Self::new();
         let parameter_map = parameters;
         let mut parameters = BTreeMap::new();
-        let mut current_child: Option<BTreeMap<String, Arc<Mutex<Tensor>>>> = None;
+        let mut current_child: Option<BTreeMap<String, TensorCell>> = None;
         let mut current_child_name = "".to_owned();
         for (key, value) in parameter_map {
             let mut split = key.split(".");
@@ -101,7 +103,7 @@ impl StateDict {
         Ok(Self::from_map(
             Tensor::read_npz(path)?
                 .into_iter()
-                .map(|(key, tensor)| (key, Arc::new(Mutex::new(tensor))))
+                .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
         ))
     }
@@ -110,7 +112,7 @@ impl StateDict {
         Ok(Self::from_map(
             Tensor::load_multi(path)?
                 .into_iter()
-                .map(|(key, tensor)| (key, Arc::new(Mutex::new(tensor))))
+                .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
         ))
     }
@@ -137,7 +139,7 @@ impl StateDictData {
         self.parameters.read().unwrap()
     }
 
-    pub fn tensor(&self, key: &str) -> Result<Arc<Mutex<Tensor>>> {
+    pub fn tensor(&self, key: &str) -> Result<TensorCell> {
         match self.parameters().get(key) {
             Some(StateValue::Tensor(tensor)) => Ok(tensor.clone()),
             _ => Err(anyhow!("No such parameter: {} in {}", key, self.path())),
@@ -163,7 +165,7 @@ impl StateDictData {
                     if let StateValue::Tensor(value) = value {
                         let value = value.lock().unwrap();
                         no_grad(|| {
-                            tensor.copy_(&value);
+                            *tensor = value.shallow_clone();
                         });
                     }
                 }
@@ -175,7 +177,7 @@ impl StateDictData {
         }
     }
 
-    pub fn to_map(&self) -> BTreeMap<String, Arc<Mutex<Tensor>>> {
+    pub fn to_map(&self) -> BTreeMap<String, TensorCell> {
         let mut parameters = BTreeMap::new();
         for (key, value) in &*self.parameters() {
             match value {
@@ -183,7 +185,7 @@ impl StateDictData {
                     parameters.insert(key.clone(), tensor.clone());
                 }
                 StateValue::ChildStateDict(state_dict) => {
-                    let map: BTreeMap<String, Arc<Mutex<Tensor>>> = state_dict.to_map();
+                    let map: BTreeMap<String, TensorCell> = state_dict.to_map();
                     for (child_key, child_value) in map {
                         parameters.insert(format!("{}.{}", key, child_key), child_value);
                     }
@@ -193,7 +195,7 @@ impl StateDictData {
         parameters
     }
 
-    pub fn to_vec(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    pub fn to_vec(&self) -> Vec<TensorCell> {
         let mut parameters = Vec::new();
         for (_, value) in &*self.parameters() {
             match value {
@@ -201,7 +203,7 @@ impl StateDictData {
                     parameters.push(tensor.clone());
                 }
                 StateValue::ChildStateDict(state_dict) => {
-                    let vec: Vec<Arc<Mutex<Tensor>>> = state_dict.to_vec();
+                    let vec: Vec<TensorCell> = state_dict.to_vec();
                     parameters.extend(vec);
                 }
             }

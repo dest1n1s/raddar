@@ -1,22 +1,20 @@
-use std::sync::{Arc, Mutex};
+use tch::{no_grad};
 
-use tch::{no_grad, Tensor};
-
-use crate::optim::optimizer::OptimizerAlgorithm;
+use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
 
 pub struct GradientDescent {
     learning_rate: f64,
 }
 
 impl OptimizerAlgorithm for GradientDescent {
-    fn step(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
+    fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         for parameter in trainable_parameters {
             let mut parameter = parameter.lock().unwrap();
             let grad = parameter.grad();
             no_grad(|| *parameter -= self.learning_rate * grad);
         }
     }
-    fn init(&mut self, _trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {}
+    fn init(&mut self, _trainable_parameters: &Vec<TensorCell>) {}
     fn learning_rate(&self) -> f64 {
         self.learning_rate
     }

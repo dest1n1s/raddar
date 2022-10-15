@@ -1,11 +1,9 @@
-use std::sync::{Arc, Mutex};
-
 use tch::{no_grad, Device, Tensor};
 
-use crate::core::StateDict;
+use crate::core::{StateDict, TensorCell};
 
 pub trait Trainable: std::fmt::Debug + Send {
-    fn training_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn training_parameters(&self) -> Vec<TensorCell> {
         self.trainable_parameters()
             .to_vec()
             .into_iter()
@@ -23,7 +21,7 @@ pub trait Trainable: std::fmt::Debug + Send {
 
     fn trainable_parameters(&self) -> StateDict;
 
-    fn all_parameters(&self) -> Vec<Arc<Mutex<Tensor>>> {
+    fn all_parameters(&self) -> Vec<TensorCell> {
         self.trainable_parameters().to_vec()
     }
 

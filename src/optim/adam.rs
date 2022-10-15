@@ -1,6 +1,4 @@
-use std::sync::{Arc, Mutex};
-
-use crate::optim::optimizer::OptimizerAlgorithm;
+use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
 use derive_builder::Builder;
 use tch::{no_grad, Tensor};
 #[derive(Builder)]
@@ -24,7 +22,7 @@ pub struct Adam {
 }
 
 impl OptimizerAlgorithm for Adam {
-    fn init(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
+    fn init(&mut self, trainable_parameters: &Vec<TensorCell>) {
         let mut vector_m: Vec<Tensor> = Vec::new();
         let mut vector_v: Vec<Tensor> = Vec::new();
         for parameter in trainable_parameters {
@@ -36,7 +34,7 @@ impl OptimizerAlgorithm for Adam {
         self.v = Some(vector_v);
     }
 
-    fn step(&mut self, trainable_parameters: &Vec<Arc<Mutex<Tensor>>>) {
+    fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         self.step += 1;
         for (i, parameter) in trainable_parameters.iter().enumerate() {
             let mut parameter = parameter.lock().unwrap();
