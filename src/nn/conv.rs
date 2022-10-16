@@ -1,37 +1,39 @@
-use derive_builder::Builder;
-use raddar_derive::{build_with_config, CallableModule, TestDerive};
+use raddar_derive::{CallableModule, ArchitectureBuilder};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
 };
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::StateDict;
+use crate::core::{StateDict, TensorCell, Cellable};
 
 use super::{Module, Trainable};
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv1d {
-    pub conv_weight: Arc<Mutex<Tensor>>,
-    pub conv_bias: Option<Arc<Mutex<Tensor>>>,
-    pub config: Conv1dConfig,
-}
+    pub conv_weight: TensorCell,
+    pub conv_bias: Option<TensorCell>,
 
-#[derive(TestDerive)]
-#[build_with_config]
-#[test_attr]
-pub struct Conv1dConfig {
-    pub kernel_size: [i64; 1],
+    #[builder]
     pub in_channel: i64,
-    #[test_attr]
+
+    #[builder]
     pub out_channel: i64,
+
+    #[builder]
+    pub kernel_size: [i64; 1],
+
     #[builder(default = "[1]")]
     pub stride: [i64; 1],
+
     #[builder(default = "[0]")]
     pub padding: [i64; 1],
+
     #[builder(default = "[1]")]
     pub dilation: [i64; 1],
+
     #[builder(default = "0")]
     pub groups: i64,
+
     #[builder(default = "true")]
     pub bias: bool,
 }
@@ -55,19 +57,19 @@ impl Module for Conv1d {
             input.conv1d(
                 &weight,
                 Some(&*bias),
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         } else {
             input.conv1d::<&Tensor>(
                 &weight,
                 None,
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         }
     }
@@ -85,37 +87,52 @@ impl Conv1d {
             conv_bias.init(tch::nn::Init::KaimingUniform);
         });
         Conv1d {
-            conv_weight: Arc::new(Mutex::new(conv_weight)),
+            conv_weight: conv_weight.cell(),
             conv_bias: if config.bias {
-                Some(Arc::new(Mutex::new(conv_bias)))
+                Some(conv_bias.cell())
             } else {
                 None
             },
-            config,
+            in_channel: config.in_channel,
+            out_channel: config.out_channel,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            groups: config.groups,
+            bias: config.bias,
         }
     }
 }
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv2d {
-    pub conv_weight: Arc<Mutex<Tensor>>,
-    pub conv_bias: Option<Arc<Mutex<Tensor>>>,
-    pub config: Conv2dConfig,
-}
-#[build_with_config]
-pub struct Conv2dConfig {
-    pub kernel_size: [i64; 2],
+    pub conv_weight: TensorCell,
+    pub conv_bias: Option<TensorCell>,
+    
+    #[builder]
     pub in_channel: i64,
+
+    #[builder]
     pub out_channel: i64,
+
+    #[builder]
+    pub kernel_size: [i64; 2],
+
     #[builder(default = "[1, 1]")]
+
     pub stride: [i64; 2],
     #[builder(default = "[0, 0]")]
+
     pub padding: [i64; 2],
     #[builder(default = "[1, 1]")]
+
     pub dilation: [i64; 2],
     #[builder(default = "0")]
+
     pub groups: i64,
     #[builder(default = "true")]
+
     pub bias: bool,
 }
 
@@ -138,19 +155,19 @@ impl Module for Conv2d {
             input.conv2d(
                 &weight,
                 Some(&*bias),
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         } else {
             input.conv2d::<&Tensor>(
                 &weight,
                 None,
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         }
     }
@@ -168,41 +185,57 @@ impl Conv2d {
             Tensor::empty(&size, (Kind::Double, Device::Cpu)).set_requires_grad(true);
         let mut conv_bias = Tensor::empty(&[config.out_channel], (Kind::Double, Device::Cpu))
             .set_requires_grad(true);
+
         no_grad(|| {
             conv_weight.init(tch::nn::Init::KaimingUniform);
             conv_bias.init(tch::nn::Init::KaimingUniform);
         });
+        
         Conv2d {
-            conv_weight: Arc::new(Mutex::new(conv_weight)),
+            conv_weight: conv_weight.cell(),
             conv_bias: if config.bias {
-                Some(Arc::new(Mutex::new(conv_bias)))
+                Some(conv_bias.cell())
             } else {
                 None
             },
-            config,
+            in_channel: config.in_channel,
+            out_channel: config.out_channel,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            groups: config.groups,
+            bias: config.bias,
         }
     }
 }
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv3d {
-    pub conv_weight: Arc<Mutex<Tensor>>,
-    pub conv_bias: Option<Arc<Mutex<Tensor>>>,
-    pub config: Conv3dConfig,
-}
-#[build_with_config]
-pub struct Conv3dConfig {
-    pub kernel_size: [i64; 3],
+    pub conv_weight: TensorCell,
+    pub conv_bias: Option<TensorCell>,
+    
+    #[builder]
     pub in_channel: i64,
+
+    #[builder]
     pub out_channel: i64,
+
+    #[builder]
+    pub kernel_size: [i64; 3],
+
     #[builder(default = "[1, 1, 1]")]
     pub stride: [i64; 3],
+
     #[builder(default = "[0, 0, 0]")]
     pub padding: [i64; 3],
+
     #[builder(default = "[1, 1, 1]")]
     pub dilation: [i64; 3],
+
     #[builder(default = "0")]
     pub groups: i64,
+
     #[builder(default = "true")]
     pub bias: bool,
 }
@@ -226,19 +259,19 @@ impl Module for Conv3d {
             input.conv3d(
                 &weight,
                 Some(&*bias),
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         } else {
             input.conv3d::<&Tensor>(
                 &weight,
                 None,
-                &self.config.stride,
-                &self.config.padding,
-                &self.config.dilation,
-                self.config.groups,
+                &self.stride,
+                &self.padding,
+                &self.dilation,
+                self.groups,
             )
         }
     }
@@ -257,18 +290,27 @@ impl Conv3d {
             Tensor::empty(&size, (Kind::Double, Device::Cpu)).set_requires_grad(true);
         let mut conv_bias = Tensor::empty(&[config.out_channel], (Kind::Double, Device::Cpu))
             .set_requires_grad(true);
+
         no_grad(|| {
             conv_weight.init(tch::nn::Init::KaimingUniform);
             conv_bias.init(tch::nn::Init::KaimingUniform);
         });
+
         Conv3d {
-            conv_weight: Arc::new(Mutex::new(conv_weight)),
+            conv_weight: conv_weight.cell(),
             conv_bias: if config.bias {
-                Some(Arc::new(Mutex::new(conv_bias)))
+                Some(conv_bias.cell())
             } else {
                 None
             },
-            config,
+            in_channel: config.in_channel,
+            out_channel: config.out_channel,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            groups: config.groups,
+            bias: config.bias,
         }
     }
 }
