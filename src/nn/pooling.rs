@@ -1,19 +1,17 @@
-use derive_builder::Builder;
-use raddar_derive::{CallableModule, NonParameterModule};
+use raddar_derive::{CallableModule, NonParameterModule, ArchitectureBuilder};
 use tch::Tensor;
 
 use super::Module;
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling1D {
-    #[builder(default = "[3]")]
+    #[builder]
     pub kernel_size: [i64; 1],
 
     #[builder(default = "self.kernel_size.unwrap().clone()")]
     pub stride: [i64; 1],    
 
-    #[builder(default = "[1]")]
+    #[builder(default = "[0]")]
     pub padding: [i64; 1],
 
     #[builder(default = "[1]")]
@@ -24,13 +22,13 @@ pub struct MaxPooling1D {
 }
 
 impl MaxPooling1D {
-    pub fn new(kernel_size: [i64; 1], stride: [i64; 1], padding: [i64; 1], dilation: [i64; 1], ceil_mode: bool) -> Self {
+    pub fn new(config: MaxPooling1DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            ceil_mode,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            ceil_mode: config.ceil_mode,
         }
     }
 }
@@ -47,10 +45,9 @@ impl Module for MaxPooling1D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling2D {
-    #[builder(default = "[3, 3]")]
+    #[builder]
     pub kernel_size: [i64; 2],
 
     #[builder(default = "self.kernel_size.unwrap().clone()")]
@@ -67,13 +64,13 @@ pub struct MaxPooling2D {
 }
 
 impl MaxPooling2D {
-    pub fn new(kernel_size: [i64; 2], stride: [i64; 2], padding: [i64; 2], dilation: [i64; 2], ceil_mode: bool) -> Self {
+    pub fn new(config: MaxPooling2DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            ceil_mode,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            ceil_mode: config.ceil_mode,
         }
     }
 }
@@ -90,10 +87,9 @@ impl Module for MaxPooling2D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned", build_fn(skip))]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling3D {
-    #[builder(default = "[3, 3, 3]")]
+    #[builder]
     pub kernel_size: [i64; 3],
 
     #[builder(default = "self.kernel_size.unwrap().clone()")]
@@ -110,13 +106,13 @@ pub struct MaxPooling3D {
 }
 
 impl MaxPooling3D {
-    pub fn new(kernel_size: [i64; 3], stride: [i64; 3], padding: [i64; 3], dilation: [i64; 3], ceil_mode: bool) -> Self {
+    pub fn new(config: MaxPooling3DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            ceil_mode,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            dilation: config.dilation,
+            ceil_mode: config.ceil_mode,
         }
     }
 }
@@ -133,8 +129,7 @@ impl Module for MaxPooling3D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AveragePooling1D {
     #[builder(default = "[3]")]
     pub kernel_size: [i64; 1],
@@ -153,13 +148,13 @@ pub struct AveragePooling1D {
 }
 
 impl AveragePooling1D {
-    pub fn new(kernel_size: [i64; 1], stride: [i64; 1], padding: [i64; 1], ceil_mode: bool, count_include_pad: bool) -> Self {
+    pub fn new(config: AveragePooling1DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            ceil_mode,
-            count_include_pad,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            ceil_mode: config.ceil_mode,
+            count_include_pad: config.count_include_pad,
         }
     }
 }
@@ -176,8 +171,8 @@ impl Module for AveragePooling1D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+
 pub struct AveragePooling2D {
     #[builder(default = "[3, 3]")]
     pub kernel_size: [i64; 2],
@@ -199,14 +194,14 @@ pub struct AveragePooling2D {
 }
 
 impl AveragePooling2D {
-    pub fn new(kernel_size: [i64; 2], stride: [i64; 2], padding: [i64; 2], ceil_mode: bool, count_include_pad: bool, divisor_override: Option<i64>) -> Self {
+    pub fn new(config: AveragePooling2DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            ceil_mode,
-            count_include_pad,
-            divisor_override,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            ceil_mode: config.ceil_mode,
+            count_include_pad: config.count_include_pad,
+            divisor_override: config.divisor_override,
         }
     }
 }
@@ -224,8 +219,7 @@ impl Module for AveragePooling2D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AveragePooling3D {
     #[builder(default = "[3, 3, 3]")]
     pub kernel_size: [i64; 3],
@@ -247,14 +241,14 @@ pub struct AveragePooling3D {
 }
 
 impl AveragePooling3D {
-    pub fn new(kernel_size: [i64; 3], stride: [i64; 3], padding: [i64; 3],  ceil_mode: bool, count_include_pad: bool, divisor_override: Option<i64>) -> Self {
+    pub fn new(config: AveragePooling3DConfig) -> Self {
         Self {
-            kernel_size,
-            stride,
-            padding,
-            ceil_mode,
-            count_include_pad,
-            divisor_override,
+            kernel_size: config.kernel_size,
+            stride: config.stride,
+            padding: config.padding,
+            ceil_mode: config.ceil_mode,
+            count_include_pad: config.count_include_pad,
+            divisor_override: config.divisor_override,
         }
     }
 }
@@ -272,17 +266,16 @@ impl Module for AveragePooling3D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling1D {
     #[builder(default = "[1]")]
     pub output_size: [i64; 1],
 }
 
 impl AdaptiveMaxPooling1D {
-    pub fn new(output_size: [i64; 1]) -> Self {
+    pub fn new(config: AdaptiveMaxPooling1DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }
@@ -293,17 +286,16 @@ impl Module for AdaptiveMaxPooling1D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling2D {
     #[builder(default = "[1, 1]")]
     pub output_size: [i64; 2],
 }
 
 impl AdaptiveMaxPooling2D {
-    pub fn new(output_size: [i64; 2]) -> Self {
+    pub fn new(config: AdaptiveMaxPooling2DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }
@@ -314,17 +306,16 @@ impl Module for AdaptiveMaxPooling2D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling3D {
     #[builder(default = "[1, 1, 1]")]
     pub output_size: [i64; 3],
 }
 
 impl AdaptiveMaxPooling3D {
-    pub fn new(output_size: [i64; 3]) -> Self {
+    pub fn new(config: AdaptiveMaxPooling3DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }
@@ -335,17 +326,16 @@ impl Module for AdaptiveMaxPooling3D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling1D {
     #[builder(default = "[1]")]
     pub output_size: [i64; 1],
 }
 
 impl AdaptiveAveragePooling1D {
-    pub fn new(output_size: [i64; 1]) -> Self {
+    pub fn new(config: AdaptiveAveragePooling1DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }
@@ -356,17 +346,16 @@ impl Module for AdaptiveAveragePooling1D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling2D {
     #[builder(default = "[1, 1]")]
     pub output_size: [i64; 2],
 }
 
 impl AdaptiveAveragePooling2D {
-    pub fn new(output_size: [i64; 2]) -> Self {
+    pub fn new(config: AdaptiveAveragePooling2DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }
@@ -377,17 +366,16 @@ impl Module for AdaptiveAveragePooling2D {
     }
 }
 
-#[derive(Debug, CallableModule, NonParameterModule, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling3D {
     #[builder(default = "[1, 1, 1]")]
     pub output_size: [i64; 3],
 }
 
 impl AdaptiveAveragePooling3D {
-    pub fn new(output_size: [i64; 3]) -> Self {
+    pub fn new(config: AdaptiveAveragePooling3DConfig) -> Self {
         Self {
-            output_size,
+            output_size: config.output_size,
         }
     }
 }

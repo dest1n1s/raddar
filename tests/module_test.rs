@@ -1,7 +1,5 @@
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{
-    Conv1d, Conv1dConfigBuilder, Linear, LinearConfigBuilder, MaxPooling1D, MaxPooling2D, Trainable,
-};
+use raddar::nn::{Linear, LinearConfigBuilder, MaxPooling1DBuilder, Trainable};
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
 use raddar::{assert_tensor_eq, new_module, seq, tensor};
 use tch::Reduction;
@@ -46,17 +44,10 @@ fn embedding_test() {
 #[test]
 fn pooling_test() {
     let inputs = tensor!([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
-    let model = MaxPooling1D::new([2], [1], [0], [1], false);
+    let model = MaxPooling1DBuilder::default()
+        .kernel_size([2])
+        .stride([1])
+        .build();
     let output = model(&inputs);
     assert_tensor_eq!(output, tensor!([[2., 3.], [5., 6.], [8., 9.]]));
-
-    let inputs = tensor!([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
-    let model = MaxPooling1D::new([2], [2], [0], [1], true);
-    let output = model(&inputs);
-    assert_tensor_eq!(output, tensor!([[2., 3.], [5., 6.], [8., 9.]]));
-
-    let inputs = tensor!([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]]);
-    let model = MaxPooling2D::new([2, 2], [1, 1], [0, 0], [1, 1], false);
-    let output = model(&inputs);
-    assert_tensor_eq!(output, tensor!([[[5., 6.], [8., 9.]]]));
 }
