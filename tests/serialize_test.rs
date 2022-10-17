@@ -3,16 +3,15 @@ use std::path::Path;
 use raddar::{
     assert_tensor_eq,
     core::{Cellable, StateDict},
-    new_module,
-    nn::{Linear, LinearConfigBuilder, Trainable},
+    nn::{LinearBuilder, Trainable},
     seq, tensor,
 };
 
 #[test]
 fn load_parameter_test() {
     let mut model = seq!(
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     let parameters = vec![
         ("0.weight".to_owned(), tensor!([[1.0]]).cell()),
@@ -32,8 +31,8 @@ fn load_parameter_test() {
 #[test]
 fn read_nonexistent_parameter_test() {
     let model = seq!(
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)]
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     model
         .trainable_parameters()
@@ -46,8 +45,8 @@ fn read_nonexistent_parameter_test() {
 #[test]
 fn load_npz_test() {
     let mut model = seq!(
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     let state_dict = StateDict::from_npz(Path::new("./tests/serialize_test.npz")).unwrap();
     model.load_trainable_parameters(state_dict.clone());
@@ -58,8 +57,8 @@ fn load_npz_test() {
 #[test]
 fn load_ot_test() {
     let mut model = seq!(
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     let state_dict = StateDict::from_ot(Path::new("./tests/serialize_test.ot")).unwrap();
     model.load_trainable_parameters(state_dict.clone());

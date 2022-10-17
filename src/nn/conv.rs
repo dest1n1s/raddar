@@ -1,11 +1,8 @@
-use raddar_derive::{CallableModule, ArchitectureBuilder};
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+use raddar_derive::{ArchitectureBuilder, CallableModule};
+use std::collections::BTreeMap;
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{StateDict, TensorCell, Cellable};
+use crate::core::{Cellable, StateDict, TensorCell};
 
 use super::{Module, Trainable};
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
@@ -31,7 +28,7 @@ pub struct Conv1d {
     #[builder(default = "[1]")]
     pub dilation: [i64; 1],
 
-    #[builder(default = "0")]
+    #[builder(default = "1")]
     pub groups: i64,
 
     #[builder(default = "true")]
@@ -109,7 +106,7 @@ impl Conv1d {
 pub struct Conv2d {
     pub conv_weight: TensorCell,
     pub conv_bias: Option<TensorCell>,
-    
+
     #[builder]
     pub in_channel: i64,
 
@@ -120,19 +117,14 @@ pub struct Conv2d {
     pub kernel_size: [i64; 2],
 
     #[builder(default = "[1, 1]")]
-
     pub stride: [i64; 2],
     #[builder(default = "[0, 0]")]
-
     pub padding: [i64; 2],
     #[builder(default = "[1, 1]")]
-
     pub dilation: [i64; 2],
-    #[builder(default = "0")]
-
+    #[builder(default = "1")]
     pub groups: i64,
     #[builder(default = "true")]
-
     pub bias: bool,
 }
 
@@ -190,7 +182,7 @@ impl Conv2d {
             conv_weight.init(tch::nn::Init::KaimingUniform);
             conv_bias.init(tch::nn::Init::KaimingUniform);
         });
-        
+
         Conv2d {
             conv_weight: conv_weight.cell(),
             conv_bias: if config.bias {
@@ -214,7 +206,7 @@ impl Conv2d {
 pub struct Conv3d {
     pub conv_weight: TensorCell,
     pub conv_bias: Option<TensorCell>,
-    
+
     #[builder]
     pub in_channel: i64,
 
@@ -233,7 +225,7 @@ pub struct Conv3d {
     #[builder(default = "[1, 1, 1]")]
     pub dilation: [i64; 3],
 
-    #[builder(default = "0")]
+    #[builder(default = "1")]
     pub groups: i64,
 
     #[builder(default = "true")]

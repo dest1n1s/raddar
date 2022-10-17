@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use derive_builder::Builder;
-use raddar_derive::CallableModule;
+use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
 use crate::core::{Cellable, StateDict, TensorCell};
@@ -9,25 +8,23 @@ use crate::core::{Cellable, StateDict, TensorCell};
 use super::{module::Module, Trainable};
 
 // A simple fully-connected layer.
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Linear {
-    pub weight: TensorCell,
-    pub bias: Option<TensorCell>,
-    pub config: LinearConfig,
-}
-#[derive(Builder, Debug)]
-#[builder(pattern = "owned")]
-pub struct LinearConfig {
+    pub linear_weight: TensorCell,
+    pub linear_bias: Option<TensorCell>,
+    #[builder]
     pub input_dim: i64,
+    #[builder]
     pub output_dim: i64,
     #[builder(default = "true")]
     pub bias: bool,
 }
+
 impl Trainable for Linear {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
-        result.insert("weight".to_owned(), self.weight.clone());
-        if let Some(bias) = &self.bias {
+        result.insert("weight".to_owned(), self.linear_weight.clone());
+        if let Some(bias) = &self.linear_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
         StateDict::from_map(result)
@@ -36,8 +33,8 @@ impl Trainable for Linear {
 
 impl Module for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
-        let weight = &self.weight.lock().unwrap();
-        if let Some(bias) = &self.bias {
+        let weight = &self.linear_weight.lock().unwrap();
+        if let Some(bias) = &self.linear_bias {
             let bias = bias.lock().unwrap();
             input.matmul(&weight) + &*bias
         } else {
@@ -62,9 +59,11 @@ impl Linear {
             linear_bias.init(tch::nn::Init::KaimingUniform);
         });
         Linear {
-            weight: weight.cell(),
-            bias: if bias { Some(linear_bias.cell()) } else { None },
-            config,
+            linear_weight: weight.cell(),
+            linear_bias: if bias { Some(linear_bias.cell()) } else { None },
+            input_dim,
+            output_dim,
+            bias,
         }
     }
 }

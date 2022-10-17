@@ -1,8 +1,10 @@
+use raddar::models::alexnet;
 use raddar::nn::embedding::{Embedding, OneHot};
-use raddar::nn::{Linear, LinearConfigBuilder, MaxPooling1DBuilder, Trainable};
+use raddar::nn::{LinearBuilder, MaxPooling1DBuilder, Trainable};
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
-use raddar::{assert_tensor_eq, new_module, seq, tensor};
-use tch::Reduction;
+use raddar::{assert_tensor_eq, seq, tensor};
+
+use tch::{Device, Kind, Reduction, Tensor};
 
 #[test]
 fn sequential_test() {
@@ -12,9 +14,9 @@ fn sequential_test() {
         .to(tch::Device::Cuda(0));
 
     let model = seq!(
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
-        new_module![Linear, LinearConfigBuilder, (input_dim = 1, output_dim = 1)],
+        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
@@ -50,4 +52,13 @@ fn pooling_test() {
         .build();
     let output = model(&inputs);
     assert_tensor_eq!(output, tensor!([[2., 3.], [5., 6.], [8., 9.]]));
+}
+
+#[test]
+fn alexnet_test() {
+    let num_classes = 100;
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let net = alexnet(num_classes, 0.5, true);
+    let output = net(&inputs);
+    assert!(output.size2().unwrap().1 == num_classes);
 }

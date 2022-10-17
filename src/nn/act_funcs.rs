@@ -3,14 +3,14 @@ use std::f64::consts::PI;
 use raddar_derive::NonParameterModule;
 use tch::Tensor;
 
-use crate::nn::{Module};
+use crate::nn::Module;
 
 #[derive(Debug, NonParameterModule)]
 pub struct GeLU;
 
 #[derive(Debug, NonParameterModule)]
 pub struct LeakyReLU {
-    lambda: f64,
+    pub lambda: f64,
 }
 
 impl LeakyReLU {
