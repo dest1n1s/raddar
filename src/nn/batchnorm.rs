@@ -40,12 +40,12 @@ impl Trainable for BatchNorm1d {
 impl Module for BatchNorm1d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 2 || input.dim() == 3);
-        let bn_weight = self.bn_weight.lock().unwrap();
+        let bn_weight = self.bn_weight.lock();
         // let running_mean = input.mean_dim(&[0], true, Kind::Double).squeeze();
         // let running_var = input.var_dim(&[0], true, true).squeeze();
-        let running_mean = self.running_mean.lock().unwrap();
-        let running_var = self.running_var.lock().unwrap();
-        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock().unwrap());
+        let running_mean = self.running_mean.lock();
+        let running_var = self.running_var.lock();
+        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock());
         let bn_bias = bn_bias.as_deref();
         input.batch_norm(
             Some(&*bn_weight),
@@ -108,10 +108,10 @@ pub struct BatchNorm2d {
 impl Module for BatchNorm2d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 4);
-        let bn_weight = self.bn_weight.lock().unwrap();
-        let running_mean = self.running_mean.lock().unwrap();
-        let running_var = self.running_var.lock().unwrap();
-        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock().unwrap());
+        let bn_weight = self.bn_weight.lock();
+        let running_mean = self.running_mean.lock();
+        let running_var = self.running_var.lock();
+        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock());
         let bn_bias = bn_bias.as_deref();
         input.batch_norm(
             Some(&*bn_weight),
@@ -174,10 +174,10 @@ pub struct BatchNorm3d {
 impl Module for BatchNorm3d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 5);
-        let bn_weight = self.bn_weight.lock().unwrap();
-        let running_mean = self.running_mean.lock().unwrap();
-        let running_var = self.running_var.lock().unwrap();
-        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock().unwrap());
+        let bn_weight = self.bn_weight.lock();
+        let running_mean = self.running_mean.lock();
+        let running_var = self.running_var.lock();
+        let bn_bias = self.bn_bias.as_ref().map(|bias| bias.lock());
         let bn_bias = bn_bias.as_deref();
         input.batch_norm(
             Some(&*bn_weight),
