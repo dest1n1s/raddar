@@ -1,8 +1,8 @@
 use raddar::models::alexnet;
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LinearBuilder, MaxPooling1DBuilder,
-    Trainable,
+    BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LayerNormBuilder, LinearBuilder,
+    MaxPooling1DBuilder, Trainable,
 };
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
 use raddar::{assert_tensor_eq, seq, tensor};
@@ -68,7 +68,10 @@ fn alexnet_test() {
 
 #[test]
 fn batchnorm_test() {
-    let bn1d_2 = BatchNorm1dBuilder::default().num_features(4).build();
+    let bn1d_2 = BatchNorm1dBuilder::default()
+        .num_features(4)
+        .affine(false)
+        .build();
     let input1 = tensor!([[2., 3., 4., 5.], [3., 4., 5., 6.], [4., 5., 6., 7.]]);
     let _output1 = bn1d_2(&input1);
 
@@ -86,4 +89,12 @@ fn batchnorm_test() {
     let bn3d = BatchNorm3dBuilder::default().num_features(8).build();
     let input4 = Tensor::ones(&[6, 8, 5, 14, 11], (Kind::Double, Device::Cpu));
     let _output4 = bn3d(&input4);
+}
+#[test]
+fn layernorm() {
+    let ln = LayerNormBuilder::default()
+        .shape(Box::new([3, 5, 2]))
+        .build();
+    let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
+    ln(&input).print();
 }
