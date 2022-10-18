@@ -7,7 +7,7 @@ pub trait Trainable: std::fmt::Debug + Send {
         self.trainable_parameters()
             .to_vec()
             .into_iter()
-            .filter(|tensor| tensor.lock().unwrap().requires_grad())
+            .filter(|tensor| tensor.lock().requires_grad())
             .collect()
     }
 
@@ -28,14 +28,14 @@ pub trait Trainable: std::fmt::Debug + Send {
     fn init(&mut self, init: tch::nn::Init) {
         no_grad(|| {
             for parameter in self.trainable_parameters().to_vec() {
-                parameter.lock().unwrap().init(init);
+                parameter.lock().init(init);
             }
         });
     }
 
     fn freeze(&mut self) {
         for tensor in self.trainable_parameters().to_vec() {
-            let mut tensor = tensor.lock().unwrap();
+            let mut tensor = tensor.lock();
             no_grad(|| {
                 *tensor = tensor.set_requires_grad(false);
             });
@@ -44,7 +44,7 @@ pub trait Trainable: std::fmt::Debug + Send {
 
     fn unfreeze(&mut self) {
         for tensor in self.trainable_parameters().to_vec() {
-            let mut tensor = tensor.lock().unwrap();
+            let mut tensor = tensor.lock();
             no_grad(|| {
                 *tensor = tensor.set_requires_grad(true);
             });
@@ -53,7 +53,7 @@ pub trait Trainable: std::fmt::Debug + Send {
 
     fn to(&self, device: Device) {
         self.all_parameters().iter().for_each(|param| {
-            let mut param = param.lock().unwrap();
+            let mut param = param.lock();
             let requires_grad = param.requires_grad();
             no_grad(|| {
                 *param = param.to(device).set_requires_grad(requires_grad);
@@ -66,7 +66,7 @@ pub trait Trainable: std::fmt::Debug + Send {
             .to_vec()
             .iter()
             .for_each(|param| {
-                let mut param = param.lock().unwrap();
+                let mut param = param.lock();
                 param.zero_grad();
             });
     }

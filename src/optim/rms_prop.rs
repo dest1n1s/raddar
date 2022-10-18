@@ -22,7 +22,7 @@ pub struct RMSProp {
 impl OptimizerAlgorithm for RMSProp {
     fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         for (i, parameter) in trainable_parameters.iter().enumerate() {
-            let mut parameter = parameter.lock().unwrap();
+            let mut parameter = parameter.lock();
             let mut grad = parameter.grad();
             no_grad(|| {
                 let r1 = &mut self.r1.as_mut().unwrap()[i];
@@ -38,7 +38,7 @@ impl OptimizerAlgorithm for RMSProp {
         let mut vector_r1: Vec<Tensor> = Vec::new();
         let mut vector_r2: Vec<Tensor> = Vec::new();
         for parameter in trainable_parameters {
-            let parameter = parameter.lock().unwrap();
+            let parameter = parameter.lock();
             vector_r1.push(Tensor::zeros_like(&*&parameter));
             vector_r2.push(Tensor::zeros_like(&*&parameter));
         }

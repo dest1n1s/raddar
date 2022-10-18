@@ -161,9 +161,9 @@ impl StateDictData {
         for (key, value) in &*state_dict.parameters() {
             match self.parameters().get(key) {
                 Some(StateValue::Tensor(tensor)) => {
-                    let mut tensor = tensor.lock().unwrap();
+                    let mut tensor = tensor.lock();
                     if let StateValue::Tensor(value) = value {
-                        let value = value.lock().unwrap();
+                        let value = value.lock();
                         no_grad(|| {
                             *tensor = value.shallow_clone();
                         });
@@ -216,7 +216,7 @@ impl Display for StateDict {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let map = self.to_map();
         for (key, value) in map {
-            writeln!(f, "{}: {:?}", key, value.lock().unwrap())?;
+            writeln!(f, "{}: {:?}", key, value.lock())?;
         }
         std::fmt::Result::Ok(())
     }

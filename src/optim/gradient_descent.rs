@@ -9,7 +9,7 @@ pub struct GradientDescent {
 impl OptimizerAlgorithm for GradientDescent {
     fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         for parameter in trainable_parameters {
-            let mut parameter = parameter.lock().unwrap();
+            let mut parameter = parameter.lock();
             let grad = parameter.grad();
             no_grad(|| *parameter -= self.learning_rate * grad);
         }

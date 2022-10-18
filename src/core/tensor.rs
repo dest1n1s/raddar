@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use parking_lot::Mutex;
 use tch::{kind::Element, Tensor};
 
 pub type TensorCell = Arc<Mutex<Tensor>>;

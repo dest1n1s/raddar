@@ -68,7 +68,7 @@ impl Trainable for Embedding {
 impl Module for Embedding {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let one_hotted = (self.one_hot)(input);
-        let weight = self.weight.lock().unwrap();
+        let weight = self.weight.lock();
         one_hotted.type_as(&weight).matmul(&weight)
     }
 }

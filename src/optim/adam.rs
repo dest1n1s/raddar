@@ -26,7 +26,7 @@ impl OptimizerAlgorithm for Adam {
         let mut vector_m: Vec<Tensor> = Vec::new();
         let mut vector_v: Vec<Tensor> = Vec::new();
         for parameter in trainable_parameters {
-            let parameter = parameter.lock().unwrap();
+            let parameter = parameter.lock();
             vector_m.push(Tensor::zeros_like(&*parameter));
             vector_v.push(Tensor::zeros_like(&*parameter));
         }
@@ -37,7 +37,7 @@ impl OptimizerAlgorithm for Adam {
     fn step(&mut self, trainable_parameters: &Vec<TensorCell>) {
         self.step += 1;
         for (i, parameter) in trainable_parameters.iter().enumerate() {
-            let mut parameter = parameter.lock().unwrap();
+            let mut parameter = parameter.lock();
             let mut grad = parameter.grad();
             no_grad(|| {
                 let m = &mut self.m.as_mut().unwrap()[i];

@@ -48,27 +48,17 @@ impl Trainable for Conv1d {
 
 impl Module for Conv1d {
     fn forward(&self, input: &Tensor) -> Tensor {
-        let weight = &self.conv_weight.lock().unwrap();
-        if let Some(bias) = &self.conv_bias {
-            let bias = bias.lock().unwrap();
-            input.conv1d(
-                &weight,
-                Some(&*bias),
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        } else {
-            input.conv1d::<&Tensor>(
-                &weight,
-                None,
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        }
+        let weight = self.conv_weight.lock();
+        let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
+        let bias = bias.as_deref();
+        input.conv1d(
+            &weight,
+            bias,
+            &self.stride,
+            &self.padding,
+            &self.dilation,
+            self.groups,
+        )
     }
 }
 
@@ -141,27 +131,17 @@ impl Trainable for Conv2d {
 
 impl Module for Conv2d {
     fn forward(&self, input: &Tensor) -> Tensor {
-        let weight = &self.conv_weight.lock().unwrap();
-        if let Some(bias) = &self.conv_bias {
-            let bias = bias.lock().unwrap();
-            input.conv2d(
-                &weight,
-                Some(&*bias),
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        } else {
-            input.conv2d::<&Tensor>(
-                &weight,
-                None,
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        }
+        let weight = &self.conv_weight.lock();
+        let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
+        let bias = bias.as_deref();
+        input.conv2d(
+            weight,
+            bias,
+            &self.stride,
+            &self.padding,
+            &self.dilation,
+            self.groups,
+        )
     }
 }
 
@@ -245,27 +225,17 @@ impl Trainable for Conv3d {
 
 impl Module for Conv3d {
     fn forward(&self, input: &Tensor) -> Tensor {
-        let weight = &self.conv_weight.lock().unwrap();
-        if let Some(bias) = &self.conv_bias {
-            let bias = bias.lock().unwrap();
-            input.conv3d(
-                &weight,
-                Some(&*bias),
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        } else {
-            input.conv3d::<&Tensor>(
-                &weight,
-                None,
-                &self.stride,
-                &self.padding,
-                &self.dilation,
-                self.groups,
-            )
-        }
+        let weight = &self.conv_weight.lock();
+        let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
+        let bias = bias.as_deref();
+        input.conv3d(
+            weight,
+            bias,
+            &self.stride,
+            &self.padding,
+            &self.dilation,
+            self.groups,
+        )
     }
 }
 
