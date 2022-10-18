@@ -5,7 +5,7 @@ use crate::{
     core::StateDict,
     nn::{
         AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, Conv2dBuilder, DropoutBuilder,
-        LeakyReLU, LinearBuilder, MaxPooling2DBuilder, Module, Sequential, Trainable,
+        LinearBuilder, MaxPooling2DBuilder, Module, ReLU, Sequential, Trainable,
     },
     seq,
 };
@@ -55,7 +55,7 @@ impl AlexNet {
                 .stride([4, 4])
                 .padding([2, 2])
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -66,7 +66,7 @@ impl AlexNet {
                 .kernel_size([5, 5])
                 .padding([2, 2])
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -77,21 +77,21 @@ impl AlexNet {
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             Conv2dBuilder::default()
                 .in_channel(384)
                 .out_channel(256)
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             Conv2dBuilder::default()
                 .in_channel(256)
                 .out_channel(256)
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -106,13 +106,13 @@ impl AlexNet {
                 .input_dim(9216)
                 .output_dim(4096)
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             DropoutBuilder::default().p(config.dropout).build(),
             LinearBuilder::default()
                 .input_dim(4096)
                 .output_dim(4096)
                 .build(),
-            LeakyReLU::new(0.),
+            ReLU,
             LinearBuilder::default()
                 .input_dim(4096)
                 .output_dim(config.num_classes)

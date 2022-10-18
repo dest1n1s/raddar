@@ -7,8 +7,10 @@ use crate::nn::Module;
 
 #[derive(Debug, NonParameterModule)]
 pub struct GeLU;
-
 #[derive(Debug, NonParameterModule)]
+pub struct ReLU;
+#[derive(Debug, NonParameterModule)]
+
 pub struct LeakyReLU {
     pub lambda: f64,
 }
@@ -23,6 +25,13 @@ impl Module for GeLU {
     fn forward(&self, input: &Tensor) -> Tensor {
         let z = (input + &input.pow_tensor_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
         0.5 * input * (1 + z.tanh())
+    }
+}
+impl Module for ReLU {
+    fn forward(&self, input: &Tensor) -> Tensor {
+        let y = input.zeros_like();
+        let condition = input.ge(0);
+        input.where_self(&condition, &y)
     }
 }
 

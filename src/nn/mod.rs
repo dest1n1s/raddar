@@ -1,16 +1,20 @@
 pub use act_funcs::*;
+pub use batchnorm::*;
 pub use conv::*;
 pub use dropout::*;
 pub use embedding::*;
+pub use layernorm::*;
 pub use linear::*;
 pub use module::*;
 pub use pooling::*;
 pub use sequential::*;
 
 pub mod act_funcs;
+pub mod batchnorm;
 pub mod conv;
 pub mod dropout;
 pub mod embedding;
+pub mod layernorm;
 pub mod linear;
 pub mod module;
 pub mod pooling;
