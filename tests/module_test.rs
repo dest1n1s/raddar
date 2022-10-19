@@ -1,8 +1,7 @@
-use raddar::models::alexnet;
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LayerNormBuilder, LinearBuilder,
-    MaxPooling1DBuilder, Trainable,
+    alexnet, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LayerNormBuilder,
+    LinearBuilder, MaxPooling1DBuilder, Trainable,
 };
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
 use raddar::{assert_tensor_eq, seq, tensor};
