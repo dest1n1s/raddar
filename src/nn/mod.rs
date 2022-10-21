@@ -1,4 +1,5 @@
 pub use act_funcs::*;
+pub use alexnet::*;
 pub use batchnorm::*;
 pub use conv::*;
 pub use dropout::*;
@@ -10,6 +11,7 @@ pub use pooling::*;
 pub use sequential::*;
 
 pub mod act_funcs;
+pub mod alexnet;
 pub mod batchnorm;
 pub mod conv;
 pub mod dropout;
