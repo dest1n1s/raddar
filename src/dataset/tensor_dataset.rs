@@ -1,10 +1,12 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
+use raddar_derive::IterableDataset;
 use tch::Tensor;
 
-use super::{Dataset, DatasetIterator};
+use super::Dataset;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[derive(IterableDataset)]
 pub struct TensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
     pub labels: Vec<Arc<Tensor>>,
@@ -13,23 +15,14 @@ pub struct TensorDataset {
 }
 
 impl Dataset for TensorDataset {
-    type InputType = Tensor;
-    type LabelType = Tensor;
+    type DataType = (Arc<Tensor>, Arc<Tensor>);
     type BatchType = (Tensor, Tensor);
 
-    fn iter(&self) -> DatasetIterator<Self> {
-        DatasetIterator {
-            dataset: self,
-            index: 0,
-        }
-    }
-
-    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
-        &self.inputs
-    }
-
-    fn labels(&self) -> Option<&Vec<Arc<tch::Tensor>>> {
-        Some(&self.labels)
+    fn data(self) -> Vec<Self::DataType> {
+        self.inputs
+            .into_iter()
+            .zip(self.labels.into_iter())
+            .collect()
     }
 
     fn size(&self) -> usize {
@@ -40,12 +33,8 @@ impl Dataset for TensorDataset {
         self.batch_size
     }
 
-    fn process_batch(
-        &self,
-        inputs: Vec<Arc<Self::InputType>>,
-        labels: Option<Vec<Arc<tch::Tensor>>>,
-    ) -> Self::BatchType {
-        let labels = labels.unwrap();
+    fn collate(data: Vec<Self::DataType>) -> Self::BatchType {
+        let (inputs, labels): (Vec<_>, Vec<_>) = data.into_iter().map(|x| (x.0, x.1)).unzip();
         let inputs = Tensor::stack(&inputs, 0);
         let labels = Tensor::stack(&labels, 0);
         (inputs, labels)

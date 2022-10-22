@@ -1,119 +1,103 @@
 use std::{cmp::min, sync::Arc};
 
-#[derive(Debug)]
+use raddar_derive::IterableDataset;
+
+#[derive(Debug, Clone)]
+#[derive(IterableDataset)]
 pub struct SimpleDataset<InputType, LabelType> {
     pub inputs: Vec<Arc<InputType>>,
     pub labels: Vec<Arc<LabelType>>,
-    pub size: usize,
     pub batch_size: usize,
 }
 
+#[derive(Debug, Clone)]
+#[derive(IterableDataset)]
 pub struct UnsupervisedDataset<InputType> {
     pub inputs: Vec<Arc<InputType>>,
-    pub size: usize,
     pub batch_size: usize,
 }
 
-pub trait Dataset
+pub trait Dataset: IntoIterator
 where
     Self: Sized,
 {
-    type InputType;
-    type LabelType;
+    type DataType: Clone;
     type BatchType;
-    fn iter(&self) -> DatasetIterator<Self>;
-    fn inputs(&self) -> &Vec<Arc<Self::InputType>>;
-    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>>;
+
+    fn data(self) -> Vec<Self::DataType>;
     fn size(&self) -> usize;
     fn batch_size(&self) -> usize;
-    fn process_batch(
-        &self,
-        inputs: Vec<Arc<Self::InputType>>,
-        labels: Option<Vec<Arc<Self::LabelType>>>,
-    ) -> Self::BatchType;
+    fn collate(data: Vec<Self::DataType>) -> Self::BatchType;
 }
 
 impl<T, U> Dataset for SimpleDataset<T, U> {
-    type InputType = T;
-    type LabelType = U;
+    type DataType = (Arc<T>, Arc<U>);
     type BatchType = (Vec<Arc<T>>, Vec<Arc<U>>);
 
-    fn iter(&self) -> DatasetIterator<Self> {
-        DatasetIterator {
-            dataset: self,
-            index: 0,
-        }
-    }
-
-    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
-        &self.inputs
-    }
-
-    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
-        Some(&self.labels)
+    fn data(self) -> Vec<Self::DataType> {
+        self.inputs
+            .into_iter()
+            .zip(self.labels.into_iter())
+            .collect()
     }
 
     fn size(&self) -> usize {
-        self.size
+        self.inputs.len()
     }
 
     fn batch_size(&self) -> usize {
         self.batch_size
     }
 
-    fn process_batch(
-        &self,
-        inputs: Vec<Arc<Self::InputType>>,
-        labels: Option<Vec<Arc<Self::LabelType>>>,
-    ) -> Self::BatchType {
-        (inputs, labels.unwrap())
+    fn collate(data: Vec<Self::DataType>) -> Self::BatchType {
+        data.into_iter().map(|x| (x.0, x.1)).unzip()
     }
 }
 
 impl<T> Dataset for UnsupervisedDataset<T> {
-    type InputType = T;
-    type LabelType = ();
+    type DataType = Arc<T>;
     type BatchType = Vec<Arc<T>>;
 
-    fn iter(&self) -> DatasetIterator<Self> {
-        DatasetIterator {
-            dataset: self,
-            index: 0,
-        }
-    }
-
-    fn inputs(&self) -> &Vec<Arc<Self::InputType>> {
-        &self.inputs
-    }
-
-    fn labels(&self) -> Option<&Vec<Arc<Self::LabelType>>> {
-        None
+    fn data(self) -> Vec<Self::DataType> {
+        self.inputs
     }
 
     fn size(&self) -> usize {
-        self.size
+        self.inputs.len()
     }
 
     fn batch_size(&self) -> usize {
         self.batch_size
     }
 
-    fn process_batch(
-        &self,
-        inputs: Vec<Arc<Self::InputType>>,
-        _labels: Option<Vec<Arc<Self::LabelType>>>,
-    ) -> Self::BatchType {
-        inputs
+    fn collate(data: Vec<Self::DataType>) -> Self::BatchType {
+        data
     }
 }
 
+// impl<T, U> IntoIterator for SimpleDataset<T, U> {
+//     type Item = <Self as Dataset>::BatchType;
+//     type IntoIter = DatasetIterator<Self>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.data().into_iter()
+//     }
+// }
+
+// impl<T> IntoIterator for UnsupervisedDataset<T> {
+//     type Item = <Self as Dataset>::BatchType;
+//     type IntoIter = DatasetIterator<Self>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.data().into_iter()
+//     }
+// }
+
 impl<V, U> SimpleDataset<V, U> {
     pub fn from_vectors(inputs: Vec<Arc<V>>, labels: Vec<Arc<U>>, batch_size: usize) -> Self {
-        let size = inputs.len();
         Self {
             inputs,
             labels,
-            size,
             batch_size,
         }
     }
@@ -121,38 +105,38 @@ impl<V, U> SimpleDataset<V, U> {
 
 impl<V> UnsupervisedDataset<V> {
     pub fn from_vectors(inputs: Vec<Arc<V>>, batch_size: usize) -> Self {
-        let size = inputs.len();
         Self {
             inputs,
-            size,
             batch_size,
         }
     }
 }
 
-pub struct DatasetIterator<'a, T: Dataset> {
-    pub dataset: &'a T,
+#[derive(Debug, Clone)]
+pub struct DatasetIterator<T: Dataset> {
+    pub data: Vec<T::DataType>,
     pub index: usize,
+    pub batch_size: usize,
 }
 
-impl<'a, T: Dataset> Iterator for DatasetIterator<'a, T> {
+impl<T: Dataset> DatasetIterator<T> {
+    pub fn new(data: Vec<T::DataType>, batch_size: usize) -> Self {
+        Self { data, index: 0, batch_size }
+    }
+}
+
+impl<T: Dataset> Iterator for DatasetIterator<T> {
     type Item = T::BatchType;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.dataset.size() {
+        if self.index >= self.data.len() {
             return None;
         }
-        let end = min(
-            self.index + self.dataset.batch_size(),
-            self.dataset.size(),
-        );
-        let batch = self.dataset.inputs()[self.index..end].to_vec();
-        let batch_labels = if let Some(labels) = self.dataset.labels() {
-            Some(labels[self.index..end].to_vec())
-        } else {
-            None
-        };
-        self.index = end;
-        Some(self.dataset.process_batch(batch, batch_labels))
+
+        let batch_size = min(self.batch_size, self.data.len() - self.index);
+        let batch = self.data[self.index..self.index + batch_size].to_vec();
+        self.index += batch_size;
+
+        Some(T::collate(batch))
     }
 }

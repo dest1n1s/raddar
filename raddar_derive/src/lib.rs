@@ -104,3 +104,26 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
     };
     output.into()
 }
+
+#[proc_macro_derive(IterableDataset)]
+pub fn iterable_dataset_derive(input: TokenStream) -> TokenStream {
+    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+
+    let name = &ast.ident;
+
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let gen = quote! {
+        impl #impl_generics IntoIterator for #name #ty_generics #where_clause {
+            type Item = <Self as raddar::dataset::Dataset>::BatchType;
+            type IntoIter = raddar::dataset::DatasetIterator<Self>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                let batch_size = self.batch_size();
+                Self::IntoIter::new(self.data(), batch_size)
+            }
+        }
+    };
+    gen.into()
+}

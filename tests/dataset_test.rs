@@ -1,7 +1,4 @@
-use raddar::{
-    dataset::{Dataset, TensorDataset},
-    tensor_vec,
-};
+use raddar::{dataset::TensorDataset, tensor_vec};
 
 #[test]
 fn dataset_test() {
@@ -9,14 +6,13 @@ fn dataset_test() {
     let labels = tensor_vec![[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]];
     let dataset = TensorDataset::from_tensors(inputs, labels, 3);
 
-    let mut iter = dataset.iter();
+    let mut iter = dataset.into_iter().cycle();
     iter.next();
     let (batch, _) = iter.next().unwrap();
     assert_eq!(batch.size(), [3, 1]);
     let (batch, _) = iter.next().unwrap();
     assert_eq!(batch.size(), [2, 1]);
 
-    let mut iter = dataset.iter();
     let (batch, _) = iter.next().unwrap();
     assert_eq!(batch.size(), [3, 1]);
 }

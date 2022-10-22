@@ -4,7 +4,7 @@ use super::{SimpleDataset, UnsupervisedDataset};
 pub trait LoadFromJson {
     type ConfigType;
 
-    fn from_json(path: &str, config: Self::ConfigType) -> Self;
+    fn from_json(path: &str, config: Self::ConfigType, batch_size: usize) -> Self;
 }
 
 pub struct SimpleDatasetJsonConfig {
@@ -15,7 +15,7 @@ pub struct SimpleDatasetJsonConfig {
 impl<InputType, LabelType> LoadFromJson for SimpleDataset<InputType, LabelType> where InputType: serde::de::DeserializeOwned, LabelType: serde::de::DeserializeOwned {
     type ConfigType = SimpleDatasetJsonConfig;
 
-    fn from_json(path: &str, config: Self::ConfigType) -> Self {
+    fn from_json(path: &str, config: Self::ConfigType, batch_size: usize) -> Self {
         let file = std::fs::File::open(path).expect(format!("Failed to open file {}", path).as_str());
         let reader = std::io::BufReader::new(file);
         let mut inputs = Vec::new();
@@ -27,13 +27,7 @@ impl<InputType, LabelType> LoadFromJson for SimpleDataset<InputType, LabelType> 
             inputs.push(Arc::new(serde_json::from_value(input.clone()).expect("Input field is not compatible with the specified type")));
             labels.push(Arc::new(serde_json::from_value(label.clone()).expect("Label field is not compatible with the specified type")));
         }
-        let size = inputs.len();
-        SimpleDataset {
-            inputs,
-            labels,
-            size,
-            batch_size: 1,
-        }
+        Self::from_vectors(inputs, labels, batch_size)
     }
 }
 
@@ -44,7 +38,7 @@ pub struct UnsupervisedDatasetJsonConfig {
 impl<InputType> LoadFromJson for UnsupervisedDataset<InputType> where InputType: serde::de::DeserializeOwned {
     type ConfigType = UnsupervisedDatasetJsonConfig;
 
-    fn from_json(path: &str, config: Self::ConfigType) -> Self {
+    fn from_json(path: &str, config: Self::ConfigType, batch_size: usize) -> Self {
         let file = std::fs::File::open(path).expect(format!("Failed to open file {}", path).as_str());
         let reader = std::io::BufReader::new(file);
         let mut inputs = Vec::new();
@@ -53,11 +47,11 @@ impl<InputType> LoadFromJson for UnsupervisedDataset<InputType> where InputType:
             let input = item.get(&config.input_field).expect("Input field not found in JSON object");
             inputs.push(Arc::new(serde_json::from_value(input.clone()).expect("Input field is not compatible with the specified type")));
         }
-        let size = inputs.len();
-        UnsupervisedDataset {
-            inputs,
-            size,
-            batch_size: 1,
-        }
+        Self::from_vectors(inputs, batch_size)
     }
+}
+
+
+pub trait LoadFromImages {
+    
 }
