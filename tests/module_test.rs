@@ -1,7 +1,7 @@
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LayerNormBuilder,
-    LinearBuilder, MaxPooling1DBuilder, Trainable,
+    alexnet, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder, LayerNormBuilder,
+    LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
 use raddar::{assert_tensor_eq, seq, tensor};
@@ -96,4 +96,13 @@ fn layernorm() {
         .build();
     let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
     ln(&input).print();
+}
+
+#[test]
+fn vgg_test() {
+    let num_classes = 100;
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let net = vgg(VggType::Vgg11, num_classes, 0.5, true);
+    let output = net(&inputs);
+    assert!(output.size2().unwrap().1 == num_classes);
 }

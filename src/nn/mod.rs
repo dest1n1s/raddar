@@ -9,6 +9,7 @@ pub use linear::*;
 pub use module::*;
 pub use pooling::*;
 pub use sequential::*;
+pub use vgg::*;
 
 pub mod act_funcs;
 pub mod alexnet;
@@ -21,3 +22,4 @@ pub mod linear;
 pub mod module;
 pub mod pooling;
 pub mod sequential;
+pub mod vgg;
