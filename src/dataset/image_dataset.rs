@@ -86,7 +86,8 @@ impl ImageMappings {
             let input = (*input).clone();
             let (w, h) = input.dimensions();
             let input = f(input);
-            let tensor = Tensor::of_slice(&input.into_raw()).reshape(&[1, h as i64, w as i64, 3]);
+            let channels = P::CHANNEL_COUNT as i64;
+            let tensor = Tensor::of_slice(&input.into_raw()).reshape(&[1, h as i64, w as i64, channels]);
             Arc::new(tensor)
         })
     }
