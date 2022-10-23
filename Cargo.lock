@@ -561,6 +561,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "raddar_derive",
+ "rand",
  "serde",
  "serde_json",
  "tch",

@@ -9,6 +9,41 @@ pub trait Cellable {
     fn cell(self) -> TensorCell;
 }
 
+pub trait TensorIntoIter {
+    fn into_iter(self) -> TensorIter;
+}
+
+pub struct TensorIter {
+    tensor: Tensor,
+    index: i64,
+    size: i64,
+}
+
+impl TensorIntoIter for Tensor {
+    fn into_iter(self) -> TensorIter {
+        let size = self.size()[0];
+        TensorIter {
+            tensor: self,
+            index: 0,
+            size,
+        }
+    }
+}
+
+impl Iterator for TensorIter {
+    type Item = Tensor;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.size {
+            let index = self.index;
+            self.index += 1;
+            Some(self.tensor.get(index))
+        } else {
+            None
+        }
+    }
+}
+
 impl Cellable for Tensor {
     fn cell(self) -> TensorCell {
         Arc::new(Mutex::new(self))

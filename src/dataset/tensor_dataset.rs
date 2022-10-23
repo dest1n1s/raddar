@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
-use raddar_derive::IterableDataset;
+use raddar_derive::{DatasetFromIter, DatasetIntoIter};
 use tch::Tensor;
+
+use crate::core::TensorIntoIter;
 
 use super::Dataset;
 
-#[derive(Debug, Clone)]
-#[derive(IterableDataset)]
+#[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct TensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
     pub labels: Vec<Arc<Tensor>>,
-    pub size: usize,
-    pub batch_size: usize,
 }
 
 impl Dataset for TensorDataset {
@@ -25,16 +24,22 @@ impl Dataset for TensorDataset {
             .collect()
     }
 
+    fn from_batches<I: IntoIterator<Item = Self::BatchType>>(batches: I) -> Self {
+        let mut inputs = Vec::new();
+        let mut labels = Vec::new();
+        for (batch_inputs, batch_labels) in batches {
+            inputs.extend(batch_inputs.into_iter().map(Arc::new));
+            labels.extend(batch_labels.into_iter().map(Arc::new));
+        }
+        Self { inputs, labels }
+    }
+
     fn size(&self) -> usize {
-        self.size
+        self.inputs.len()
     }
 
-    fn batch_size(&self) -> usize {
-        self.batch_size
-    }
-
-    fn collate(data: Vec<Self::DataType>) -> Self::BatchType {
-        let (inputs, labels): (Vec<_>, Vec<_>) = data.into_iter().map(|x| (x.0, x.1)).unzip();
+    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+        let (inputs, labels): (Vec<_>, Vec<_>) = data.into_iter().unzip();
         let inputs = Tensor::stack(&inputs, 0);
         let labels = Tensor::stack(&labels, 0);
         (inputs, labels)
@@ -42,17 +47,7 @@ impl Dataset for TensorDataset {
 }
 
 impl TensorDataset {
-    pub fn from_tensors(
-        inputs: Vec<Arc<Tensor>>,
-        labels: Vec<Arc<Tensor>>,
-        batch_size: usize,
-    ) -> Self {
-        let size = inputs.len();
-        Self {
-            inputs,
-            labels,
-            size,
-            batch_size,
-        }
+    pub fn from_tensors(inputs: Vec<Arc<Tensor>>, labels: Vec<Arc<Tensor>>) -> Self {
+        Self { inputs, labels }
     }
 }
