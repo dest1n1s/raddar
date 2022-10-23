@@ -1,13 +1,9 @@
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
-use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel};
-use tch::{kind::Element, Tensor};
+use image::{DynamicImage, ImageBuffer, Pixel};
 use walkdir::WalkDir;
 
-use super::{
-    data_mapping, Dataset, DatasetDataMapping, LoadFromImageFolder, UnsupervisedDataset,
-    UnsupervisedTensorDataset,
-};
+use super::{LoadFromImageFolder, UnsupervisedDataset};
 
 pub type DynImageDataset = UnsupervisedDataset<DynamicImage>;
 pub type ImageDataset<P: Pixel, Container> = UnsupervisedDataset<ImageBuffer<P, Container>>;
@@ -31,9 +27,16 @@ impl LoadFromImageFolder for DynImageDataset {
     }
 }
 
-pub struct ImageMappings;
+pub mod image_mappings {
+    use std::{ops::Deref, sync::Arc};
 
-impl ImageMappings {
+    use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel};
+    use tch::{kind::Element, Tensor};
+
+    use crate::dataset::{data_mapping, Dataset, DatasetDataMapping, UnsupervisedTensorDataset};
+
+    use super::DynImageDataset;
+
     pub fn crop_center(
         width: u32,
         height: u32,
@@ -71,7 +74,7 @@ impl ImageMappings {
         Container: Deref<Target = [P::Subpixel]> + Clone,
         F: Fn(DynamicImage) -> ImageBuffer<P, Container>,
     >(
-        f: F,
+        into_image_buffer: F,
     ) -> DatasetDataMapping<
         DynImageDataset,
         UnsupervisedTensorDataset,
@@ -85,9 +88,10 @@ impl ImageMappings {
         data_mapping(move |input: Arc<DynamicImage>| {
             let input = (*input).clone();
             let (w, h) = input.dimensions();
-            let input = f(input);
+            let input = into_image_buffer(input);
             let channels = P::CHANNEL_COUNT as i64;
-            let tensor = Tensor::of_slice(&input.into_raw()).reshape(&[1, h as i64, w as i64, channels]);
+            let tensor =
+                Tensor::of_slice(&input.into_raw()).reshape(&[1, h as i64, w as i64, channels]);
             Arc::new(tensor)
         })
     }
