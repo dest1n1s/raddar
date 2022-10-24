@@ -64,8 +64,10 @@ pub struct BasicBlock {
 impl Trainable for BasicBlock {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        // result.append_child("features".to_owned(), self.features.trainable_parameters());
-
+        result.append_child("block".to_owned(), self.block.trainable_parameters());
+        if let Some(downsample) = &self.downsample {
+            result.append_child("downsample".to_owned(), downsample.trainable_parameters());
+        }
         result
     }
 }
@@ -121,7 +123,10 @@ pub struct BottleNeck {
 impl Trainable for BottleNeck {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        // result.append_child("features".to_owned(), self.features.trainable_parameters());
+        result.append_child("block".to_owned(), self.block.trainable_parameters());
+        if let Some(downsample) = &self.downsample {
+            result.append_child("downsample".to_owned(), downsample.trainable_parameters());
+        }
         result
     }
 }
@@ -176,7 +181,7 @@ impl Block for BottleNeck {
     }
 }
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct ResNet<T: Block> {
+pub struct ResNet<T: Block + Module + 'static> {
     #[builder(default = "64")]
     pub base_width: i64,
     #[builder(default = "1000")]
@@ -184,28 +189,45 @@ pub struct ResNet<T: Block> {
     #[builder]
     pub layers: [i64; 4],
     pub net: Sequential,
+    pub fc: Sequential,
     #[builder(default = "[false, false, false]")]
     pub replace_stride_with_dilation: [bool; 3],
     #[builder(default = "1")]
     pub groups: i64,
     #[builder(default = "Some(batchnorm2d)")]
     pub norm_layer: Option<fn(i64) -> Sequential>,
-    #[builder(default = "1")]
-    pub dilation: i64,
+    #[builder(default = "[1, 1]")]
+    pub dilation: [i64; 2],
     #[builder(default = "64")]
     pub inplanes: i64,
-    #[builder]
+    #[builder(default = "PhantomData::<T>")]
     pub _phantom: PhantomData<T>,
 }
-
-impl<T: Block> ResNet<T> {
+impl<T: Block + Module> Trainable for ResNet<T> {
+    fn trainable_parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
+        result.append_child("net".to_owned(), self.net.trainable_parameters());
+        result.append_child("fc".to_owned(), self.fc.trainable_parameters());
+        result
+    }
+}
+impl<T: Block + Module> Module for ResNet<T> {
+    fn forward(&self, input: &Tensor) -> Tensor {
+        let mut output = (self.net)(input);
+        output = output.flatten(1, 3);
+        output = (self.fc)(&output);
+        output
+    }
+}
+impl<T: Block + Module + 'static> ResNet<T> {
     fn new(config: ResNetConfig<T>) -> ResNet<T> {
         let normlayer = if let Some(temp) = config.norm_layer {
             temp
         } else {
             batchnorm2d
         };
-        let net = seq!();
+        let mut config = config;
+        let mut net = seq!();
         net.push(Box::new(
             Conv2dBuilder::default()
                 .kernel_size([7, 7])
@@ -225,60 +247,17 @@ impl<T: Block> ResNet<T> {
                 .padding([1, 1])
                 .build(),
         ));
-        net.push(Box::new(make_layer(
-            normlayer,
-            PhantomData::<T>,
-            64,
-            config.layers[0],
-            [1, 1],
-            false,
-            &config.dilation,
-            &config.inplanes,
-            config.groups,
-            config.base_width,
-        )));
-        net.push(Box::new(make_layer(
-            normlayer,
-            PhantomData::<T>,
-            128,
-            config.layers[1],
-            [2, 2],
-            config.replace_stride_with_dilation[0],
-            &config.dilation,
-            &config.inplanes,
-            config.groups,
-            config.base_width,
-        )));
-        net.push(Box::new(make_layer(
-            normlayer,
-            PhantomData::<T>,
-            256,
-            config.layers[2],
-            [2, 2],
-            config.replace_stride_with_dilation[1],
-            &config.dilation,
-            &config.inplanes,
-            config.groups,
-            config.base_width,
-        )));
-        net.push(Box::new(make_layer(
-            normlayer,
-            PhantomData::<T>,
-            512,
-            config.layers[3],
-            [2, 2],
-            config.replace_stride_with_dilation[2],
-            &config.dilation,
-            &config.inplanes,
-            config.groups,
-            config.base_width,
-        )));
+        net.push(Box::new(make_layer(normlayer, &mut config, 64, [1, 1], 0)));
+        net.push(Box::new(make_layer(normlayer, &mut config, 128, [2, 2], 1)));
+        net.push(Box::new(make_layer(normlayer, &mut config, 256, [2, 2], 2)));
+        net.push(Box::new(make_layer(normlayer, &mut config, 512, [2, 2], 3)));
         net.push(Box::new(
             AdaptiveAveragePooling2DBuilder::default()
                 .output_size([1, 1])
                 .build(),
         ));
-        net.push(Box::new(
+        let mut fc = seq!();
+        fc.push(Box::new(
             LinearBuilder::default()
                 .input_dim(T::expansion() * 512)
                 .output_dim(config.num_classes)
@@ -289,6 +268,7 @@ impl<T: Block> ResNet<T> {
             num_classes: config.num_classes,
             layers: config.layers,
             net,
+            fc,
             replace_stride_with_dilation: config.replace_stride_with_dilation,
             groups: config.groups,
             norm_layer: Some(normlayer),
@@ -299,53 +279,90 @@ impl<T: Block> ResNet<T> {
     }
 }
 
-fn make_layer<T: Block>(
+fn make_layer<T: Block + Module + 'static>(
     normlayer: fn(i64) -> Sequential,
-    _: PhantomData<T>,
+    config: &mut ResNetConfig<T>,
     planes: i64,
-    block_num: i64,
-    stride: [i64; 2],
-    dilate: bool,
-    config_dilation: &[i64; 2],
-    config_inplanes: &i64,
-    groups: i64,
-    base_width: i64,
-) -> T {
-    let downsample = None;
-    let previous_dilation = *config_dilation;
-    if dilate == true {
-        *config_dilation *= stride;
-        stride = [1, 1];
+    mut stride: [i64; 2],
+    id: i64,
+) -> Sequential {
+    let mut dilate = false;
+    if id > 0 {
+        dilate = config.replace_stride_with_dilation[(id - 1) as usize];
     }
-    if stride != [1, 1] || *config_inplanes != planes * T::expansion() {
-        downsample = Some(seq!(
-            conv1x1(*config_inplanes, planes * T::expansion(), stride),
-            normlayer(planes * T::expansion()),
-        ));
+    let block_num = config.layers[id as usize];
+    let previous_dilation = config.dilation;
+    if dilate {
+        config.dilation[0] *= stride[0];
+        config.dilation[1] *= stride[1];
+        stride[0] = 1;
+        stride[1] = 1;
     }
-    let layers = seq!();
+    let temp_inplanes = config.inplanes;
+    let downsample = || {
+        if stride != [1, 1] || temp_inplanes != planes * T::expansion() {
+            Some(seq!(
+                conv1x1(temp_inplanes, planes * T::expansion(), stride),
+                normlayer(planes * T::expansion()),
+            ))
+        } else {
+            None
+        }
+    };
+    let mut layers = seq!();
     layers.push(Box::new(T::new_block(
-        *config_inplanes,
+        config.inplanes,
         planes,
         stride,
-        groups,
-        base_width,
+        config.groups,
+        config.base_width,
         previous_dilation,
-        downsample,
+        downsample(),
         Some(normlayer),
     )));
-    *config_inplanes = planes * T::expansion();
+    config.inplanes = planes * T::expansion();
     for _ in 1..=block_num - 1 {
         layers.push(Box::new(T::new_block(
-            *config_inplanes,
+            config.inplanes,
             planes,
-            stride,
-            groups,
-            base_width,
             [1, 1],
+            config.groups,
+            config.base_width,
+            config.dilation,
             None,
             Some(normlayer),
         )));
     }
     layers
+}
+
+pub fn resnet18(num_classes: i64) -> ResNet<BasicBlock> {
+    ResNetBuilder::<BasicBlock>::default()
+        .layers([2, 2, 2, 2])
+        .num_classes(num_classes)
+        .build()
+}
+pub fn resnet34(num_classes: i64) -> ResNet<BasicBlock> {
+    ResNetBuilder::<BasicBlock>::default()
+        .layers([3, 4, 6, 3])
+        .num_classes(num_classes)
+        .build()
+}
+pub fn resnet50(num_classes: i64) -> ResNet<BottleNeck> {
+    ResNetBuilder::<BottleNeck>::default()
+        .layers([3, 4, 6, 3])
+        .num_classes(num_classes)
+        .build()
+}
+pub fn resnet101(num_classes: i64) -> ResNet<BottleNeck> {
+    ResNetBuilder::<BottleNeck>::default()
+        .layers([3, 4, 23, 3])
+        .num_classes(num_classes)
+        .build()
+}
+pub fn resnet152(num_classes: i64) -> ResNet<BottleNeck> {
+    ResNetBuilder::<BottleNeck>::default()
+        .layers([3, 8, 36, 3])
+        .num_classes(num_classes)
+        .build()
 }
