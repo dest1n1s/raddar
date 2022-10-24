@@ -8,6 +8,7 @@ pub use layernorm::*;
 pub use linear::*;
 pub use module::*;
 pub use pooling::*;
+pub use resnet::*;
 pub use sequential::*;
 pub use vgg::*;
 
@@ -21,5 +22,6 @@ pub mod layernorm;
 pub mod linear;
 pub mod module;
 pub mod pooling;
+pub mod resnet;
 pub mod sequential;
 pub mod vgg;
