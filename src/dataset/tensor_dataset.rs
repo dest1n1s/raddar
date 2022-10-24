@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, collections::HashMap};
 
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
 use tch::Tensor;
@@ -16,6 +16,11 @@ pub struct TensorDataset {
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct UnsupervisedTensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
+}
+
+#[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
+pub struct DictTensorDataset {
+    pub inputs: HashMap<String, Vec<Arc<Tensor>>>,
 }
 
 impl Dataset for TensorDataset {
@@ -76,6 +81,50 @@ impl Dataset for UnsupervisedTensorDataset {
     }
 }
 
+impl Dataset for DictTensorDataset {
+    type DataType = HashMap<String, Arc<Tensor>>;
+    type BatchType = HashMap<String, Tensor>;
+
+    fn data(self) -> Vec<Self::DataType> {
+        let mut data = Vec::new();
+        for i in 0..self.inputs.len() {
+            let mut input = HashMap::new();
+            for (key, values) in self.inputs.iter() {
+                input.insert(key.clone(), values[i].clone());
+            }
+            data.push(input);
+        }
+        data
+    }
+
+    fn from_batches<I: IntoIterator<Item = Self::BatchType>>(batches: I) -> Self {
+        let mut inputs = HashMap::new();
+        for batch in batches {
+            for (key, value) in batch {
+                inputs.entry(key).or_insert_with(Vec::new).push(Arc::new(value));
+            }
+        }
+        Self { inputs }
+    }
+
+    fn size(&self) -> usize {
+        self.inputs.values().next().unwrap().len()
+    }
+
+    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+        let mut batch = HashMap::new();
+        for data in data {
+            for (key, value) in data {
+                batch.entry(key).or_insert_with(Vec::new).push(value);
+            }
+        }
+        let batch = batch.into_iter().map(|(key, values)| {
+            (key, Tensor::stack(&values.into_iter().collect::<Vec<_>>(), 0))
+        }).collect();
+        batch
+    }
+}
+
 impl TensorDataset {
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>, labels: Vec<Arc<Tensor>>) -> Self {
         Self { inputs, labels }
@@ -84,6 +133,12 @@ impl TensorDataset {
 
 impl UnsupervisedTensorDataset {
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>) -> Self {
+        Self { inputs }
+    }
+}
+
+impl DictTensorDataset {
+    pub fn from_tensors(inputs: HashMap<String, Vec<Arc<Tensor>>>) -> Self {
         Self { inputs }
     }
 }
