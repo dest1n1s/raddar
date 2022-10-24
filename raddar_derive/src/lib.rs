@@ -85,6 +85,8 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
     };
 
     let name = &ast.ident;
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let config_name = syn::Ident::new(&format!("{}Config", name), name.span());
 
     let builder_name = syn::Ident::new(&format!("{}Builder", name), name.span());
@@ -92,12 +94,12 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
     let output = quote! {
         #[derive(derive_builder::Builder, Clone, Debug)]
         #[builder(pattern = "owned", name = #builder_name_str, build_fn(private, name = "build_config"))]
-        pub struct #config_name {
+        pub struct #config_name #impl_generics #where_clause {
             #(#builder_fields),*
         }
 
-        impl #builder_name {
-            pub fn build(self) -> #name {
+        impl #impl_generics #builder_name #ty_generics #where_clause {
+            pub fn build(self) -> #name #ty_generics {
                 #name::new(self.build_config().unwrap())
             }
         }

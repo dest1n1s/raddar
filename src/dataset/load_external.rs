@@ -12,7 +12,7 @@ pub struct SimpleDatasetJsonConfig {
     pub label_field: String,
 }
 
-impl<InputType, LabelType> LoadFromJson for SimpleDataset<InputType, LabelType>
+impl<InputType: Clone, LabelType: Clone> LoadFromJson for SimpleDataset<InputType, LabelType>
 where
     InputType: serde::de::DeserializeOwned,
     LabelType: serde::de::DeserializeOwned,
@@ -83,4 +83,9 @@ where
     }
 }
 
-pub trait LoadFromImages {}
+pub trait LoadFromImageFolder {
+    type ConfigType;
+
+    fn from_image_folder(path: &str, config: Self::ConfigType) -> Self;
+}
+

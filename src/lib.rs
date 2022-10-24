@@ -1,10 +1,12 @@
 #![allow(incomplete_features)]
+#![allow(type_alias_bounds)]
 #![recursion_limit = "512"]
 #![feature(specialization)]
 #![feature(fn_traits)]
 #![feature(unboxed_closures)]
 #![feature(generic_const_exprs)]
 #![feature(slice_flatten)]
+#![feature(type_alias_impl_trait)]
 
 extern crate self as raddar;
 

@@ -1,4 +1,4 @@
-use std::{cmp::min, sync::Arc};
+use std::{cmp::min, sync::Arc, marker::PhantomData};
 
 use derive_builder::Builder;
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
@@ -15,9 +15,50 @@ pub struct UnsupervisedDataset<InputType> {
     pub inputs: Vec<Arc<InputType>>,
 }
 
-pub enum DatasetMapping<'a, T1: Dataset, T2: Dataset> {
-    BatchMapping(&'a mut dyn FnMut(T1::BatchType) -> T2::BatchType, usize),
-    DataMapping(&'a mut dyn FnMut(T1::DataType) -> T2::DataType),
+pub enum DatasetMapping<
+    DatasetFrom: Dataset,
+    DatasetTo: Dataset,
+    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType,
+    DataFunc: FnMut(DatasetFrom::DataType) -> DatasetTo::DataType,
+> {
+    BatchMapping(BatchFunc, usize),
+    DataMapping(DataFunc),
+    _Phantom(PhantomData<(DatasetFrom, DatasetTo)>),
+}
+
+pub type DatasetBatchMapping<
+    DatasetFrom: Dataset,
+    DatasetTo: Dataset,
+    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType,
+> = DatasetMapping<
+    DatasetFrom,
+    DatasetTo,
+    BatchFunc,
+    fn(DatasetFrom::DataType) -> DatasetTo::DataType,
+>;
+
+pub type DatasetDataMapping<
+    DatasetFrom: Dataset,
+    DatasetTo: Dataset,
+    DataFunc: FnMut(DatasetFrom::DataType) -> DatasetTo::DataType,
+> = DatasetMapping<
+    DatasetFrom,
+    DatasetTo,
+    fn(DatasetFrom::BatchType) -> DatasetTo::BatchType,
+    DataFunc,
+>;
+
+pub fn batch_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::BatchType) -> T2::BatchType>(
+    batch_func: F,
+    batch_size: usize,
+) -> DatasetBatchMapping<T1, T2, F> {
+    DatasetMapping::BatchMapping(batch_func, batch_size)
+}
+
+pub fn data_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::DataType) -> T2::DataType>(
+    data_func: F,
+) -> DatasetDataMapping<T1, T2, F> {
+    DatasetMapping::DataMapping(data_func)
 }
 
 pub trait Dataset:
@@ -43,12 +84,26 @@ where
     fn size(&self) -> usize;
     fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType;
 
-    fn map<T: Dataset>(self, mapping: DatasetMapping<Self, T>) -> T {
+    fn map<
+        T: Dataset,
+        F1: FnMut(Self::BatchType) -> T::BatchType,
+        F2: FnMut(Self::DataType) -> T::DataType,
+    >(
+        self,
+        mapping: DatasetMapping<Self, T, F1, F2>,
+    ) -> T {
         match mapping {
-            DatasetMapping::BatchMapping(f, batch_size) => {
-                self.into_loader(DataLoaderConfigBuilder::default().batch_size(batch_size).build().unwrap()).map(|batch| f(batch)).collect()
-            }
-            DatasetMapping::DataMapping(f) => self.into_iter().map(|data| f(data)).collect(),
+            DatasetMapping::BatchMapping(mut f, batch_size) => self
+                .into_loader(
+                    DataLoaderConfigBuilder::default()
+                        .batch_size(batch_size)
+                        .build()
+                        .unwrap(),
+                )
+                .map(|batch| f(batch))
+                .collect(),
+            DatasetMapping::DataMapping(mut f) => self.into_iter().map(|data| f(data)).collect(),
+            DatasetMapping::_Phantom(..) => unreachable!(),
         }
     }
 }
