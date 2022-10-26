@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::Tensor;
@@ -10,7 +10,7 @@ use super::{
     MaxPooling2DBuilder, Module, Sequential, Trainable,
 };
 
-pub trait Block: Module {
+pub trait Block<U: Fn(i64) -> Sequential + Send + Debug + Copy>: Module {
     fn expansion() -> i64;
     fn new_block(
         inplanes: i64,
@@ -20,7 +20,7 @@ pub trait Block: Module {
         base_width: i64,
         dilation: [i64; 2],
         downsample: Option<Sequential>,
-        norm_layer: Option<fn(i64) -> Sequential>,
+        norm_layer: U,
     ) -> Self;
 }
 
@@ -89,7 +89,7 @@ impl Module for BasicBlock {
     }
 }
 
-impl Block for BasicBlock {
+impl<U: Fn(i64) -> Sequential + Send + Debug + Copy> Block<U> for BasicBlock {
     fn expansion() -> i64 {
         1
     }
@@ -102,23 +102,18 @@ impl Block for BasicBlock {
         base_width: i64,
         dilation: [i64; 2],
         downsample: Option<Sequential>,
-        norm_layer: Option<fn(i64) -> Sequential>,
+        norm_layer: U,
     ) -> Self {
         assert!(groups == 1 && base_width == 64 && dilation == [1, 1]);
-        let normlayer = if let Some(temp) = norm_layer {
-            temp
-        } else {
-            batchnorm2d
-        };
         let mut block = seq!();
         block.push(Box::new(conv3x3(
             in_planes, planes, stride, groups, dilation,
         )));
-        block.push(Box::new(normlayer(planes)));
+        block.push(Box::new(norm_layer(planes)));
         block.push(Box::new(ReLU));
         block.push(Box::new(conv3x3(planes, planes, [1, 1], groups, dilation)));
 
-        block.push(Box::new(normlayer(planes)));
+        block.push(Box::new(norm_layer(planes)));
         Self { block, downsample }
     }
 }
@@ -153,7 +148,7 @@ impl Module for BottleNeck {
     }
 }
 
-impl Block for BottleNeck {
+impl<U: Fn(i64) -> Sequential + Send + Debug + Copy> Block<U> for BottleNeck {
     fn expansion() -> i64 {
         4
     }
@@ -165,38 +160,33 @@ impl Block for BottleNeck {
         base_width: i64,
         dilation: [i64; 2],
         downsample: Option<Sequential>,
-        norm_layer: Option<fn(i64) -> Sequential>,
+        norm_layer: U,
     ) -> Self {
-        let normlayer = if let Some(temp) = norm_layer {
-            temp
-        } else {
-            batchnorm2d
-        };
         let width = (((planes as f64) * (base_width as f64) / 64.0) as i64) * groups;
         let mut block = seq!();
         block.push(Box::new(conv1x1(inplanes, width, [1, 1])));
-        block.push(Box::new(normlayer(width)));
+        block.push(Box::new(norm_layer(width)));
         block.push(Box::new(ReLU));
         block.push(Box::new(conv3x3(width, width, stride, groups, dilation)));
-        block.push(Box::new(normlayer(width)));
+        block.push(Box::new(norm_layer(width)));
         block.push(Box::new(ReLU));
         block.push(Box::new(conv1x1(
             width,
-            planes * <BottleNeck as Block>::expansion(),
+            planes * <BottleNeck as Block<U>>::expansion(),
             [1, 1],
         )));
-        block.push(Box::new(normlayer(
-            planes * <BottleNeck as Block>::expansion(),
+        block.push(Box::new(norm_layer(
+            planes * <BottleNeck as Block<U>>::expansion(),
         )));
         Self { block, downsample }
     }
 }
 
 /// A ResNet model
-/// 
+///
 /// See [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct ResNet<T: Block + 'static> {
+pub struct ResNet<T: Block<U> + 'static, U: Fn(i64) -> Sequential + Send + Debug + Copy> {
     #[builder(default = "64")]
     pub base_width: i64,
     #[builder(default = "1000")]
@@ -209,8 +199,8 @@ pub struct ResNet<T: Block + 'static> {
     pub replace_stride_with_dilation: [bool; 3],
     #[builder(default = "1")]
     pub groups: i64,
-    #[builder(default = "Some(batchnorm2d)")]
-    pub norm_layer: Option<fn(i64) -> Sequential>,
+    #[builder(default = "Self::default_norm_layer()")]
+    pub norm_layer: U,
     #[builder(default = "[1, 1]")]
     pub dilation: [i64; 2],
     #[builder(default = "64")]
@@ -219,7 +209,27 @@ pub struct ResNet<T: Block + 'static> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: Block> Trainable for ResNet<T> {
+trait DefaultNormLayer<U: Fn(i64) -> Sequential> {
+    fn default_norm_layer() -> U;
+}
+
+impl<T: Block<U>, U: Fn(i64) -> Sequential + Send + Debug + Copy> DefaultNormLayer<U>
+    for ResNetBuilder<T, U>
+{
+    default fn default_norm_layer() -> U {
+        panic!("Norm layer should be set!")
+    }
+}
+
+impl<T: Block<fn(i64) -> Sequential>> DefaultNormLayer<fn(i64) -> Sequential>
+    for ResNetBuilder<T, fn(i64) -> Sequential>
+{
+    fn default_norm_layer() -> fn(i64) -> Sequential {
+        return batchnorm2d;
+    }
+}
+
+impl<T: Block<U>, U: Fn(i64) -> Sequential + Send + Debug + Copy> Trainable for ResNet<T, U> {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = StateDict::new();
         result.append_child("net".to_owned(), self.net.trainable_parameters());
@@ -228,7 +238,7 @@ impl<T: Block> Trainable for ResNet<T> {
     }
 }
 
-impl<T: Block> Module for ResNet<T> {
+impl<T: Block<U>, U: Fn(i64) -> Sequential + Send + Debug + Copy> Module for ResNet<T, U> {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut output = (self.net)(input);
         output = output.flatten(1, 3);
@@ -237,13 +247,8 @@ impl<T: Block> Module for ResNet<T> {
     }
 }
 
-impl<T: Block + 'static> ResNet<T> {
-    fn new(config: ResNetConfig<T>) -> ResNet<T> {
-        let normlayer = if let Some(temp) = config.norm_layer {
-            temp
-        } else {
-            batchnorm2d
-        };
+impl<T: Block<U> + 'static, U: Fn(i64) -> Sequential + Send + Debug + Copy> ResNet<T, U> {
+    fn new(config: ResNetConfig<T, U>) -> ResNet<T, U> {
         let mut config = config;
         let mut net = seq!();
         net.push(Box::new(
@@ -256,7 +261,7 @@ impl<T: Block + 'static> ResNet<T> {
                 .bias(false)
                 .build(),
         ));
-        net.push(Box::new(normlayer(64)));
+        net.push(Box::new((config.norm_layer)(64)));
         net.push(Box::new(ReLU));
         net.push(Box::new(
             MaxPooling2DBuilder::default()
@@ -265,10 +270,34 @@ impl<T: Block + 'static> ResNet<T> {
                 .padding([1, 1])
                 .build(),
         ));
-        net.push(Box::new(make_layer(normlayer, &mut config, 64, [1, 1], 0)));
-        net.push(Box::new(make_layer(normlayer, &mut config, 128, [2, 2], 1)));
-        net.push(Box::new(make_layer(normlayer, &mut config, 256, [2, 2], 2)));
-        net.push(Box::new(make_layer(normlayer, &mut config, 512, [2, 2], 3)));
+        net.push(Box::new(make_layer(
+            config.norm_layer,
+            &mut config,
+            64,
+            [1, 1],
+            0,
+        )));
+        net.push(Box::new(make_layer(
+            config.norm_layer,
+            &mut config,
+            128,
+            [2, 2],
+            1,
+        )));
+        net.push(Box::new(make_layer(
+            config.norm_layer,
+            &mut config,
+            256,
+            [2, 2],
+            2,
+        )));
+        net.push(Box::new(make_layer(
+            config.norm_layer,
+            &mut config,
+            512,
+            [2, 2],
+            3,
+        )));
         net.push(Box::new(
             AdaptiveAveragePooling2DBuilder::default()
                 .output_size([1, 1])
@@ -289,7 +318,7 @@ impl<T: Block + 'static> ResNet<T> {
             fc,
             replace_stride_with_dilation: config.replace_stride_with_dilation,
             groups: config.groups,
-            norm_layer: Some(normlayer),
+            norm_layer: config.norm_layer,
             _phantom: PhantomData::<T>,
             dilation: config.dilation,
             inplanes: config.inplanes,
@@ -297,9 +326,9 @@ impl<T: Block + 'static> ResNet<T> {
     }
 }
 
-fn make_layer<T: Block + 'static>(
-    normlayer: fn(i64) -> Sequential,
-    config: &mut ResNetConfig<T>,
+fn make_layer<T: Block<U> + 'static, U: Fn(i64) -> Sequential + Send + Debug + Copy>(
+    normlayer: U,
+    config: &mut ResNetConfig<T, U>,
     planes: i64,
     mut stride: [i64; 2],
     id: i64,
@@ -336,7 +365,7 @@ fn make_layer<T: Block + 'static>(
         config.base_width,
         previous_dilation,
         downsample(),
-        Some(normlayer),
+        normlayer,
     )));
     config.inplanes = planes * T::expansion();
     for _ in 1..=block_num - 1 {
@@ -348,47 +377,47 @@ fn make_layer<T: Block + 'static>(
             config.base_width,
             config.dilation,
             None,
-            Some(normlayer),
+            normlayer,
         )));
     }
     layers
 }
 
 /// ResNet18 model from "Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>
-pub fn resnet18(num_classes: i64) -> ResNet<BasicBlock> {
-    ResNetBuilder::<BasicBlock>::default()
+pub fn resnet18(num_classes: i64) -> ResNet<BasicBlock, fn(i64) -> Sequential> {
+    ResNetBuilder::<BasicBlock, fn(i64) -> Sequential>::default()
         .layers([2, 2, 2, 2])
         .num_classes(num_classes)
         .build()
 }
 
 /// ResNet34 model from "Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>
-pub fn resnet34(num_classes: i64) -> ResNet<BasicBlock> {
-    ResNetBuilder::<BasicBlock>::default()
+pub fn resnet34(num_classes: i64) -> ResNet<BasicBlock, fn(i64) -> Sequential> {
+    ResNetBuilder::<BasicBlock, fn(i64) -> Sequential>::default()
         .layers([3, 4, 6, 3])
         .num_classes(num_classes)
         .build()
 }
 
 /// ResNet50 model from "Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>
-pub fn resnet50(num_classes: i64) -> ResNet<BottleNeck> {
-    ResNetBuilder::<BottleNeck>::default()
+pub fn resnet50(num_classes: i64) -> ResNet<BottleNeck, fn(i64) -> Sequential> {
+    ResNetBuilder::<BottleNeck, fn(i64) -> Sequential>::default()
         .layers([3, 4, 6, 3])
         .num_classes(num_classes)
         .build()
 }
 
 /// ResNet101 model from "Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>
-pub fn resnet101(num_classes: i64) -> ResNet<BottleNeck> {
-    ResNetBuilder::<BottleNeck>::default()
+pub fn resnet101(num_classes: i64) -> ResNet<BottleNeck, fn(i64) -> Sequential> {
+    ResNetBuilder::<BottleNeck, fn(i64) -> Sequential>::default()
         .layers([3, 4, 23, 3])
         .num_classes(num_classes)
         .build()
 }
 
 /// ResNet152 model from "Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>
-pub fn resnet152(num_classes: i64) -> ResNet<BottleNeck> {
-    ResNetBuilder::<BottleNeck>::default()
+pub fn resnet152(num_classes: i64) -> ResNet<BottleNeck, fn(i64) -> Sequential> {
+    ResNetBuilder::<BottleNeck, fn(i64) -> Sequential>::default()
         .layers([3, 8, 36, 3])
         .num_classes(num_classes)
         .build()
