@@ -4,25 +4,32 @@ use derive_builder::Builder;
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
 use rand::seq::SliceRandom;
 
+/// A simple dataset with a vector of inputs and a vector of targets.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct SimpleDataset<InputType, LabelType> {
     pub inputs: Vec<Arc<InputType>>,
     pub labels: Vec<Arc<LabelType>>,
 }
 
+/// An unlabelled dataset with a vector of inputs.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct UnsupervisedDataset<InputType> {
     pub inputs: Vec<Arc<InputType>>,
 }
 
+/// A mapping function used to transform the data in a dataset.
+/// 
+/// The mapping has 2 variants:
+/// `BatchFunc` is used to transform batched data, which can potentially be more efficient.
+/// `SampleFunc` is used to transform individual samples.
 pub enum DatasetMapping<
     DatasetFrom: Dataset,
     DatasetTo: Dataset,
     BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType,
-    DataFunc: FnMut(DatasetFrom::DataType) -> DatasetTo::DataType,
+    SampleFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType,
 > {
     BatchMapping(BatchFunc, usize),
-    DataMapping(DataFunc),
+    DataMapping(SampleFunc),
     _Phantom(PhantomData<(DatasetFrom, DatasetTo)>),
 }
 
@@ -34,13 +41,13 @@ pub type DatasetBatchMapping<
     DatasetFrom,
     DatasetTo,
     BatchFunc,
-    fn(DatasetFrom::DataType) -> DatasetTo::DataType,
+    fn(DatasetFrom::SampleType) -> DatasetTo::SampleType,
 >;
 
-pub type DatasetDataMapping<
+pub type DatasetSampleMapping<
     DatasetFrom: Dataset,
     DatasetTo: Dataset,
-    DataFunc: FnMut(DatasetFrom::DataType) -> DatasetTo::DataType,
+    DataFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType,
 > = DatasetMapping<
     DatasetFrom,
     DatasetTo,
@@ -48,6 +55,7 @@ pub type DatasetDataMapping<
     DataFunc,
 >;
 
+/// Create a `DatasetBatchMapping` from a batch mapping function.
 pub fn batch_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::BatchType) -> T2::BatchType>(
     batch_func: F,
     batch_size: usize,
@@ -55,39 +63,49 @@ pub fn batch_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::BatchType) -> T2::Ba
     DatasetMapping::BatchMapping(batch_func, batch_size)
 }
 
-pub fn data_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::DataType) -> T2::DataType>(
-    data_func: F,
-) -> DatasetDataMapping<T1, T2, F> {
-    DatasetMapping::DataMapping(data_func)
+/// Create a `DatasetSampleMapping` from a sample mapping function.
+pub fn sample_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::SampleType) -> T2::SampleType>(
+    sample_func: F,
+) -> DatasetSampleMapping<T1, T2, F> {
+    DatasetMapping::DataMapping(sample_func)
 }
 
+/// A trait for datasets.
 pub trait Dataset:
-    IntoIterator<Item = Self::DataType> + FromIterator<Self::BatchType> + FromIterator<Self::DataType>
+    IntoIterator<Item = Self::SampleType> + FromIterator<Self::BatchType> + FromIterator<Self::SampleType>
 where
     Self: Sized,
 {
-    type DataType: Clone;
+    type SampleType: Clone;
     type BatchType;
 
-    fn data(self) -> Vec<Self::DataType>;
+    /// Returns all the samples in the dataset.
+    fn data(self) -> Vec<Self::SampleType>;
 
-    fn from_data<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self {
+    /// Creates a dataset from an collection of samples.
+    fn from_data<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self {
         Self::from_batches(vec![Self::collate(data)])
     }
 
+    /// Creates a dataset from an collection of batches.
     fn from_batches<I: IntoIterator<Item = Self::BatchType>>(batches: I) -> Self;
 
+    /// Creates a `DataLoader` from the dataset with the given configuration.
     fn into_loader(self, cfg: DataLoaderConfig) -> DataLoader<Self> {
         DataLoader::new(self.data(), cfg)
     }
 
+    /// Gets the number of samples in the dataset.
     fn size(&self) -> usize;
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType;
 
+    /// Defines how to collate a collection of samples into a batch.
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType;
+
+    /// Maps the dataset to a new dataset using the given mapping function.
     fn map<
         T: Dataset,
         F1: FnMut(Self::BatchType) -> T::BatchType,
-        F2: FnMut(Self::DataType) -> T::DataType,
+        F2: FnMut(Self::SampleType) -> T::SampleType,
     >(
         self,
         mapping: DatasetMapping<Self, T, F1, F2>,
@@ -109,10 +127,10 @@ where
 }
 
 impl<T, U> Dataset for SimpleDataset<T, U> {
-    type DataType = (Arc<T>, Arc<U>);
+    type SampleType = (Arc<T>, Arc<U>);
     type BatchType = (Vec<Arc<T>>, Vec<Arc<U>>);
 
-    fn data(self) -> Vec<Self::DataType> {
+    fn data(self) -> Vec<Self::SampleType> {
         self.inputs
             .into_iter()
             .zip(self.labels.into_iter())
@@ -133,16 +151,16 @@ impl<T, U> Dataset for SimpleDataset<T, U> {
         self.inputs.len()
     }
 
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType {
         data.into_iter().map(|x| (x.0, x.1)).unzip()
     }
 }
 
 impl<T> Dataset for UnsupervisedDataset<T> {
-    type DataType = Arc<T>;
+    type SampleType = Arc<T>;
     type BatchType = Vec<Arc<T>>;
 
-    fn data(self) -> Vec<Self::DataType> {
+    fn data(self) -> Vec<Self::SampleType> {
         self.inputs
     }
 
@@ -158,7 +176,7 @@ impl<T> Dataset for UnsupervisedDataset<T> {
         self.inputs.len()
     }
 
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType {
         data.into_iter().collect()
     }
 }
@@ -177,18 +195,18 @@ impl<V> UnsupervisedDataset<V> {
 
 #[derive(Debug, Clone)]
 pub struct DatasetIterator<T: Dataset> {
-    pub data: Vec<T::DataType>,
+    pub data: Vec<T::SampleType>,
     pub index: usize,
 }
 
 impl<T: Dataset> DatasetIterator<T> {
-    pub fn new(data: Vec<T::DataType>) -> Self {
+    pub fn new(data: Vec<T::SampleType>) -> Self {
         Self { data, index: 0 }
     }
 }
 
 impl<T: Dataset> Iterator for DatasetIterator<T> {
-    type Item = T::DataType;
+    type Item = T::SampleType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.data.len() {
@@ -201,25 +219,27 @@ impl<T: Dataset> Iterator for DatasetIterator<T> {
     }
 }
 
+/// The configuration for a `DataLoader`.
 #[derive(Debug, Clone, Builder)]
 #[builder(pattern = "owned")]
 pub struct DataLoaderConfig {
     #[builder(default = "1")]
     pub batch_size: usize,
 
-    #[builder(default = "true")]
+    #[builder(default = "false")]
     pub shuffle: bool,
 }
 
+/// A data loader iterates over `Dataset`, which can be used to load data in batches.
 #[derive(Debug)]
 pub struct DataLoader<T: Dataset> {
-    pub data: Vec<T::DataType>,
+    pub data: Vec<T::SampleType>,
     pub cfg: DataLoaderConfig,
     pub index: usize,
 }
 
 impl<T: Dataset> DataLoader<T> {
-    pub fn new(data: Vec<T::DataType>, cfg: DataLoaderConfig) -> Self {
+    pub fn new(data: Vec<T::SampleType>, cfg: DataLoaderConfig) -> Self {
         let mut this = Self {
             data,
             cfg,

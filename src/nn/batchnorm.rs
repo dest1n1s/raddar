@@ -6,6 +6,9 @@ use tch::{Device, Kind, Tensor};
 use super::{module::Module, Trainable};
 use crate::core::{Cellable, StateDict, TensorCell};
 
+/// A batch normalization layer in 1 dimension.
+/// 
+/// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm1d {
     #[builder]
@@ -25,6 +28,7 @@ pub struct BatchNorm1d {
     pub running_mean: TensorCell,
     pub running_var: TensorCell,
 }
+
 impl Trainable for BatchNorm1d {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
@@ -60,6 +64,10 @@ impl Module for BatchNorm1d {
         )
     }
 }
+
+/// A batch normalization layer in 2 dimensions.
+/// 
+/// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 impl BatchNorm1d {
     pub fn new(config: BatchNorm1dConfig) -> BatchNorm1d {
         let bn_weight = if config.affine {
@@ -116,6 +124,7 @@ pub struct BatchNorm2d {
     pub running_mean: TensorCell,
     pub running_var: TensorCell,
 }
+
 impl Trainable for BatchNorm2d {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
@@ -151,6 +160,7 @@ impl Module for BatchNorm2d {
         )
     }
 }
+
 impl BatchNorm2d {
     pub fn new(config: BatchNorm2dConfig) -> BatchNorm2d {
         let bn_weight = if config.affine {
@@ -188,6 +198,9 @@ impl BatchNorm2d {
     }
 }
 
+/// A batch normalization layer in 3 dimensions.
+/// 
+/// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm3d {
     #[builder]
@@ -207,6 +220,7 @@ pub struct BatchNorm3d {
     pub running_mean: TensorCell,
     pub running_var: TensorCell,
 }
+
 impl Trainable for BatchNorm3d {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
@@ -242,6 +256,7 @@ impl Module for BatchNorm3d {
         )
     }
 }
+
 impl BatchNorm3d {
     pub fn new(config: BatchNorm3dConfig) -> BatchNorm3d {
         let bn_weight = if config.affine {

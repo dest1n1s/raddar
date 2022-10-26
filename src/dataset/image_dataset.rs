@@ -33,19 +33,19 @@ pub mod image_mappings {
     use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel};
     use tch::{kind::Element, Tensor};
 
-    use crate::dataset::{data_mapping, Dataset, DatasetDataMapping, UnsupervisedTensorDataset};
+    use crate::dataset::{sample_mapping, Dataset, DatasetSampleMapping, UnsupervisedTensorDataset};
 
     use super::DynImageDataset;
 
     pub fn crop_center(
         width: u32,
         height: u32,
-    ) -> DatasetDataMapping<
+    ) -> DatasetSampleMapping<
         DynImageDataset,
         DynImageDataset,
-        impl FnMut(<DynImageDataset as Dataset>::DataType) -> <DynImageDataset as Dataset>::DataType,
+        impl FnMut(<DynImageDataset as Dataset>::SampleType) -> <DynImageDataset as Dataset>::SampleType,
     > {
-        data_mapping(move |input: Arc<DynamicImage>| {
+        sample_mapping(move |input: Arc<DynamicImage>| {
             let mut input = (*input).clone();
             let (w, h) = input.dimensions();
             let (x, y) = ((w - width) / 2, (h - height) / 2);
@@ -57,12 +57,12 @@ pub mod image_mappings {
     pub fn resize(
         width: u32,
         height: u32,
-    ) -> DatasetDataMapping<
+    ) -> DatasetSampleMapping<
         DynImageDataset,
         DynImageDataset,
-        impl FnMut(<DynImageDataset as Dataset>::DataType) -> <DynImageDataset as Dataset>::DataType,
+        impl FnMut(<DynImageDataset as Dataset>::SampleType) -> <DynImageDataset as Dataset>::SampleType,
     > {
-        data_mapping(move |input: Arc<DynamicImage>| {
+        sample_mapping(move |input: Arc<DynamicImage>| {
             let input = (*input).clone();
             let resized = input.resize(width, height, image::imageops::FilterType::Lanczos3);
             Arc::new(resized)
@@ -75,17 +75,17 @@ pub mod image_mappings {
         F: Fn(DynamicImage) -> ImageBuffer<P, Container>,
     >(
         into_image_buffer: F,
-    ) -> DatasetDataMapping<
+    ) -> DatasetSampleMapping<
         DynImageDataset,
         UnsupervisedTensorDataset,
         impl FnMut(
-            <DynImageDataset as Dataset>::DataType,
-        ) -> <UnsupervisedTensorDataset as Dataset>::DataType,
+            <DynImageDataset as Dataset>::SampleType,
+        ) -> <UnsupervisedTensorDataset as Dataset>::SampleType,
     >
     where
         <P as Pixel>::Subpixel: Element,
     {
-        data_mapping(move |input: Arc<DynamicImage>| {
+        sample_mapping(move |input: Arc<DynamicImage>| {
             let input = (*input).clone();
             let (w, h) = input.dimensions();
             let input = into_image_buffer(input);

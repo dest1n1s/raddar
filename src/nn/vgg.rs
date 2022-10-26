@@ -20,6 +20,10 @@ pub enum VggType {
     Vgg19,
     Vgg19Bn,
 }
+
+/// VGG model
+/// 
+/// The VGG model is a convolutional neural network that is 16 or 19 layers deep. See [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/abs/1409.1556) for more details.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Vgg {
     pub features: Sequential,
@@ -34,6 +38,7 @@ pub struct Vgg {
     #[builder]
     pub vgg_type: VggType,
 }
+
 fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Sequential {
     let mut in_channel = 3;
     let mut features = seq!();
@@ -68,6 +73,7 @@ fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Sequential {
     }
     features
 }
+
 impl Trainable for Vgg {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = StateDict::new();
@@ -79,6 +85,7 @@ impl Trainable for Vgg {
         result
     }
 }
+
 impl Module for Vgg {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut output = (self.features)(input);
@@ -88,6 +95,7 @@ impl Module for Vgg {
         output
     }
 }
+
 impl Vgg {
     pub fn new(config: VggConfig) -> Vgg {
         let (layer_type, batchnorm) = match config.vgg_type {
@@ -170,6 +178,7 @@ impl Vgg {
         }
     }
 }
+
 pub fn vgg(vgg_type: VggType, num_classes: i64, dropout: f64, _pretrained: bool) -> Vgg {
     VggBuilder::default()
         .num_classes(num_classes)

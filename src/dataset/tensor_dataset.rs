@@ -5,29 +5,40 @@ use tch::Tensor;
 
 use crate::core::TensorIntoIter;
 
-use super::{Dataset, SimpleDataset, UnsupervisedDataset, data_mapping};
+use super::{Dataset, SimpleDataset, UnsupervisedDataset, sample_mapping};
 
+/// A tensor dataset where the inputs and labels are all tensors.
+/// 
+/// This is the most common type of dataset used in machine learning.
+/// 
+/// Where this dataset differs from the `SimpleDataset<Tensor, Tensor>` is that the `BatchType` is a tuple of tensors, rather than a tuple of `Vec<Arc<Tensor>>`.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct TensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
     pub labels: Vec<Arc<Tensor>>,
 }
 
+/// An unlabelled tensor dataset where the inputs are all tensors.
+/// 
+/// This is the most common type of dataset used in unsupervised machine learning.
+/// 
+/// Where this dataset differs from the `UnsupervisedDataset<Tensor>` is that the `BatchType` is `Tensor`, rather than `Vec<Arc<Tensor>>`.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct UnsupervisedTensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
 }
 
+/// A dataset containing a dictionary of tensors.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct DictTensorDataset {
     pub inputs: HashMap<String, Vec<Arc<Tensor>>>,
 }
 
 impl Dataset for TensorDataset {
-    type DataType = (Arc<Tensor>, Arc<Tensor>);
+    type SampleType = (Arc<Tensor>, Arc<Tensor>);
     type BatchType = (Tensor, Tensor);
 
-    fn data(self) -> Vec<Self::DataType> {
+    fn data(self) -> Vec<Self::SampleType> {
         self.inputs
             .into_iter()
             .zip(self.labels.into_iter())
@@ -48,7 +59,7 @@ impl Dataset for TensorDataset {
         self.inputs.len()
     }
 
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType {
         let (inputs, labels): (Vec<_>, Vec<_>) = data.into_iter().unzip();
         let inputs = Tensor::stack(&inputs, 0);
         let labels = Tensor::stack(&labels, 0);
@@ -57,10 +68,10 @@ impl Dataset for TensorDataset {
 }
 
 impl Dataset for UnsupervisedTensorDataset {
-    type DataType = Arc<Tensor>;
+    type SampleType = Arc<Tensor>;
     type BatchType = Tensor;
 
-    fn data(self) -> Vec<Self::DataType> {
+    fn data(self) -> Vec<Self::SampleType> {
         self.inputs
     }
 
@@ -76,16 +87,16 @@ impl Dataset for UnsupervisedTensorDataset {
         self.inputs.len()
     }
 
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType {
         Tensor::stack(&data.into_iter().collect::<Vec<_>>(), 0)
     }
 }
 
 impl Dataset for DictTensorDataset {
-    type DataType = HashMap<String, Arc<Tensor>>;
+    type SampleType = HashMap<String, Arc<Tensor>>;
     type BatchType = HashMap<String, Tensor>;
 
-    fn data(self) -> Vec<Self::DataType> {
+    fn data(self) -> Vec<Self::SampleType> {
         let mut data = Vec::new();
         for i in 0..self.inputs.len() {
             let mut input = HashMap::new();
@@ -111,7 +122,7 @@ impl Dataset for DictTensorDataset {
         self.inputs.values().next().unwrap().len()
     }
 
-    fn collate<I: IntoIterator<Item = Self::DataType>>(data: I) -> Self::BatchType {
+    fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType {
         let mut batch = HashMap::new();
         for data in data {
             for (key, value) in data {
@@ -126,18 +137,21 @@ impl Dataset for DictTensorDataset {
 }
 
 impl TensorDataset {
+    /// Creates a new `TensorDataset` from the given inputs and labels.
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>, labels: Vec<Arc<Tensor>>) -> Self {
         Self { inputs, labels }
     }
 }
 
 impl UnsupervisedTensorDataset {
+    /// Creates a new `UnsupervisedTensorDataset` from the given inputs.
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>) -> Self {
         Self { inputs }
     }
 }
 
 impl DictTensorDataset {
+    /// Creates a new `DictTensorDataset` from the given inputs.
     pub fn from_tensors(inputs: HashMap<String, Vec<Arc<Tensor>>>) -> Self {
         Self { inputs }
     }
@@ -145,12 +159,12 @@ impl DictTensorDataset {
 
 impl From<SimpleDataset<Tensor, Tensor>> for TensorDataset {
     fn from(dataset: SimpleDataset<Tensor, Tensor>) -> Self {
-        dataset.map(data_mapping(|data| data))
+        dataset.map(sample_mapping(|data| data))
     }
 }
 
 impl From<UnsupervisedDataset<Tensor>> for UnsupervisedTensorDataset {
     fn from(dataset: UnsupervisedDataset<Tensor>) -> Self {
-        dataset.map(data_mapping(|data| data))
+        dataset.map(sample_mapping(|data| data))
     }
 }

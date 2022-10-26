@@ -3,6 +3,7 @@ use tch::Tensor;
 
 use super::Module;
 
+/// A max pooling layer in 1 dimension.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling1D {
     #[builder]
@@ -45,6 +46,7 @@ impl Module for MaxPooling1D {
     }
 }
 
+/// A max pooling layer in 2 dimensions.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling2D {
     #[builder]
@@ -87,6 +89,7 @@ impl Module for MaxPooling2D {
     }
 }
 
+/// A max pooling layer in 3 dimensions.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct MaxPooling3D {
     #[builder]
@@ -129,6 +132,7 @@ impl Module for MaxPooling3D {
     }
 }
 
+/// An average pooling layer in 1 dimension.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AveragePooling1D {
     #[builder(default = "[3]")]
@@ -171,6 +175,7 @@ impl Module for AveragePooling1D {
     }
 }
 
+/// An average pooling layer in 2 dimensions.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 
 pub struct AveragePooling2D {
@@ -219,6 +224,7 @@ impl Module for AveragePooling2D {
     }
 }
 
+/// An average pooling layer in 3 dimensions.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AveragePooling3D {
     #[builder(default = "[3, 3, 3]")]
@@ -266,6 +272,7 @@ impl Module for AveragePooling3D {
     }
 }
 
+/// An adaptive max pooling layer in 1 dimension, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling1D {
     #[builder(default = "[1]")]
@@ -286,6 +293,7 @@ impl Module for AdaptiveMaxPooling1D {
     }
 }
 
+/// An adaptive max pooling layer in 2 dimensions, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling2D {
     #[builder(default = "[1, 1]")]
@@ -306,6 +314,7 @@ impl Module for AdaptiveMaxPooling2D {
     }
 }
 
+/// An adaptive max pooling layer in 3 dimensions, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveMaxPooling3D {
     #[builder(default = "[1, 1, 1]")]
@@ -326,6 +335,7 @@ impl Module for AdaptiveMaxPooling3D {
     }
 }
 
+/// An adaptive average pooling layer in 1 dimension, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling1D {
     #[builder(default = "[1]")]
@@ -346,6 +356,7 @@ impl Module for AdaptiveAveragePooling1D {
     }
 }
 
+/// An adaptive average pooling layer in 2 dimensions, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling2D {
     #[builder(default = "[1, 1]")]
@@ -366,6 +377,7 @@ impl Module for AdaptiveAveragePooling2D {
     }
 }
 
+/// An adaptive average pooling layer in 3 dimensions, which outputs a fixed size vector.
 #[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
 pub struct AdaptiveAveragePooling3D {
     #[builder(default = "[1, 1, 1]")]

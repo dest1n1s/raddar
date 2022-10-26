@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use super::{SimpleDataset, UnsupervisedDataset};
+
+/// A trait for datasets that can be loaded from json files.
 pub trait LoadFromJson {
     type ConfigType;
 
+    /// Load a dataset from a json file.
     fn from_json(path: &str, config: Self::ConfigType) -> Self;
 }
 

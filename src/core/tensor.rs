@@ -215,7 +215,7 @@ impl<
     }
 }
 
-/// Convert a multi-dimensional array to tensor
+/// Convert a multi-dimensional array to tensor.
 #[macro_export]
 macro_rules! tensor {
     ($a:expr) => {{

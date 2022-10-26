@@ -5,6 +5,10 @@ use tch::{no_grad, Device, Kind, Tensor};
 use crate::core::{Cellable, StateDict, TensorCell};
 
 use super::{Module, Trainable};
+
+/// A Convolution layer in 1 dimension.
+/// 
+/// See [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv1d {
     pub conv_weight: TensorCell,
@@ -92,6 +96,7 @@ impl Conv1d {
     }
 }
 
+/// A Convolution layer in 2 dimensions.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv2d {
     pub conv_weight: TensorCell,
@@ -182,6 +187,7 @@ impl Conv2d {
     }
 }
 
+/// A convolution layer in 3 dimensions.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv3d {
     pub conv_weight: TensorCell,

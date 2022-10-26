@@ -118,7 +118,7 @@ pub fn dataset_into_iter_derive(input: TokenStream) -> TokenStream {
 
     let gen = quote! {
         impl #impl_generics IntoIterator for #name #ty_generics #where_clause {
-            type Item = <Self as raddar::dataset::Dataset>::DataType;
+            type Item = <Self as raddar::dataset::Dataset>::SampleType;
             type IntoIter = raddar::dataset::DatasetIterator<Self>;
 
             fn into_iter(self) -> Self::IntoIter {
@@ -145,8 +145,8 @@ pub fn dataset_from_iter_derive(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics FromIterator<<Self as raddar::dataset::Dataset>::DataType> for #name #ty_generics #where_clause {
-            fn from_iter<I: IntoIterator<Item = <Self as raddar::dataset::Dataset>::DataType>>(iter: I) -> Self {
+        impl #impl_generics FromIterator<<Self as raddar::dataset::Dataset>::SampleType> for #name #ty_generics #where_clause {
+            fn from_iter<I: IntoIterator<Item = <Self as raddar::dataset::Dataset>::SampleType>>(iter: I) -> Self {
                 Self::from_data(iter)
             }
         }

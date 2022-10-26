@@ -7,6 +7,9 @@ use crate::core::{Cellable, StateDict, TensorCell};
 
 use super::{Module, Trainable};
 
+/// A one-hot embedding layer.
+/// 
+/// This layer is used to convert a sequence of integers into a sequence of one-hot vectors.
 #[derive(Debug, CallableModule, NonParameterModule)]
 pub struct OneHot {
     pub num_classes: u32,
@@ -28,6 +31,9 @@ impl OneHot {
     }
 }
 
+/// An embedding layer.
+/// 
+/// See [Distributed Representations of Words and Phrases and their Compositionality](https://arxiv.org/abs/1310.4546).
 #[derive(Debug, CallableModule)]
 pub struct Embedding {
     pub num_embeddings: i64,

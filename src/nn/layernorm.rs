@@ -5,6 +5,9 @@ use crate::core::{Cellable, StateDict, TensorCell};
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{Device, Kind, Tensor};
 
+/// A layer normalization layer.
+/// 
+/// See [Layer Normalization](https://arxiv.org/abs/1607.06450).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct LayerNorm {
     pub ln_weight: Option<TensorCell>,
@@ -18,6 +21,7 @@ pub struct LayerNorm {
     #[builder(default = "true")]
     pub elementwise_affine: bool,
 }
+
 impl Trainable for LayerNorm {
     fn trainable_parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
@@ -31,6 +35,7 @@ impl Trainable for LayerNorm {
         StateDict::from_map(result)
     }
 }
+
 impl Module for LayerNorm {
     fn forward(&self, input: &Tensor) -> Tensor {
         let ln_weight = self.ln_weight.as_ref().map(|weight| weight.lock());
@@ -46,6 +51,7 @@ impl Module for LayerNorm {
         )
     }
 }
+
 impl LayerNorm {
     pub fn new(config: LayerNormConfig) -> LayerNorm {
         let size = &*config.shape;

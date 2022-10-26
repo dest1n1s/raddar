@@ -10,6 +10,9 @@ use crate::{
     seq,
 };
 
+/// AlexNet architecture.
+/// 
+/// See [ImageNet Classification with Deep Convolutional Neural Networks](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct AlexNet {
     pub features: Sequential,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use raddar::{dataset::{TensorDataset, Dataset, DataLoaderConfigBuilder, data_mapping, batch_mapping}, tensor_vec, assert_tensor_eq, tensor};
+use raddar::{dataset::{TensorDataset, Dataset, DataLoaderConfigBuilder, sample_mapping, batch_mapping}, tensor_vec, assert_tensor_eq, tensor};
 use tch::Tensor;
 
 #[test]
@@ -26,7 +26,7 @@ fn dataset_mapping_test() {
     let labels = tensor_vec![[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]];
     let dataset = TensorDataset::from_tensors(inputs, labels);
 
-    let mapped_dataset: TensorDataset = dataset.map(data_mapping(|(x, y): (Arc<Tensor>, Arc<Tensor>)| (Arc::new(x.copy() * 2.0), Arc::new(y.copy() * 2.0))));
+    let mapped_dataset: TensorDataset = dataset.map(sample_mapping(|(x, y): (Arc<Tensor>, Arc<Tensor>)| (Arc::new(x.copy() * 2.0), Arc::new(y.copy() * 2.0))));
     let mapped_dataset: TensorDataset = mapped_dataset.map(batch_mapping(|(x, y): (Tensor, Tensor)| (x * 2.0, y * 2.0), 3));
     let mut iter = mapped_dataset.into_loader(DataLoaderConfigBuilder::default().batch_size(3).build().unwrap()).cycle();
     let (batch, _) = iter.next().unwrap();

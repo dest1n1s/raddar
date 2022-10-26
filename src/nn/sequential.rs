@@ -6,6 +6,7 @@ use crate::nn::Module;
 
 use super::Trainable;
 
+/// A module composed by a sequential of modules.
 #[derive(Debug, CallableModule)]
 pub struct Sequential(Vec<Box<dyn Module>>);
 
