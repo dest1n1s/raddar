@@ -12,17 +12,35 @@ use tch::{no_grad, Tensor};
 
 use super::{TensorCell, Cellable};
 
+/// Indicates the current node is a leaf node (i.e. a [`TensorCell`]) or a child tree (i.e. another [`StateDict`]).
 #[derive(Debug, Clone)]
 pub enum StateValue {
     Tensor(TensorCell),
     ChildStateDict(StateDict),
 }
 
+/// A [`StateDict`] is a tree of [`Tensor`]s. It stores the parameters of a model, including each parameter itself and the path to it.
+/// 
+/// For example, a [`StateDict`] of a model with 2 layers may look like this:
+/// 
+/// ```text
+/// StateDict {
+///     "layer1": StateDict {
+///         "weight": TensorCell,
+///         "bias": TensorCell,
+///     },
+///     "layer2": StateDict {
+///         "weight": TensorCell,
+///         "bias": TensorCell,
+///     },
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct StateDict {
     arc: Arc<StateDictData>,
 }
 
+/// The actual data of a [`StateDict`]. It is wrapped in an [`Arc`] to allow sharing between multiple [`StateDict`]s.
 #[derive(Debug)]
 pub struct StateDictData {
     pub name: RwLock<String>,
@@ -39,6 +57,7 @@ impl Deref for StateDict {
 }
 
 impl StateDict {
+    /// Creates an empty [`StateDict`].
     pub fn new() -> Self {
         let data = StateDictData {
             name: RwLock::new("".to_owned()),
@@ -50,10 +69,38 @@ impl StateDict {
         }
     }
 
+    /// Get a clone of the pointer to the inner [`StateDictData`].
     pub fn arc(&self) -> Arc<StateDictData> {
         self.arc.clone()
     }
 
+    /// Builds a [`StateDict`] from a [`BTreeMap`] of [`TensorCell`]s.
+    /// 
+    /// To build a [`StateDict`] like this:
+    /// 
+    /// ```text
+    /// StateDict {
+    ///     "layer1": StateDict {
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
+    ///     },
+    ///     "layer2": StateDict {
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
+    ///     },
+    /// }
+    /// ```
+    /// 
+    /// You should pass a [`BTreeMap`] like this:
+    /// 
+    /// ```text
+    /// BTreeMap {
+    ///     "layer1.weight": TensorCell,
+    ///     "layer1.bias": TensorCell,
+    ///     "layer2.weight": TensorCell,
+    ///     "layer2.bias": TensorCell,
+    /// }
+    /// ```
     pub fn from_map(parameters: BTreeMap<String, TensorCell>) -> Self {
         let this = Self::new();
         let parameter_map = parameters;
@@ -99,6 +146,33 @@ impl StateDict {
         this
     }
 
+    /// Loads a [`StateDict`] from a numpy .npz file.
+    /// 
+    /// The tensors in the file should be named as the path to them in the [`StateDict`].
+    /// 
+    /// For example, a [`StateDict`] like this:
+    /// 
+    /// ```text
+    /// StateDict {
+    ///     "layer1": StateDict {
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
+    ///     },
+    ///     "layer2": StateDict {
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
+    ///     },
+    /// }
+    /// ```
+    /// 
+    /// Should be saved in a .npz file like this:
+    /// 
+    /// ```text
+    /// layer1.weight.npy
+    /// layer1.bias.npy
+    /// layer2.weight.npy
+    /// layer2.bias.npy
+    /// ```
     pub fn from_npz<T: AsRef<Path>>(path: T) -> Result<StateDict> {
         Ok(Self::from_map(
             Tensor::read_npz(path)?
@@ -108,6 +182,7 @@ impl StateDict {
         ))
     }
 
+    /// Loads a [`StateDict`] from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`.
     pub fn from_ot<T: AsRef<Path>>(path: T) -> Result<StateDict> {
         Ok(Self::from_map(
             Tensor::load_multi(path)?
@@ -117,6 +192,7 @@ impl StateDict {
         ))
     }
 
+    /// Append a child [`StateDict`] to this [`StateDict`].
     pub fn append_child(&mut self, module_name: String, child: StateDict) {
         *child.parent.write().unwrap() = Arc::downgrade(&self.arc());
         self.parameters
@@ -127,6 +203,7 @@ impl StateDict {
 }
 
 impl StateDictData {
+    /// Get the path to this [`StateDict`] in the [`StateDict`] tree.
     pub fn path(&self) -> String {
         if let Some(parent) = self.parent.read().unwrap().upgrade() {
             format!("{}.{}", parent.path(), self.name.read().unwrap())
@@ -135,10 +212,12 @@ impl StateDictData {
         }
     }
 
+    /// Get a [`RwLockReadGuard`] to the [`BTreeMap`] of parameters.
     pub fn parameters(&self) -> RwLockReadGuard<'_, BTreeMap<String, StateValue>> {
         self.parameters.read().unwrap()
     }
 
+    /// Get a [`TensorCell`] from the [`StateDict`]. This method can only get tensors that are in the current [`StateDict`], not in child [`StateDict`]s.
     pub fn tensor(&self, key: &str) -> Result<TensorCell> {
         match self.parameters().get(key) {
             Some(StateValue::Tensor(tensor)) => Ok(tensor.clone()),
@@ -146,6 +225,7 @@ impl StateDictData {
         }
     }
 
+    /// Get a child [`StateDict`] from the [`StateDict`]. This method can only get child [`StateDict`]s, not tensors, and not child [`StateDict`]s of child [`StateDict`]s.
     pub fn child_state_dict(&self, module_name: &str) -> Result<StateDict> {
         match self.parameters().get(module_name) {
             Some(StateValue::ChildStateDict(state_dict)) => Ok(state_dict.clone()),
@@ -157,6 +237,7 @@ impl StateDictData {
         }
     }
 
+    /// Load a [`StateDict`] from another [`StateDict`]. This method only load the [`Tensor`], but not the entire [`StateDict`] architecture. Any parameter with the same path will be loaded. Any parameter in one [`StateDict`] but not found in the other will be ignored (without changing its value).
     pub fn load(&self, state_dict: StateDict) {
         for (key, value) in &*state_dict.parameters() {
             match self.parameters().get(key) {
@@ -177,6 +258,7 @@ impl StateDictData {
         }
     }
 
+    /// Convert the [`StateDict`] to a [`BTreeMap`].
     pub fn to_map(&self) -> BTreeMap<String, TensorCell> {
         let mut parameters = BTreeMap::new();
         for (key, value) in &*self.parameters() {
@@ -195,6 +277,7 @@ impl StateDictData {
         parameters
     }
 
+    /// Convert the [`StateDict`] to a [`Vec<TensorCell>`]. This method don't save the information about the path to parameters, so it should only be used when you need to execute an operation to all parameters as stream.
     pub fn to_vec(&self) -> Vec<TensorCell> {
         let mut parameters = Vec::new();
         for (_, value) in &*self.parameters() {

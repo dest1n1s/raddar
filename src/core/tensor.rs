@@ -91,9 +91,15 @@ macro_rules! assert_tensor_eq {
     };
 }
 
+/// A trait for nested array of [`Element`].
 pub trait ElementNestedArray<T: Element> {
+    /// The dimension of the nested array.
     const DIMENSION: usize;
+
+    /// The size of each dimension of the nested array.
     fn shape(&self) -> [i64; Self::DIMENSION];
+
+    /// Converts the nested array to an 1d-array.
     fn flat(&self) -> &[T];
 }
 
@@ -216,6 +222,18 @@ impl<
 }
 
 /// Convert a multi-dimensional array to tensor.
+/// 
+/// # Examples
+/// 
+/// ```
+/// use raddar::tensor;
+/// 
+/// let a = tensor!([[0, 1], [2, 3]]);
+/// let b = tensor!([0]);
+/// let c = tensor!([0.2]);
+/// let d1 = [1, 2, 3];
+/// let d = tensor!(d1);
+/// ```
 #[macro_export]
 macro_rules! tensor {
     ($a:expr) => {{
