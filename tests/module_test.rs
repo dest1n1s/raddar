@@ -149,19 +149,22 @@ fn cifar10_test() {
     let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
-        let root_path = "/dataset/cifar10/train/";
+        let root_path = "dataset/cifar10/train/";
         let temp_dataset: TensorDataset =
             DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-                .map(image_mappings::resize(224, 224))
+                // .map(image_mappings::resize(224, 224))
                 .map(image_mappings::to_tensor(DynamicImage::into_rgb32f))
                 .map(sample_mapping(|inputs: Arc<Tensor>| {
-                    let new_inputs = inputs.reshape(&[1, 2, 0]);
+                    // inputs.print();
+                    let new_inputs = inputs.permute(&[2, 0, 1]);
                     (Arc::new(new_inputs), Arc::new(tensor!([id.to_owned()])))
                 }));
+
         cifar_dataset = cifar_dataset
             .into_iter()
             .chain(temp_dataset.into_iter())
             .collect();
+        println!("Class {} is loaded.", *class);
     }
     let cifar_dataloader = cifar_dataset.into_loader(
         DataLoaderConfigBuilder::default()
@@ -170,13 +173,19 @@ fn cifar10_test() {
             .build()
             .unwrap(),
     );
+    println!("DataLoader is prepared.");
     let onehot = OneHot::new(10);
-    for epoch in 1..5 {
+    for _ in 1..5 {
         let epoch_loader = cifar_dataloader.clone();
         for (img, label) in epoch_loader {
+            // label.print();
             model.zero_grad();
-            let loss = model(&img).mse_loss(&label, Reduction::Mean);
+            let loss = model(&img.to_kind(Kind::Double)).mse_loss(
+                &(onehot)(&label.to_kind(Kind::Int64)).to_kind(Kind::Double),
+                Reduction::Mean,
+            );
             loss.backward();
+            loss.print();
             optimizer.step();
         }
     }
