@@ -33,7 +33,9 @@ pub mod image_mappings {
     use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel};
     use tch::{kind::Element, Tensor};
 
-    use crate::dataset::{sample_mapping, Dataset, DatasetSampleMapping, UnsupervisedTensorDataset};
+    use crate::dataset::{
+        sample_mapping, Dataset, DatasetSampleMapping, UnsupervisedTensorDataset,
+    };
 
     use super::DynImageDataset;
 
@@ -91,7 +93,7 @@ pub mod image_mappings {
             let input = into_image_buffer(input);
             let channels = P::CHANNEL_COUNT as i64;
             let tensor =
-                Tensor::of_slice(&input.into_raw()).reshape(&[1, h as i64, w as i64, channels]);
+                Tensor::of_slice(&input.into_raw()).reshape(&[h as i64, w as i64, channels]);
             Arc::new(tensor)
         })
     }

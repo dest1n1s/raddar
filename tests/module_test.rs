@@ -1,9 +1,19 @@
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+
+use image::DynamicImage;
+use raddar::dataset::{
+    image_mappings, sample_mapping, DataLoaderConfigBuilder, Dataset, DynImageDataset,
+    LoadFromImageFolder, TensorDataset, UnsupervisedTensorDataset,
+};
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, resnet101, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
+    alexnet, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
     LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
-use raddar::optim::{Optimizer, RMSPropBuilder, StepLRBuilder};
+use raddar::optim::{
+    AdamBuilder, CosineAnnealingLRBuilder, Optimizer, RMSPropBuilder, StepLRBuilder,
+};
 use raddar::{assert_tensor_eq, seq, tensor};
 
 use tch::{Device, Kind, Reduction, Tensor};
@@ -111,7 +121,63 @@ fn vgg_test() {
 fn resnet_test() {
     let num_classes = 100;
     let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
-    let net = resnet101(num_classes);
+    let net = resnet50(num_classes);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
+}
+#[test]
+fn cifar10_test() {
+    let num_classes = 10;
+    let model = resnet50(num_classes);
+    let mut optimizer = Optimizer::new(
+        AdamBuilder::default().learning_rate(0.01).build().unwrap(),
+        &model,
+        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
+    );
+    let classes_vec = vec![
+        (0, "airplane".to_string()),
+        (1, "automobile".to_string()),
+        (2, "bird".to_string()),
+        (3, "cat".to_string()),
+        (4, "deer".to_string()),
+        (5, "dog".to_string()),
+        (6, "frog".to_string()),
+        (7, "horse".to_string()),
+        (8, "ship".to_string()),
+        (9, "truck".to_string()),
+    ];
+    let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
+    let mut cifar_dataset = TensorDataset::default();
+    for (id, class) in &classes_map {
+        let root_path = "/dataset/cifar10/train/";
+        let temp_dataset: TensorDataset =
+            DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
+                .map(image_mappings::resize(224, 224))
+                .map(image_mappings::to_tensor(DynamicImage::into_rgb32f))
+                .map(sample_mapping(|inputs: Arc<Tensor>| {
+                    let new_inputs = inputs.reshape(&[1, 2, 0]);
+                    (Arc::new(new_inputs), Arc::new(tensor!([id.to_owned()])))
+                }));
+        cifar_dataset = cifar_dataset
+            .into_iter()
+            .chain(temp_dataset.into_iter())
+            .collect();
+    }
+    let cifar_dataloader = cifar_dataset.into_loader(
+        DataLoaderConfigBuilder::default()
+            .batch_size(32)
+            .shuffle(true)
+            .build()
+            .unwrap(),
+    );
+    let onehot = OneHot::new(10);
+    for epoch in 1..5 {
+        let epoch_loader = cifar_dataloader.clone();
+        for (img, label) in epoch_loader {
+            model.zero_grad();
+            let loss = model(&img).mse_loss(&label, Reduction::Mean);
+            loss.backward();
+            optimizer.step();
+        }
+    }
 }

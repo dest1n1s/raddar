@@ -1,27 +1,27 @@
-use std::{sync::Arc, collections::HashMap};
+use std::{collections::HashMap, sync::Arc};
 
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
 use tch::Tensor;
 
 use crate::core::TensorIntoIter;
 
-use super::{Dataset, SimpleDataset, UnsupervisedDataset, sample_mapping};
+use super::{sample_mapping, Dataset, SimpleDataset, UnsupervisedDataset};
 
 /// A tensor dataset where the inputs and labels are all tensors.
-/// 
+///
 /// This is the most common type of dataset used in machine learning.
-/// 
+///
 /// Where this dataset differs from the `SimpleDataset<Tensor, Tensor>` is that the `BatchType` is a tuple of tensors, rather than a tuple of `Vec<Arc<Tensor>>`.
-#[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
+#[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter, Default)]
 pub struct TensorDataset {
     pub inputs: Vec<Arc<Tensor>>,
     pub labels: Vec<Arc<Tensor>>,
 }
 
 /// An unlabelled tensor dataset where the inputs are all tensors.
-/// 
+///
 /// This is the most common type of dataset used in unsupervised machine learning.
-/// 
+///
 /// Where this dataset differs from the `UnsupervisedDataset<Tensor>` is that the `BatchType` is `Tensor`, rather than `Vec<Arc<Tensor>>`.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
 pub struct UnsupervisedTensorDataset {
@@ -112,7 +112,10 @@ impl Dataset for DictTensorDataset {
         let mut inputs = HashMap::new();
         for batch in batches {
             for (key, value) in batch {
-                inputs.entry(key).or_insert_with(Vec::new).push(Arc::new(value));
+                inputs
+                    .entry(key)
+                    .or_insert_with(Vec::new)
+                    .push(Arc::new(value));
             }
         }
         Self { inputs }
@@ -129,9 +132,15 @@ impl Dataset for DictTensorDataset {
                 batch.entry(key).or_insert_with(Vec::new).push(value);
             }
         }
-        let batch = batch.into_iter().map(|(key, values)| {
-            (key, Tensor::stack(&values.into_iter().collect::<Vec<_>>(), 0))
-        }).collect();
+        let batch = batch
+            .into_iter()
+            .map(|(key, values)| {
+                (
+                    key,
+                    Tensor::stack(&values.into_iter().collect::<Vec<_>>(), 0),
+                )
+            })
+            .collect();
         batch
     }
 }
