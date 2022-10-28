@@ -8,7 +8,7 @@ use crate::core::{Cellable, StateDict, TensorCell};
 use super::{Module, Trainable};
 
 /// A one-hot embedding layer.
-/// 
+///
 /// This layer is used to convert a sequence of integers into a sequence of one-hot vectors.
 #[derive(Debug, CallableModule, NonParameterModule)]
 pub struct OneHot {
@@ -19,7 +19,7 @@ impl Module for OneHot {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut original_size = input.size();
         original_size.push(self.num_classes as i64);
-        let mut one_hot = Tensor::zeros(&original_size, (input.kind(), Device::Cpu));
+        let mut one_hot = Tensor::zeros(&original_size, (input.kind(), input.device()));
         let input = input.unsqueeze(-1);
         one_hot.scatter_(-1, &input, &input.ones_like())
     }
@@ -32,7 +32,7 @@ impl OneHot {
 }
 
 /// An embedding layer.
-/// 
+///
 /// See [Distributed Representations of Words and Phrases and their Compositionality](https://arxiv.org/abs/1310.4546).
 #[derive(Debug, CallableModule)]
 pub struct Embedding {
