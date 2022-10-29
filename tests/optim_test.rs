@@ -1,7 +1,3 @@
-use image::DynamicImage;
-use raddar::dataset::{
-    image_dataset, image_mappings, sample_mapping, Dataset, DynImageDataset, LoadFromImageFolder,
-};
 use raddar::nn::{LinearBuilder, Trainable};
 use raddar::optim::{AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer};
 use raddar::tensor;

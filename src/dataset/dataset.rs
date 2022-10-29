@@ -1,32 +1,33 @@
-use std::{cmp::min, sync::Arc, marker::PhantomData};
+use std::{cmp::min, marker::PhantomData, sync::Arc};
 
 use derive_builder::Builder;
+use pariter::IteratorExt;
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
 use rand::seq::SliceRandom;
 
 /// A simple dataset with a vector of inputs and a vector of targets.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
-pub struct SimpleDataset<InputType, LabelType> {
+pub struct SimpleDataset<InputType: Send + Sync + 'static, LabelType: Send + Sync + 'static> {
     pub inputs: Vec<Arc<InputType>>,
     pub labels: Vec<Arc<LabelType>>,
 }
 
 /// An unlabelled dataset with a vector of inputs.
 #[derive(Debug, Clone, DatasetIntoIter, DatasetFromIter)]
-pub struct UnsupervisedDataset<InputType> {
+pub struct UnsupervisedDataset<InputType: Send + Sync + 'static> {
     pub inputs: Vec<Arc<InputType>>,
 }
 
 /// A mapping function used to transform the data in a dataset.
-/// 
+///
 /// The mapping has 2 variants:
 /// `BatchFunc` is used to transform batched data, which can potentially be more efficient.
 /// `SampleFunc` is used to transform individual samples.
 pub enum DatasetMapping<
     DatasetFrom: Dataset,
     DatasetTo: Dataset,
-    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType,
-    SampleFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType,
+    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType + Send + Clone,
+    SampleFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType + Send + Clone,
 > {
     BatchMapping(BatchFunc, usize),
     DataMapping(SampleFunc),
@@ -36,7 +37,7 @@ pub enum DatasetMapping<
 pub type DatasetBatchMapping<
     DatasetFrom: Dataset,
     DatasetTo: Dataset,
-    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType,
+    BatchFunc: FnMut(DatasetFrom::BatchType) -> DatasetTo::BatchType + Send + Clone,
 > = DatasetMapping<
     DatasetFrom,
     DatasetTo,
@@ -47,7 +48,7 @@ pub type DatasetBatchMapping<
 pub type DatasetSampleMapping<
     DatasetFrom: Dataset,
     DatasetTo: Dataset,
-    DataFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType,
+    DataFunc: FnMut(DatasetFrom::SampleType) -> DatasetTo::SampleType + Send + Clone,
 > = DatasetMapping<
     DatasetFrom,
     DatasetTo,
@@ -56,7 +57,11 @@ pub type DatasetSampleMapping<
 >;
 
 /// Create a `DatasetBatchMapping` from a batch mapping function.
-pub fn batch_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::BatchType) -> T2::BatchType>(
+pub fn batch_mapping<
+    T1: Dataset,
+    T2: Dataset,
+    F: FnMut(T1::BatchType) -> T2::BatchType + Send + Clone,
+>(
     batch_func: F,
     batch_size: usize,
 ) -> DatasetBatchMapping<T1, T2, F> {
@@ -64,7 +69,11 @@ pub fn batch_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::BatchType) -> T2::Ba
 }
 
 /// Create a `DatasetSampleMapping` from a sample mapping function.
-pub fn sample_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::SampleType) -> T2::SampleType>(
+pub fn sample_mapping<
+    T1: Dataset,
+    T2: Dataset,
+    F: FnMut(T1::SampleType) -> T2::SampleType + Send + Clone,
+>(
     sample_func: F,
 ) -> DatasetSampleMapping<T1, T2, F> {
     DatasetMapping::DataMapping(sample_func)
@@ -72,12 +81,14 @@ pub fn sample_mapping<T1: Dataset, T2: Dataset, F: FnMut(T1::SampleType) -> T2::
 
 /// A trait for datasets.
 pub trait Dataset:
-    IntoIterator<Item = Self::SampleType> + FromIterator<Self::BatchType> + FromIterator<Self::SampleType>
+    IntoIterator<Item = Self::SampleType>
+    + FromIterator<Self::BatchType>
+    + FromIterator<Self::SampleType>
 where
     Self: Sized,
 {
-    type SampleType: Clone;
-    type BatchType;
+    type SampleType: Clone + Send + Sync + 'static;
+    type BatchType: Send + Sync + 'static;
 
     /// Returns all the samples in the dataset.
     fn data(self) -> Vec<Self::SampleType>;
@@ -102,31 +113,30 @@ where
     fn collate<I: IntoIterator<Item = Self::SampleType>>(data: I) -> Self::BatchType;
 
     /// Maps the dataset to a new dataset using the given mapping function.
-    fn map<
+    fn map<T, F1, F2>(self, mapping: DatasetMapping<Self, T, F1, F2>) -> T
+    where
+        Self: 'static,
         T: Dataset,
-        F1: FnMut(Self::BatchType) -> T::BatchType,
-        F2: FnMut(Self::SampleType) -> T::SampleType,
-    >(
-        self,
-        mapping: DatasetMapping<Self, T, F1, F2>,
-    ) -> T {
+        F1: FnMut(Self::BatchType) -> T::BatchType + Send + Clone + 'static,
+        F2: FnMut(Self::SampleType) -> T::SampleType + Send + Clone + 'static,
+    {
         match mapping {
-            DatasetMapping::BatchMapping(mut f, batch_size) => self
+            DatasetMapping::BatchMapping(f, batch_size) => self
                 .into_loader(
                     DataLoaderConfigBuilder::default()
                         .batch_size(batch_size)
                         .build()
                         .unwrap(),
                 )
-                .map(|batch| f(batch))
+                .parallel_map(f)
                 .collect(),
-            DatasetMapping::DataMapping(mut f) => self.into_iter().map(|data| f(data)).collect(),
+            DatasetMapping::DataMapping(f) => self.into_iter().parallel_map(f).collect(),
             DatasetMapping::_Phantom(..) => unreachable!(),
         }
     }
 }
 
-impl<T, U> Dataset for SimpleDataset<T, U> {
+impl<T: Send + Sync, U: Send + Sync> Dataset for SimpleDataset<T, U> {
     type SampleType = (Arc<T>, Arc<U>);
     type BatchType = (Vec<Arc<T>>, Vec<Arc<U>>);
 
@@ -156,7 +166,7 @@ impl<T, U> Dataset for SimpleDataset<T, U> {
     }
 }
 
-impl<T> Dataset for UnsupervisedDataset<T> {
+impl<T: Send + Sync> Dataset for UnsupervisedDataset<T> {
     type SampleType = Arc<T>;
     type BatchType = Vec<Arc<T>>;
 
@@ -181,13 +191,13 @@ impl<T> Dataset for UnsupervisedDataset<T> {
     }
 }
 
-impl<V, U> SimpleDataset<V, U> {
+impl<V: Send + Sync, U: Send + Sync> SimpleDataset<V, U> {
     pub fn from_vectors(inputs: Vec<Arc<V>>, labels: Vec<Arc<U>>) -> Self {
         Self { inputs, labels }
     }
 }
 
-impl<V> UnsupervisedDataset<V> {
+impl<V: Send + Sync> UnsupervisedDataset<V> {
     pub fn from_vectors(inputs: Vec<Arc<V>>) -> Self {
         Self { inputs }
     }

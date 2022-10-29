@@ -31,6 +31,7 @@ pub mod image_mappings {
     use std::{ops::Deref, sync::Arc};
 
     use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel};
+    use parking_lot::Mutex;
     use tch::{kind::Element, Tensor};
 
     use crate::dataset::{
@@ -45,7 +46,12 @@ pub mod image_mappings {
     ) -> DatasetSampleMapping<
         DynImageDataset,
         DynImageDataset,
-        impl FnMut(<DynImageDataset as Dataset>::SampleType) -> <DynImageDataset as Dataset>::SampleType,
+        impl FnMut(
+                <DynImageDataset as Dataset>::SampleType,
+            ) -> <DynImageDataset as Dataset>::SampleType
+            + Send
+            + Clone
+            + 'static,
     > {
         sample_mapping(move |input: Arc<DynamicImage>| {
             let mut input = (*input).clone();
@@ -62,9 +68,17 @@ pub mod image_mappings {
     ) -> DatasetSampleMapping<
         DynImageDataset,
         DynImageDataset,
-        impl FnMut(<DynImageDataset as Dataset>::SampleType) -> <DynImageDataset as Dataset>::SampleType,
+        impl FnMut(
+                <DynImageDataset as Dataset>::SampleType,
+            ) -> <DynImageDataset as Dataset>::SampleType
+            + Send
+            + Clone
+            + 'static,
     > {
+        let count = Arc::new(Mutex::new(0));
         sample_mapping(move |input: Arc<DynamicImage>| {
+            let mut count = count.lock();
+            *count += 1;
             let input = (*input).clone();
             let resized = input.resize(width, height, image::imageops::FilterType::Lanczos3);
             Arc::new(resized)
@@ -74,15 +88,18 @@ pub mod image_mappings {
     pub fn to_tensor<
         P: Pixel,
         Container: Deref<Target = [P::Subpixel]> + Clone,
-        F: Fn(DynamicImage) -> ImageBuffer<P, Container>,
+        F: Fn(DynamicImage) -> ImageBuffer<P, Container> + Send + Clone + 'static,
     >(
         into_image_buffer: F,
     ) -> DatasetSampleMapping<
         DynImageDataset,
         UnsupervisedTensorDataset,
         impl FnMut(
-            <DynImageDataset as Dataset>::SampleType,
-        ) -> <UnsupervisedTensorDataset as Dataset>::SampleType,
+                <DynImageDataset as Dataset>::SampleType,
+            ) -> <UnsupervisedTensorDataset as Dataset>::SampleType
+            + Send
+            + Clone
+            + 'static,
     >
     where
         <P as Pixel>::Subpixel: Element,

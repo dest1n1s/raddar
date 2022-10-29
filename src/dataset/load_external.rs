@@ -15,7 +15,7 @@ pub struct SimpleDatasetJsonConfig {
     pub label_field: String,
 }
 
-impl<InputType: Clone, LabelType: Clone> LoadFromJson for SimpleDataset<InputType, LabelType>
+impl<InputType: Clone + Send + Sync, LabelType: Clone + Send + Sync> LoadFromJson for SimpleDataset<InputType, LabelType>
 where
     InputType: serde::de::DeserializeOwned,
     LabelType: serde::de::DeserializeOwned,
@@ -57,7 +57,7 @@ pub struct UnsupervisedDatasetJsonConfig {
     pub input_field: String,
 }
 
-impl<InputType> LoadFromJson for UnsupervisedDataset<InputType>
+impl<InputType: Send + Sync> LoadFromJson for UnsupervisedDataset<InputType>
 where
     InputType: serde::de::DeserializeOwned,
 {
