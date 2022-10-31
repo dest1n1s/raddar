@@ -123,6 +123,19 @@ where
     /// Augments the dataset with the given augmentation function.
     /// 
     /// This method is similar to the `map` method, but maps each sample in the dataset to a collection of samples, and then flattens the collection into a new dataset.
+    /// 
+    /// # Examples
+    /// ```
+    /// let inputs = tensor_vec![[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]];
+    /// let labels = tensor_vec![[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]];
+    /// let dataset = TensorDataset::from_tensors(inputs, labels);
+    /// let augmented_dataset: TensorDataset = dataset.augment::<TensorDataset, _, _>(|(x, y): (Arc<Tensor>, Arc<Tensor>)| {
+    ///     vec![
+    ///         (Arc::new(x.copy()), Arc::new(y.copy())),
+    ///         (Arc::new(x.copy() * 2.0), Arc::new(y.copy() * 2.0)),
+    ///     ]
+    /// })
+    /// ```
     fn augment<T, F, C>(self, f: F) -> T
     where
         Self: 'static,
