@@ -1,6 +1,6 @@
-use tch::{no_grad};
+use tch::no_grad;
 
-use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
+use crate::{core::TensorCell, optim::optimizer::OptimizerAlgorithm};
 
 pub struct GradientDescent {
     learning_rate: f64,
@@ -28,4 +28,7 @@ impl GradientDescent {
     pub fn new(learning_rate: f64) -> GradientDescent {
         GradientDescent { learning_rate }
     }
+}
+pub fn gradient_descent(learning_rate: f64) -> GradientDescent {
+    GradientDescent { learning_rate }
 }

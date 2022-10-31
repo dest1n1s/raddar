@@ -1,9 +1,7 @@
-use image::DynamicImage;
-use raddar::dataset::{
-    image_dataset, image_mappings, sample_mapping, Dataset, DynImageDataset, LoadFromImageFolder,
-};
 use raddar::nn::{LinearBuilder, Trainable};
-use raddar::optim::{AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer};
+use raddar::optim::{
+    AdamBuilder, CosineAnnealingLRBuilder, GradientDescent, Optimizer, StepLRBuilder,
+};
 use raddar::tensor;
 use tch::Reduction;
 
@@ -14,9 +12,9 @@ fn gradient_descent_test() {
 
     let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
     let mut optimizer = Optimizer::new(
-        GradientDescent::new(0.01),
         &model,
-        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
+        GradientDescent::new(0.01),
+        Some(StepLRBuilder::default().build()),
     );
     for epoch in 1..=5000 {
         model.zero_grad();
@@ -40,9 +38,9 @@ fn rmsprop_test() {
 
     let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
     let mut optimizer = Optimizer::new(
-        AdamBuilder::default().learning_rate(0.01).build().unwrap(),
         &model,
-        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
+        AdamBuilder::default().learning_rate(0.01).build(),
+        Some(CosineAnnealingLRBuilder::default().build()),
     );
     for epoch in 1..=5000 {
         model.zero_grad();

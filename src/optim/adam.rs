@@ -1,8 +1,7 @@
-use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
-use derive_builder::Builder;
+use crate::{core::TensorCell, optim::optimizer::OptimizerAlgorithm};
+use raddar_derive::ArchitectureBuilder;
 use tch::{no_grad, Tensor};
-#[derive(Builder)]
-#[builder(pattern = "owned")]
+#[derive(ArchitectureBuilder)]
 
 pub struct Adam {
     #[builder(default = "0.001")]
@@ -13,11 +12,8 @@ pub struct Adam {
     eps: f64,
     #[builder(default = "0.")]
     weight_decay: f64,
-    #[builder(default = "0")]
-    step: i32,
-    #[builder(default = "None")]
+    step: i64,
     m: Option<Vec<Tensor>>,
-    #[builder(default = "None")]
     v: Option<Vec<Tensor>>,
 }
 
@@ -45,8 +41,8 @@ impl OptimizerAlgorithm for Adam {
                 grad = grad + &*parameter * self.weight_decay;
                 *v = (&*v) * self.betas.1 + (1. - self.betas.1) * grad.square();
                 *m = (&*m) * self.betas.0 + (1. - self.betas.0) * &grad;
-                let m_hat = &*m / (1. - self.betas.0.powi(self.step));
-                let v_hat = &*v / (1. - self.betas.1.powi(self.step));
+                let m_hat = &*m / (1. - self.betas.0.powf(self.step as f64));
+                let v_hat = &*v / (1. - self.betas.1.powf(self.step as f64));
                 *parameter -= self.learning_rate * m_hat / (self.eps + v_hat.sqrt());
             })
         }
@@ -58,4 +54,23 @@ impl OptimizerAlgorithm for Adam {
     fn set_learning_rate(&mut self, lr: f64) {
         self.learning_rate = lr;
     }
+}
+impl Adam {
+    pub fn new(config: AdamConfig) -> Adam {
+        Adam {
+            learning_rate: config.learning_rate,
+            betas: config.betas,
+            eps: config.eps,
+            weight_decay: config.weight_decay,
+            step: 0,
+            m: None,
+            v: None,
+        }
+    }
+}
+pub fn adam(learning_rate: f64, betas: (f64, f64)) -> Adam {
+    AdamBuilder::default()
+        .learning_rate(learning_rate)
+        .betas(betas)
+        .build()
 }
