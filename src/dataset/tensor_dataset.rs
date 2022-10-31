@@ -5,7 +5,7 @@ use tch::Tensor;
 
 use crate::core::TensorIntoIter;
 
-use super::{sample_mapping, Dataset, SimpleDataset, UnsupervisedDataset};
+use super::{Dataset, SimpleDataset, UnsupervisedDataset};
 
 /// A tensor dataset where the inputs and labels are all tensors.
 ///
@@ -168,12 +168,12 @@ impl DictTensorDataset {
 
 impl From<SimpleDataset<Tensor, Tensor>> for TensorDataset {
     fn from(dataset: SimpleDataset<Tensor, Tensor>) -> Self {
-        dataset.map(sample_mapping(|data| data))
+        dataset.map(|data| data)
     }
 }
 
 impl From<UnsupervisedDataset<Tensor>> for UnsupervisedTensorDataset {
     fn from(dataset: UnsupervisedDataset<Tensor>) -> Self {
-        dataset.map(sample_mapping(|data| data))
+        dataset.map(|data| data)
     }
 }
