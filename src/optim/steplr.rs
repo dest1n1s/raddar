@@ -1,19 +1,16 @@
-use derive_builder::Builder;
 use raddar::optim::optimizer::SchedulerAlgorithm;
-#[derive(Builder)]
-#[builder(pattern = "owned")]
+use raddar_derive::ArchitectureBuilder;
+#[derive(ArchitectureBuilder)]
 pub struct StepLR {
     #[builder(default = "500")]
-    step_size: i32,
+    step_size: i64,
     #[builder(default = "0.99")]
     gamma: f64,
-    #[builder(default = "0")]
-    last_step: i32,
-    #[builder(default = "0.")]
+    last_step: i64,
     init_lr: f64,
 }
 impl SchedulerAlgorithm for StepLR {
-    fn update(&mut self, step: i32, lr: f64) -> f64 {
+    fn update(&mut self, step: i64, lr: f64) -> f64 {
         if step - self.last_step >= self.step_size {
             self.last_step = step;
             lr * self.gamma
@@ -26,12 +23,18 @@ impl SchedulerAlgorithm for StepLR {
     }
 }
 impl StepLR {
-    pub fn new(step_size: i32, gamma: f64) -> StepLR {
+    pub fn new(config: StepLRConfig) -> StepLR {
         StepLR {
-            step_size,
-            gamma,
+            step_size: config.step_size,
+            gamma: config.gamma,
             last_step: 0,
             init_lr: 0.,
         }
     }
+}
+pub fn step_lr(step_size: i64, gamma: f64) -> StepLR {
+    StepLRBuilder::default()
+        .step_size(step_size)
+        .gamma(gamma)
+        .build()
 }

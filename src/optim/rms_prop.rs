@@ -1,8 +1,7 @@
-use crate::{optim::optimizer::OptimizerAlgorithm, core::TensorCell};
-use derive_builder::Builder;
+use crate::{core::TensorCell, optim::optimizer::OptimizerAlgorithm};
+use raddar_derive::ArchitectureBuilder;
 use tch::{no_grad, Tensor};
-#[derive(Builder)]
-#[builder(pattern = "owned")]
+#[derive(ArchitectureBuilder)]
 pub struct RMSProp {
     #[builder(default = "0.001")]
     learning_rate: f64,
@@ -14,9 +13,7 @@ pub struct RMSProp {
     weight_decay: f64,
     #[builder(default = "0.")]
     momentum: f64,
-    #[builder(default = "None")]
     r1: Option<Vec<Tensor>>,
-    #[builder(default = "None")]
     r2: Option<Vec<Tensor>>,
 }
 impl OptimizerAlgorithm for RMSProp {
@@ -54,21 +51,21 @@ impl OptimizerAlgorithm for RMSProp {
     }
 }
 impl RMSProp {
-    pub fn new(
-        learning_rate: f64,
-        alpha: f64,
-        eps: f64,
-        weight_decay: f64,
-        momentum: f64,
-    ) -> RMSProp {
+    pub fn new(config: RMSPropConfig) -> RMSProp {
         RMSProp {
-            learning_rate,
-            alpha,
-            eps,
-            weight_decay,
-            momentum,
+            learning_rate: config.learning_rate,
+            alpha: config.alpha,
+            eps: config.eps,
+            weight_decay: config.weight_decay,
+            momentum: config.momentum,
             r1: None,
             r2: None,
         }
     }
+}
+pub fn rmsprop(learning_rate: f64, alpha: f64) -> RMSProp {
+    RMSPropBuilder::default()
+        .learning_rate(learning_rate)
+        .alpha(alpha)
+        .build()
 }

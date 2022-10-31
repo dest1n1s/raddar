@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use image::DynamicImage;
 use raddar::dataset::{
-    image_mappings, DataLoaderConfigBuilder, Dataset, DynImageDataset,
-    LoadFromImageFolder, TensorDataset, UnsupervisedTensorDataset,
+    image_mappings, DataLoaderConfigBuilder, Dataset, DynImageDataset, LoadFromImageFolder,
+    TensorDataset, UnsupervisedTensorDataset,
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
@@ -32,9 +32,9 @@ fn sequential_test() {
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        RMSPropBuilder::default().build().unwrap(),
         &model,
-        Some(StepLRBuilder::default().build().unwrap()),
+        RMSPropBuilder::default().build(),
+        Some(StepLRBuilder::default().build()),
     );
     for _epoch in 1..=5000 {
         model.zero_grad();
@@ -148,9 +148,9 @@ fn cifar10_test() {
     let num_classes = 10;
     let model = resnet50(num_classes);
     let mut optimizer = Optimizer::new(
-        AdamBuilder::default().learning_rate(0.01).build().unwrap(),
         &model,
-        Some(CosineAnnealingLRBuilder::default().build().unwrap()),
+        AdamBuilder::default().learning_rate(0.01).build(),
+        Some(CosineAnnealingLRBuilder::default().build()),
     );
     let classes_vec = vec![
         (0, "airplane".to_string()),
@@ -173,7 +173,9 @@ fn cifar10_test() {
         let temp_dataset: TensorDataset =
             DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
                 .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
-                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(DynamicImage::into_rgb32f))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
                 .map(move |inputs: Arc<Tensor>| {
                     let new_inputs = inputs.permute(&[2, 0, 1]);
                     (Arc::new(new_inputs), Arc::new(tensor!([id])))
