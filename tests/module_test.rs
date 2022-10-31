@@ -14,7 +14,7 @@ use raddar::nn::{
 use raddar::optim::{
     AdamBuilder, CosineAnnealingLRBuilder, Optimizer, RMSPropBuilder, StepLRBuilder,
 };
-use raddar::{assert_tensor_eq, seq, tensor};
+use raddar::{assert_tensor_eq, seq, tensor, named_seq};
 
 use tch::{Device, Kind, Reduction, Tensor};
 
@@ -29,6 +29,24 @@ fn sequential_test() {
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
+    );
+    model.to(tch::Device::Cuda(0));
+    let mut optimizer = Optimizer::new(
+        RMSPropBuilder::default().build().unwrap(),
+        &model,
+        Some(StepLRBuilder::default().build().unwrap()),
+    );
+    for _epoch in 1..=5000 {
+        model.zero_grad();
+        let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
+        loss.backward();
+        optimizer.step();
+    }
+    model(&inputs).print();
+
+    let model = named_seq!(
+        "linear1" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
+        "linear2" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
