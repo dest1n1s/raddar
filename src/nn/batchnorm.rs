@@ -30,7 +30,7 @@ pub struct BatchNorm1d {
 }
 
 impl Trainable for BatchNorm1d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         if self.affine {
             result.insert(
@@ -126,7 +126,7 @@ pub struct BatchNorm2d {
 }
 
 impl Trainable for BatchNorm2d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         if self.affine {
             result.insert(
@@ -222,7 +222,7 @@ pub struct BatchNorm3d {
 }
 
 impl Trainable for BatchNorm3d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         if self.affine {
             result.insert(

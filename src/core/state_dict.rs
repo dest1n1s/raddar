@@ -13,9 +13,13 @@ use tch::{no_grad, Tensor};
 use super::{TensorCell, Cellable};
 
 /// Indicates the current node is a leaf node (i.e. a [`TensorCell`]) or a child tree (i.e. another [`StateDict`]).
+/// 
+/// A `StaticTensor` means a Tensor that is not a parameter of a [`Module`]. It is used to store some const data independent to input, and need to be in the same device as the module.
+/// You won't get a `StaticTensor` from `StateDict` when use call method such as `to_map` or `to_vec`. `StaticTensor` also won't be loaded in `load` or `from_map` method.
 #[derive(Debug, Clone)]
 pub enum StateValue {
     Tensor(TensorCell),
+    StaticTensor(TensorCell),
     ChildStateDict(StateDict),
 }
 
@@ -74,7 +78,7 @@ impl StateDict {
         self.arc.clone()
     }
 
-    /// Builds a [`StateDict`] from a [`BTreeMap`] of [`TensorCell`]s.
+    /// Builds a [`StateDict`] from a [`BTreeMap`] of [`TensorCell`]s. This method won't build static tensors.
     /// 
     /// To build a [`StateDict`] like this:
     /// 
@@ -146,7 +150,7 @@ impl StateDict {
         this
     }
 
-    /// Loads a [`StateDict`] from a numpy .npz file.
+    /// Loads a [`StateDict`] from a numpy .npz file. This method won't load static tensors.
     /// 
     /// The tensors in the file should be named as the path to them in the [`StateDict`].
     /// 
@@ -182,7 +186,7 @@ impl StateDict {
         ))
     }
 
-    /// Loads a [`StateDict`] from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`.
+    /// Loads a [`StateDict`] from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`. This method won't load static tensors.
     pub fn from_ot<T: AsRef<Path>>(path: T) -> Result<StateDict> {
         Ok(Self::from_map(
             Tensor::load_multi(path)?
@@ -199,6 +203,22 @@ impl StateDict {
             .write()
             .unwrap()
             .insert(module_name, StateValue::ChildStateDict(child));
+    }
+
+    /// Append a child `Tensor` to this [`StateDict`].
+    pub fn append_tensor(&mut self, name: String, tensor: TensorCell) {
+        self.parameters
+            .write()
+            .unwrap()
+            .insert(name, StateValue::Tensor(tensor));
+    }
+
+    /// Append a child `StaticTensor` to this [`StateDict`].
+    pub fn append_static_tensor(&mut self, name: String, tensor: TensorCell) {
+        self.parameters
+            .write()
+            .unwrap()
+            .insert(name, StateValue::StaticTensor(tensor));
     }
 }
 
@@ -258,7 +278,7 @@ impl StateDictData {
         }
     }
 
-    /// Convert the [`StateDict`] to a [`BTreeMap`].
+    /// Convert the [`StateDict`] to a [`BTreeMap`]. The returned [`BTreeMap`] doesn't contain static tensors.
     pub fn to_map(&self) -> BTreeMap<String, TensorCell> {
         let mut parameters = BTreeMap::new();
         for (key, value) in &*self.parameters() {
@@ -272,12 +292,13 @@ impl StateDictData {
                         parameters.insert(format!("{}.{}", key, child_key), child_value);
                     }
                 }
+                _ => (),
             }
         }
         parameters
     }
 
-    /// Convert the [`StateDict`] to a [`Vec<TensorCell>`]. This method don't save the information about the path to parameters, so it should only be used when you need to execute an operation to all parameters as stream.
+    /// Convert the [`StateDict`] to a [`Vec<TensorCell>`]. This method doesn't save the information about the path to parameters, so it should only be used when you need to execute an operation to all parameters as stream. The returned [`Vec`] doesn't contain static tensors.
     pub fn to_vec(&self) -> Vec<TensorCell> {
         let mut parameters = Vec::new();
         for (_, value) in &*self.parameters() {
@@ -288,7 +309,26 @@ impl StateDictData {
                 StateValue::ChildStateDict(state_dict) => {
                     let vec: Vec<TensorCell> = state_dict.to_vec();
                     parameters.extend(vec);
+                },
+                _ => (),
+            }
+        }
+        parameters
+    }
+
+    /// Get all static tensors in the [`StateDict`].
+    pub fn static_tensors(&self) -> Vec<TensorCell> {
+        let mut parameters = Vec::new();
+        for (_, value) in &*self.parameters() {
+            match value {
+                StateValue::StaticTensor(tensor) => {
+                    parameters.push(tensor.clone());
                 }
+                StateValue::ChildStateDict(state_dict) => {
+                    let vec: Vec<TensorCell> = state_dict.static_tensors();
+                    parameters.extend(vec);
+                },
+                _ => (),
             }
         }
         parameters

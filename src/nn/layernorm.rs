@@ -23,7 +23,7 @@ pub struct LayerNorm {
 }
 
 impl Trainable for LayerNorm {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         if self.elementwise_affine {
             result.insert(

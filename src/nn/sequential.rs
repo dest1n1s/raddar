@@ -1,4 +1,4 @@
-use crate::core::{StateDict, TensorCell};
+use crate::core::StateDict;
 use crate::nn::Module;
 use raddar_derive::CallableModule;
 use std::collections::BTreeMap;
@@ -67,21 +67,13 @@ impl FromIterator<(String, Box<dyn Module>)> for NamedSequential {
 }
 
 impl Trainable for Sequential {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut state_dict = StateDict::new();
         for (i, module) in self.iter().enumerate() {
-            let child = module.trainable_parameters();
+            let child = module.parameters();
             state_dict.append_child(i.to_string(), child)
         }
         state_dict
-    }
-
-    fn all_parameters(&self) -> Vec<TensorCell> {
-        let mut result: Vec<TensorCell> = vec![];
-        for module in self.iter() {
-            result.append(&mut module.all_parameters())
-        }
-        result
     }
 }
 
@@ -96,21 +88,13 @@ impl Module for Sequential {
 }
 
 impl Trainable for NamedSequential {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut state_dict = StateDict::new();
         for (name, module) in self.iter() {
-            let child = module.trainable_parameters();
+            let child = module.parameters();
             state_dict.append_child(name.clone(), child)
         }
         state_dict
-    }
-
-    fn all_parameters(&self) -> Vec<TensorCell> {
-        let mut result: Vec<TensorCell> = vec![];
-        for (_, module) in self.iter() {
-            result.append(&mut module.all_parameters())
-        }
-        result
     }
 }
 

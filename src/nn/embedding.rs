@@ -64,7 +64,7 @@ impl Embedding {
 }
 
 impl Trainable for Embedding {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.weight.clone());
         StateDict::from_map(result)

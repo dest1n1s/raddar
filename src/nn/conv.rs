@@ -40,7 +40,7 @@ pub struct Conv1d {
 }
 
 impl Trainable for Conv1d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
@@ -124,7 +124,7 @@ pub struct Conv2d {
 }
 
 impl Trainable for Conv2d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
@@ -219,7 +219,7 @@ pub struct Conv3d {
 }
 
 impl Trainable for Conv3d {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {

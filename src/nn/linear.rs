@@ -21,7 +21,7 @@ pub struct Linear {
 }
 
 impl Trainable for Linear {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.linear_weight.clone());
         if let Some(bias) = &self.linear_bias {

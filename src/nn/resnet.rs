@@ -66,11 +66,11 @@ pub struct BasicBlock {
 }
 
 impl Trainable for BasicBlock {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        result.append_child("block".to_owned(), self.block.trainable_parameters());
+        result.append_child("block".to_owned(), self.block.parameters());
         if let Some(downsample) = &self.downsample {
-            result.append_child("downsample".to_owned(), downsample.trainable_parameters());
+            result.append_child("downsample".to_owned(), downsample.parameters());
         }
         result
     }
@@ -125,11 +125,11 @@ pub struct BottleNeck {
 }
 
 impl Trainable for BottleNeck {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        result.append_child("block".to_owned(), self.block.trainable_parameters());
+        result.append_child("block".to_owned(), self.block.parameters());
         if let Some(downsample) = &self.downsample {
-            result.append_child("downsample".to_owned(), downsample.trainable_parameters());
+            result.append_child("downsample".to_owned(), downsample.parameters());
         }
         result
     }
@@ -230,10 +230,10 @@ impl<T: Block<fn(i64) -> Sequential>> DefaultNormLayer<fn(i64) -> Sequential>
 }
 
 impl<T: Block<U>, U: Fn(i64) -> Sequential + Send + Debug + Copy> Trainable for ResNet<T, U> {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        result.append_child("net".to_owned(), self.net.trainable_parameters());
-        result.append_child("fc".to_owned(), self.fc.trainable_parameters());
+        result.append_child("net".to_owned(), self.net.parameters());
+        result.append_child("fc".to_owned(), self.fc.parameters());
         result
     }
 }

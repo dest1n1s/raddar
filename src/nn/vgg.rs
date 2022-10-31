@@ -75,12 +75,12 @@ fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Sequential {
 }
 
 impl Trainable for Vgg {
-    fn trainable_parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict {
         let mut result = StateDict::new();
-        result.append_child("features".to_owned(), self.features.trainable_parameters());
+        result.append_child("features".to_owned(), self.features.parameters());
         result.append_child(
             "classifier".to_owned(),
-            self.classifier.trainable_parameters(),
+            self.classifier.parameters(),
         );
         result
     }
