@@ -50,9 +50,9 @@ fn sequential_test() {
     );
     model.to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        RMSPropBuilder::default().build().unwrap(),
         &model,
-        Some(StepLRBuilder::default().build().unwrap()),
+        RMSPropBuilder::default().build(),
+        Some(StepLRBuilder::default().build()),
     );
     for _epoch in 1..=5000 {
         model.zero_grad();
