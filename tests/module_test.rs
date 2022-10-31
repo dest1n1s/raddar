@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use image::DynamicImage;
 use raddar::dataset::{
-    image_mappings, sample_mapping, DataLoaderConfigBuilder, Dataset, DynImageDataset,
-    LoadFromImageFolder, TensorDataset,
+    image_mappings, DataLoaderConfigBuilder, Dataset, DynImageDataset, LoadFromImageFolder,
+    TensorDataset, UnsupervisedTensorDataset,
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
@@ -150,15 +150,18 @@ fn cifar10_test() {
     let mut cifar_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
         let root_path = "dataset/cifar10/train/";
+        let id = id.to_owned();
+
         let temp_dataset: TensorDataset =
             DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-                // .map(image_mappings::resize(224, 224))
-                .map(image_mappings::to_tensor(DynamicImage::into_rgb32f))
-                .map(sample_mapping(|inputs: Arc<Tensor>| {
-                    // inputs.print();
+                .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
+                .map(move |inputs: Arc<Tensor>| {
                     let new_inputs = inputs.permute(&[2, 0, 1]);
-                    (Arc::new(new_inputs), Arc::new(tensor!([id.to_owned()])))
-                }));
+                    (Arc::new(new_inputs), Arc::new(tensor!([id])))
+                });
 
         cifar_dataset = cifar_dataset
             .into_iter()

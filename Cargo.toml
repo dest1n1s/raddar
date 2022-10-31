@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tch = "0.8.0"
+tch = { git = "https://github.com/dest1n1s/tch-rs/" }
 anyhow = "1.0.65"
 raddar_derive = { version="0.1.0", path = "./raddar_derive" }
 derive_builder = "0.11.2"
@@ -18,3 +18,4 @@ serde_json = "1.0.87"
 rand = "0.8.5"
 image = "0.24.4"
 walkdir = "2.3.2"
+pariter = "0.5.1"
