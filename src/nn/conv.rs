@@ -1,13 +1,12 @@
 use raddar_derive::{ArchitectureBuilder, CallableModule};
-use std::collections::BTreeMap;
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, StateDictOrigin, TensorCell};
+use crate::core::{Cellable, TensorCell};
 
-use super::{Module, Trainable};
+use super::{Module, StateDict, Trainable};
 
 /// A Convolution layer in 1 dimension.
-/// 
+///
 /// See [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Conv1d {
@@ -40,13 +39,13 @@ pub struct Conv1d {
 }
 
 impl Trainable for Conv1d {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = BTreeMap::new();
+    fn parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDictOrigin::from_map(result)
+        result
     }
 }
 
@@ -124,13 +123,13 @@ pub struct Conv2d {
 }
 
 impl Trainable for Conv2d {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = BTreeMap::new();
+    fn parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDictOrigin::from_map(result)
+        result
     }
 }
 
@@ -219,13 +218,13 @@ pub struct Conv3d {
 }
 
 impl Trainable for Conv3d {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = BTreeMap::new();
+    fn parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDictOrigin::from_map(result)
+        result
     }
 }
 

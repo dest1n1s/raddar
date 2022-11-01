@@ -3,11 +3,12 @@ use std::vec;
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::Tensor;
 
-use crate::{core::StateDictOrigin, seq};
+use crate::seq;
 
 use super::{
     AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2dBuilder,
-    DropoutBuilder, LinearBuilder, MaxPooling2DBuilder, Module, ReLU, Sequential, Trainable,
+    DropoutBuilder, LinearBuilder, MaxPooling2DBuilder, Mod, Module, ModuleDict, ReLU, Sequential,
+    Trainable,
 };
 #[derive(Clone, Debug)]
 pub enum VggType {
@@ -22,13 +23,13 @@ pub enum VggType {
 }
 
 /// VGG model
-/// 
+///
 /// The VGG model is a convolutional neural network that is 16 or 19 layers deep. See [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/abs/1409.1556) for more details.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Vgg {
-    pub features: Sequential,
-    pub avgpool: AdaptiveAveragePooling2D,
-    pub classifier: Sequential,
+    pub features: Mod<Sequential>,
+    pub avgpool: Mod<AdaptiveAveragePooling2D>,
+    pub classifier: Mod<Sequential>,
 
     #[builder(default = "1000")]
     pub num_classes: i64,
@@ -39,49 +40,44 @@ pub struct Vgg {
     pub vgg_type: VggType,
 }
 
-fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Sequential {
+fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Mod<Sequential> {
     let mut in_channel = 3;
-    let mut features = seq!();
+    let mut features = Sequential::default();
     for i in &layer_type {
         match i {
             0 => {
-                features.push(Box::new(
+                features.push(
                     MaxPooling2DBuilder::default()
                         .kernel_size([2, 2])
                         .stride([2, 2])
                         .build(),
-                ));
+                );
             }
             _ => {
-                features.push(Box::new(
+                features.push(
                     Conv2dBuilder::default()
                         .in_channel(in_channel)
                         .out_channel(*i)
                         .kernel_size([3, 3])
                         .padding([1, 1])
                         .build(),
-                ));
+                );
                 if batchnorm == true {
-                    features.push(Box::new(
-                        BatchNorm2dBuilder::default().num_features(*i).build(),
-                    ))
+                    features.push(BatchNorm2dBuilder::default().num_features(*i).build())
                 };
                 in_channel = *i;
             }
         }
-        features.push(Box::new(ReLU));
+        features.push(Mod::new(ReLU));
     }
-    features
+    Mod::new(features)
 }
 
 impl Trainable for Vgg {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = StateDictOrigin::new();
-        result.append_child("features".to_owned(), self.features.parameters());
-        result.append_child(
-            "classifier".to_owned(),
-            self.classifier.parameters(),
-        );
+    fn child_modules(&self) -> ModuleDict {
+        let mut result = ModuleDict::new();
+        result.insert("features".to_owned(), self.features.clone());
+        result.insert("classifier".to_owned(), self.classifier.clone());
         result
     }
 }
@@ -155,13 +151,13 @@ impl Vgg {
                 .input_dim(512 * 7 * 7)
                 .output_dim(4096)
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             DropoutBuilder::default().p(config.dropout).build(),
             LinearBuilder::default()
                 .input_dim(4096)
                 .output_dim(4096)
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             DropoutBuilder::default().p(config.dropout).build(),
             LinearBuilder::default()
                 .input_dim(4096)
@@ -179,7 +175,7 @@ impl Vgg {
     }
 }
 
-pub fn vgg(vgg_type: VggType, num_classes: i64, dropout: f64, _pretrained: bool) -> Vgg {
+pub fn vgg(vgg_type: VggType, num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<Vgg> {
     VggBuilder::default()
         .num_classes(num_classes)
         .dropout(dropout)

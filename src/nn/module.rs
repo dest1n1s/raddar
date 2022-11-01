@@ -16,7 +16,7 @@ pub type ModuleDict = BTreeMap<String, Mod<dyn Trainable>>;
 /// A trait for anything that has trainable parameters.
 pub trait Trainable: std::fmt::Debug {
     /// Defines the trainable parameters of the module. This does not include the parameters in child modules.
-    /// 
+    ///
     /// By default, this returns an empty map. If your module has trainable parameters, you should override this method.
     fn parameters(&self) -> StateDict {
         BTreeMap::new()
@@ -180,7 +180,7 @@ impl<T: Trainable + 'static> Mod<T> {
             child
                 .parent
                 .write()
-                .replace(Arc::downgrade(&(this.arc as _)));
+                .replace(Arc::downgrade(&(this.arc.clone() as _)));
         });
         this
     }

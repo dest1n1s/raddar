@@ -9,6 +9,7 @@
 #![feature(type_alias_impl_trait)]
 #![feature(unsize)]
 #![feature(coerce_unsized)]
+#![feature(trait_upcasting)]
 
 extern crate self as raddar;
 

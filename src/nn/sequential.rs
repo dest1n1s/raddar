@@ -1,14 +1,13 @@
-use crate::core::StateDictOrigin;
 use crate::nn::Module;
 use raddar_derive::CallableModule;
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 use tch::Tensor;
 
-use super::{Trainable, Mod, ModuleDict};
+use super::{Mod, ModuleDict, Trainable};
 
 /// A module composed by a sequential of modules.
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, Default)]
 pub struct Sequential(Vec<Mod<dyn Module>>);
 
 #[derive(Debug, CallableModule)]
@@ -70,7 +69,7 @@ impl Trainable for Sequential {
     fn child_modules(&self) -> ModuleDict {
         let mut children = ModuleDict::new();
         for (i, module) in self.iter().enumerate() {
-            children.insert(i.to_string(), module.clone())
+            children.insert(i.to_string(), module.clone());
         }
         children
     }
@@ -88,9 +87,9 @@ impl Module for Sequential {
 
 impl Trainable for NamedSequential {
     fn child_modules(&self) -> ModuleDict {
-        let mut children = StateDictOrigin::new();
+        let mut children = ModuleDict::new();
         for (name, module) in self.iter() {
-            children.children(name.clone(), module)
+            children.insert(name.clone(), module.clone());
         }
         children
     }
@@ -110,7 +109,7 @@ impl Module for NamedSequential {
 macro_rules! seq {
     ($($module:expr),* $(,)?) => {
         {
-            $crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module>,)*])
+            $crate::nn::Mod::new($crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module>,)*]))
         }
     };
 }
@@ -119,9 +118,9 @@ macro_rules! seq {
 macro_rules! named_seq {
     ($($name:expr => $module:expr),* $(,)?) => {
         {
-                vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
+            $crate::nn::Mod::new::(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
                     .into_iter()
-                    .collect::<$crate::nn::sequential::NamedSequential>()
+                    .collect::<$crate::nn::sequential::NamedSequential>())
         }
     };
 }

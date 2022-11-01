@@ -1,19 +1,17 @@
-use std::collections::BTreeMap;
-
-use super::{module::Module, Trainable};
-use crate::core::{Cellable, StateDictOrigin, TensorCell};
+use super::{module::Module, StateDict, Trainable};
+use crate::core::{Cellable, TensorCell};
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{Device, Kind, Tensor};
 
 /// A layer normalization layer.
-/// 
+///
 /// See [Layer Normalization](https://arxiv.org/abs/1607.06450).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct LayerNorm {
     pub ln_weight: Option<TensorCell>,
     pub ln_bias: Option<TensorCell>,
     #[builder]
-    pub shape: Box<[i64]>,
+    pub shape: Vec<i64>,
     #[builder(default = "1e-5")]
     pub eps: f64,
     #[builder(default = "true")]
@@ -23,8 +21,8 @@ pub struct LayerNorm {
 }
 
 impl Trainable for LayerNorm {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = BTreeMap::new();
+    fn parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
         if self.elementwise_affine {
             result.insert(
                 "weight".to_owned(),
@@ -32,7 +30,7 @@ impl Trainable for LayerNorm {
             );
             result.insert("bias".to_owned(), self.ln_bias.as_ref().unwrap().clone());
         }
-        StateDictOrigin::from_map(result)
+        result
     }
 }
 

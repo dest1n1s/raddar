@@ -9,7 +9,7 @@ use crate::{
     seq,
 };
 
-use super::{Mod, ModuleDict, StateDict};
+use super::{Mod, ModuleDict};
 
 /// AlexNet architecture.
 ///
@@ -56,7 +56,7 @@ impl AlexNet {
                 .stride([4, 4])
                 .padding([2, 2])
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -67,7 +67,7 @@ impl AlexNet {
                 .kernel_size([5, 5])
                 .padding([2, 2])
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -78,21 +78,21 @@ impl AlexNet {
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             Conv2dBuilder::default()
                 .in_channel(384)
                 .out_channel(256)
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             Conv2dBuilder::default()
                 .in_channel(256)
                 .out_channel(256)
                 .kernel_size([3, 3])
                 .padding([1, 1])
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
@@ -107,13 +107,13 @@ impl AlexNet {
                 .input_dim(9216)
                 .output_dim(4096)
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             DropoutBuilder::default().p(config.dropout).build(),
             LinearBuilder::default()
                 .input_dim(4096)
                 .output_dim(4096)
                 .build(),
-            ReLU,
+            Mod::new(ReLU),
             LinearBuilder::default()
                 .input_dim(4096)
                 .output_dim(config.num_classes)
@@ -128,7 +128,7 @@ impl AlexNet {
         }
     }
 }
-pub fn alexnet(num_classes: i64, dropout: f64, _pretrained: bool) -> AlexNet {
+pub fn alexnet(num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<AlexNet> {
     let model = AlexNetBuilder::default()
         .num_classes(num_classes)
         .dropout(dropout)

@@ -1,13 +1,11 @@
-use std::collections::BTreeMap;
-
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{Device, Kind, Tensor};
 
-use super::{module::Module, Trainable, StateDict, Mod};
-use crate::core::{Cellable, StateDictOrigin, TensorCell};
+use super::{module::Module, StateDict, Trainable};
+use crate::core::{Cellable, TensorCell};
 
 /// A batch normalization layer in 1 dimension.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm1d {
@@ -66,10 +64,10 @@ impl Module for BatchNorm1d {
 }
 
 /// A batch normalization layer in 2 dimensions.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 impl BatchNorm1d {
-    pub fn new(config: BatchNorm1dConfig) -> Mod<BatchNorm1d> {
+    pub fn new(config: BatchNorm1dConfig) -> BatchNorm1d {
         let bn_weight = if config.affine {
             Some(
                 Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
@@ -90,7 +88,7 @@ impl BatchNorm1d {
         };
         let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
         let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
-        Mod::new(BatchNorm1d {
+        BatchNorm1d {
             num_features: config.num_features,
             eps: config.eps,
             momentum: config.momentum,
@@ -101,7 +99,7 @@ impl BatchNorm1d {
             training: config.training,
             running_mean: running_mean.cell(),
             running_var: running_var.cell(),
-        })
+        }
     }
 }
 
@@ -162,7 +160,7 @@ impl Module for BatchNorm2d {
 }
 
 impl BatchNorm2d {
-    pub fn new(config: BatchNorm2dConfig) -> Mod<BatchNorm2d> {
+    pub fn new(config: BatchNorm2dConfig) -> BatchNorm2d {
         let bn_weight = if config.affine {
             Some(
                 Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
@@ -183,7 +181,7 @@ impl BatchNorm2d {
         };
         let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
         let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
-        Mod::new(BatchNorm2d {
+        BatchNorm2d {
             num_features: config.num_features,
             eps: config.eps,
             momentum: config.momentum,
@@ -194,12 +192,12 @@ impl BatchNorm2d {
             training: config.training,
             running_mean: running_mean.cell(),
             running_var: running_var.cell(),
-        })
+        }
     }
 }
 
 /// A batch normalization layer in 3 dimensions.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm3d {
@@ -258,7 +256,7 @@ impl Module for BatchNorm3d {
 }
 
 impl BatchNorm3d {
-    pub fn new(config: BatchNorm3dConfig) -> Mod<BatchNorm3d> {
+    pub fn new(config: BatchNorm3dConfig) -> BatchNorm3d {
         let bn_weight = if config.affine {
             Some(
                 Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
@@ -279,7 +277,7 @@ impl BatchNorm3d {
         };
         let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
         let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
-        Mod::new(BatchNorm3d {
+        BatchNorm3d {
             num_features: config.num_features,
             eps: config.eps,
             momentum: config.momentum,
@@ -290,6 +288,6 @@ impl BatchNorm3d {
             training: config.training,
             running_mean: running_mean.cell(),
             running_var: running_var.cell(),
-        })
+        }
     }
 }
