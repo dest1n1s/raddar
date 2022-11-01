@@ -1,8 +1,8 @@
 use raddar::optim::optimizer::SchedulerAlgorithm;
-use raddar_derive::ArchitectureBuilder;
+use raddar_derive::PartialBuilder;
 use std::f64::consts::PI;
 
-#[derive(ArchitectureBuilder)]
+#[derive(PartialBuilder)]
 pub struct CosineAnnealingLR {
     #[builder(default = "500")]
     step_size: i64,

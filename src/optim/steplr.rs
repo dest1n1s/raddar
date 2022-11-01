@@ -1,6 +1,6 @@
 use raddar::optim::optimizer::SchedulerAlgorithm;
-use raddar_derive::ArchitectureBuilder;
-#[derive(ArchitectureBuilder)]
+use raddar_derive::PartialBuilder;
+#[derive(PartialBuilder)]
 pub struct StepLR {
     #[builder(default = "500")]
     step_size: i64,

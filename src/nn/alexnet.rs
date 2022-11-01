@@ -2,7 +2,6 @@ use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::Tensor;
 
 use crate::{
-    core::StateDict,
     nn::{
         AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, Conv2dBuilder, DropoutBuilder,
         LinearBuilder, MaxPooling2DBuilder, Module, ReLU, Sequential, Trainable,
@@ -10,14 +9,16 @@ use crate::{
     seq,
 };
 
+use super::{Mod, ModuleDict, StateDict};
+
 /// AlexNet architecture.
-/// 
+///
 /// See [ImageNet Classification with Deep Convolutional Neural Networks](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct AlexNet {
-    pub features: Sequential,
-    pub avgpool: AdaptiveAveragePooling2D,
-    pub classifier: Sequential,
+    pub features: Mod<Sequential>,
+    pub avgpool: Mod<AdaptiveAveragePooling2D>,
+    pub classifier: Mod<Sequential>,
 
     #[builder(default = "1000")]
     pub num_classes: i64,
@@ -27,13 +28,10 @@ pub struct AlexNet {
 }
 
 impl Trainable for AlexNet {
-    fn parameters(&self) -> StateDict {
-        let mut result = StateDict::new();
-        result.append_child("features".to_owned(), self.features.parameters());
-        result.append_child(
-            "classifier".to_owned(),
-            self.classifier.parameters(),
-        );
+    fn child_modules(&self) -> ModuleDict {
+        let mut result = ModuleDict::new();
+        result.insert("features".to_owned(), self.features.clone());
+        result.insert("classifier".to_owned(), self.classifier.clone());
         result
     }
 }

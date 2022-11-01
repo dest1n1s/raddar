@@ -3,7 +3,7 @@ use std::vec;
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::Tensor;
 
-use crate::{core::StateDict, seq};
+use crate::{core::StateDictOrigin, seq};
 
 use super::{
     AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2dBuilder,
@@ -75,8 +75,8 @@ fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Sequential {
 }
 
 impl Trainable for Vgg {
-    fn parameters(&self) -> StateDict {
-        let mut result = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut result = StateDictOrigin::new();
         result.append_child("features".to_owned(), self.features.parameters());
         result.append_child(
             "classifier".to_owned(),

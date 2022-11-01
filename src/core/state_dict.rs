@@ -20,7 +20,7 @@ use super::{TensorCell, Cellable};
 pub enum StateValue {
     Tensor(TensorCell),
     StaticTensor(TensorCell),
-    ChildStateDict(StateDict),
+    ChildStateDict(StateDictOrigin),
 }
 
 /// A [`StateDict`] is a tree of [`Tensor`]s. It stores the parameters of a model, including each parameter itself and the path to it.
@@ -40,7 +40,7 @@ pub enum StateValue {
 /// }
 /// ```
 #[derive(Debug, Clone)]
-pub struct StateDict {
+pub struct StateDictOrigin {
     arc: Arc<StateDictData>,
 }
 
@@ -52,7 +52,7 @@ pub struct StateDictData {
     pub parameters: RwLock<BTreeMap<String, StateValue>>,
 }
 
-impl Deref for StateDict {
+impl Deref for StateDictOrigin {
     type Target = Arc<StateDictData>;
 
     fn deref(&self) -> &Self::Target {
@@ -60,7 +60,7 @@ impl Deref for StateDict {
     }
 }
 
-impl StateDict {
+impl StateDictOrigin {
     /// Creates an empty [`StateDict`].
     pub fn new() -> Self {
         let data = StateDictData {
@@ -119,7 +119,7 @@ impl StateDict {
             } else {
                 if let Some(child) = current_child {
                     if first != current_child_name {
-                        let child = StateDict::from_map(child);
+                        let child = StateDictOrigin::from_map(child);
                         *child.parent.write().unwrap() = Arc::downgrade(&this);
                         parameters.insert(current_child_name, StateValue::ChildStateDict(child));
                         current_child = None;
@@ -139,7 +139,7 @@ impl StateDict {
             }
         }
         if let Some(child) = current_child {
-            let child = StateDict::from_map(child);
+            let child = StateDictOrigin::from_map(child);
             *child.parent.write().unwrap() = Arc::downgrade(&this);
             parameters.insert(
                 current_child_name.to_owned(),
@@ -177,7 +177,7 @@ impl StateDict {
     /// layer2.weight.npy
     /// layer2.bias.npy
     /// ```
-    pub fn from_npz<T: AsRef<Path>>(path: T) -> Result<StateDict> {
+    pub fn from_npz<T: AsRef<Path>>(path: T) -> Result<StateDictOrigin> {
         Ok(Self::from_map(
             Tensor::read_npz(path)?
                 .into_iter()
@@ -187,7 +187,7 @@ impl StateDict {
     }
 
     /// Loads a [`StateDict`] from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`. This method won't load static tensors.
-    pub fn from_ot<T: AsRef<Path>>(path: T) -> Result<StateDict> {
+    pub fn from_ot<T: AsRef<Path>>(path: T) -> Result<StateDictOrigin> {
         Ok(Self::from_map(
             Tensor::load_multi(path)?
                 .into_iter()
@@ -197,7 +197,7 @@ impl StateDict {
     }
 
     /// Append a child [`StateDict`] to this [`StateDict`].
-    pub fn append_child(&mut self, module_name: String, child: StateDict) {
+    pub fn append_child(&mut self, module_name: String, child: StateDictOrigin) {
         *child.parent.write().unwrap() = Arc::downgrade(&self.arc());
         self.parameters
             .write()
@@ -246,7 +246,7 @@ impl StateDictData {
     }
 
     /// Get a child [`StateDict`] from the [`StateDict`]. This method can only get child [`StateDict`]s, not tensors, and not child [`StateDict`]s of child [`StateDict`]s.
-    pub fn child_state_dict(&self, module_name: &str) -> Result<StateDict> {
+    pub fn child_state_dict(&self, module_name: &str) -> Result<StateDictOrigin> {
         match self.parameters().get(module_name) {
             Some(StateValue::ChildStateDict(state_dict)) => Ok(state_dict.clone()),
             _ => Err(anyhow!(
@@ -258,7 +258,7 @@ impl StateDictData {
     }
 
     /// Load a [`StateDict`] from another [`StateDict`]. This method only load the [`Tensor`], but not the entire [`StateDict`] architecture. Any parameter with the same path will be loaded. Any parameter in one [`StateDict`] but not found in the other will be ignored (without changing its value).
-    pub fn load(&self, state_dict: StateDict) {
+    pub fn load(&self, state_dict: StateDictOrigin) {
         for (key, value) in &*state_dict.parameters() {
             match self.parameters().get(key) {
                 Some(StateValue::Tensor(tensor)) => {
@@ -335,7 +335,7 @@ impl StateDictData {
     }
 }
 
-impl Display for StateDict {
+impl Display for StateDictOrigin {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let map = self.to_map();
         for (key, value) in map {

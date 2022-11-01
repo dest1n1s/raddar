@@ -1,4 +1,4 @@
-use crate::core::StateDict;
+use crate::core::StateDictOrigin;
 use crate::nn::Module;
 use raddar_derive::CallableModule;
 use std::collections::BTreeMap;
@@ -67,8 +67,8 @@ impl FromIterator<(String, Box<dyn Module>)> for NamedSequential {
 }
 
 impl Trainable for Sequential {
-    fn parameters(&self) -> StateDict {
-        let mut state_dict = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut state_dict = StateDictOrigin::new();
         for (i, module) in self.iter().enumerate() {
             let child = module.parameters();
             state_dict.append_child(i.to_string(), child)
@@ -88,8 +88,8 @@ impl Module for Sequential {
 }
 
 impl Trainable for NamedSequential {
-    fn parameters(&self) -> StateDict {
-        let mut state_dict = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut state_dict = StateDictOrigin::new();
         for (name, module) in self.iter() {
             let child = module.parameters();
             state_dict.append_child(name.clone(), child)

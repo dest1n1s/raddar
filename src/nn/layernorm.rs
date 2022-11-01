@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::{module::Module, Trainable};
-use crate::core::{Cellable, StateDict, TensorCell};
+use crate::core::{Cellable, StateDictOrigin, TensorCell};
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{Device, Kind, Tensor};
 
@@ -23,7 +23,7 @@ pub struct LayerNorm {
 }
 
 impl Trainable for LayerNorm {
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDictOrigin {
         let mut result = BTreeMap::new();
         if self.elementwise_affine {
             result.insert(
@@ -32,7 +32,7 @@ impl Trainable for LayerNorm {
             );
             result.insert("bias".to_owned(), self.ln_bias.as_ref().unwrap().clone());
         }
-        StateDict::from_map(result)
+        StateDictOrigin::from_map(result)
     }
 }
 

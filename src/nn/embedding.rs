@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use raddar_derive::{CallableModule, NonParameterModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, StateDict, TensorCell};
+use crate::core::{Cellable, StateDictOrigin, TensorCell};
 
 use super::{Module, Trainable};
 
@@ -64,10 +64,10 @@ impl Embedding {
 }
 
 impl Trainable for Embedding {
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDictOrigin {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.weight.clone());
-        StateDict::from_map(result)
+        StateDictOrigin::from_map(result)
     }
 }
 

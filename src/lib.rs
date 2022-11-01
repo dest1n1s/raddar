@@ -7,6 +7,8 @@
 #![feature(generic_const_exprs)]
 #![feature(slice_flatten)]
 #![feature(type_alias_impl_trait)]
+#![feature(unsize)]
+#![feature(coerce_unsized)]
 
 extern crate self as raddar;
 

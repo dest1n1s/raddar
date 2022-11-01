@@ -2,7 +2,7 @@ use raddar_derive::{ArchitectureBuilder, CallableModule};
 use std::collections::BTreeMap;
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, StateDict, TensorCell};
+use crate::core::{Cellable, StateDictOrigin, TensorCell};
 
 use super::{Module, Trainable};
 
@@ -40,13 +40,13 @@ pub struct Conv1d {
 }
 
 impl Trainable for Conv1d {
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDictOrigin {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDict::from_map(result)
+        StateDictOrigin::from_map(result)
     }
 }
 
@@ -124,13 +124,13 @@ pub struct Conv2d {
 }
 
 impl Trainable for Conv2d {
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDictOrigin {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDict::from_map(result)
+        StateDictOrigin::from_map(result)
     }
 }
 
@@ -219,13 +219,13 @@ pub struct Conv3d {
 }
 
 impl Trainable for Conv3d {
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDictOrigin {
         let mut result = BTreeMap::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDict::from_map(result)
+        StateDictOrigin::from_map(result)
     }
 }
 

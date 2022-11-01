@@ -2,7 +2,7 @@ use std::path::Path;
 
 use raddar::{
     assert_tensor_eq,
-    core::{Cellable, StateDict},
+    core::{Cellable, StateDictOrigin},
     nn::{LinearBuilder, Trainable},
     seq, tensor,
 };
@@ -21,8 +21,8 @@ fn load_parameter_test() {
     ]
     .into_iter()
     .collect();
-    let state_dict = StateDict::from_map(parameters);
-    model.load_parameters(state_dict.clone());
+    let state_dict = StateDictOrigin::from_map(parameters);
+    model.load(state_dict.clone());
     println!("model: {}", model.parameters());
     let output = model(&tensor!([1.0]));
     assert_tensor_eq!(&output, &tensor!([11.0]));
@@ -48,8 +48,8 @@ fn load_npz_test() {
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
-    let state_dict = StateDict::from_npz(Path::new("./tests/serialize_test.npz")).unwrap();
-    model.load_parameters(state_dict.clone());
+    let state_dict = StateDictOrigin::from_npz(Path::new("./tests/serialize_test.npz")).unwrap();
+    model.load(state_dict.clone());
     let output = model(&tensor!([2.0f32]));
     assert_tensor_eq!(&output, &tensor!([0.1818f32]));
 }
@@ -60,8 +60,8 @@ fn load_ot_test() {
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
     );
-    let state_dict = StateDict::from_ot(Path::new("./tests/serialize_test.ot")).unwrap();
-    model.load_parameters(state_dict.clone());
+    let state_dict = StateDictOrigin::from_ot(Path::new("./tests/serialize_test.ot")).unwrap();
+    model.load(state_dict.clone());
     let output = model(&tensor!([2.0f32]));
     assert_tensor_eq!(&output, &tensor!([0.1818f32]));
 }

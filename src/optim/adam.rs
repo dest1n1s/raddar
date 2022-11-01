@@ -1,7 +1,7 @@
 use crate::{core::TensorCell, optim::optimizer::OptimizerAlgorithm};
-use raddar_derive::ArchitectureBuilder;
+use raddar_derive::{PartialBuilder};
 use tch::{no_grad, Tensor};
-#[derive(ArchitectureBuilder)]
+#[derive(PartialBuilder)]
 
 pub struct Adam {
     #[builder(default = "0.001")]

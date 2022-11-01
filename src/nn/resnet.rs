@@ -3,7 +3,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::Tensor;
 
-use crate::{core::StateDict, nn::ReLU, seq};
+use crate::{core::StateDictOrigin, nn::ReLU, seq};
 
 use super::{
     AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2d, Conv2dBuilder, LinearBuilder,
@@ -66,8 +66,8 @@ pub struct BasicBlock {
 }
 
 impl Trainable for BasicBlock {
-    fn parameters(&self) -> StateDict {
-        let mut result = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut result = StateDictOrigin::new();
         result.append_child("block".to_owned(), self.block.parameters());
         if let Some(downsample) = &self.downsample {
             result.append_child("downsample".to_owned(), downsample.parameters());
@@ -125,8 +125,8 @@ pub struct BottleNeck {
 }
 
 impl Trainable for BottleNeck {
-    fn parameters(&self) -> StateDict {
-        let mut result = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut result = StateDictOrigin::new();
         result.append_child("block".to_owned(), self.block.parameters());
         if let Some(downsample) = &self.downsample {
             result.append_child("downsample".to_owned(), downsample.parameters());
@@ -230,8 +230,8 @@ impl<T: Block<fn(i64) -> Sequential>> DefaultNormLayer<fn(i64) -> Sequential>
 }
 
 impl<T: Block<U>, U: Fn(i64) -> Sequential + Send + Debug + Copy> Trainable for ResNet<T, U> {
-    fn parameters(&self) -> StateDict {
-        let mut result = StateDict::new();
+    fn parameters(&self) -> StateDictOrigin {
+        let mut result = StateDictOrigin::new();
         result.append_child("net".to_owned(), self.net.parameters());
         result.append_child("fc".to_owned(), self.fc.parameters());
         result
