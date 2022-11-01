@@ -7,7 +7,7 @@ use crate::{core::StateDictOrigin, nn::ReLU, seq};
 
 use super::{
     AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2d, Conv2dBuilder, LinearBuilder,
-    MaxPooling2DBuilder, Module, Sequential, Trainable,
+    MaxPooling2DBuilder, Module, Sequential, Trainable, Mod, StateDict, ModuleDict,
 };
 
 pub trait Block<U: Fn(i64) -> Sequential + Send + Debug + Copy>: Module {
@@ -30,7 +30,7 @@ pub fn conv3x3(
     stride: [i64; 2],
     groups: i64,
     dilation: [i64; 2],
-) -> Conv2d {
+) -> Mod<Conv2d> {
     Conv2dBuilder::default()
         .kernel_size([3, 3])
         .in_channel(in_planes)
@@ -43,7 +43,7 @@ pub fn conv3x3(
         .build()
 }
 
-pub fn conv1x1(in_planes: i64, out_planes: i64, stride: [i64; 2]) -> Conv2d {
+pub fn conv1x1(in_planes: i64, out_planes: i64, stride: [i64; 2]) -> Mod<Conv2d> {
     Conv2dBuilder::default()
         .kernel_size([1, 1])
         .in_channel(in_planes)
@@ -106,14 +106,14 @@ impl<U: Fn(i64) -> Sequential + Send + Debug + Copy> Block<U> for BasicBlock {
     ) -> Self {
         assert!(groups == 1 && base_width == 64 && dilation == [1, 1]);
         let mut block = seq!();
-        block.push(Box::new(conv3x3(
+        block.push(conv3x3(
             in_planes, planes, stride, groups, dilation,
-        )));
-        block.push(Box::new(norm_layer(planes)));
-        block.push(Box::new(ReLU));
-        block.push(Box::new(conv3x3(planes, planes, [1, 1], groups, dilation)));
+        ));
+        block.push(norm_layer(planes));
+        block.push(Mod::new(ReLU));
+        block.push(conv3x3(planes, planes, [1, 1], groups, dilation));
 
-        block.push(Box::new(norm_layer(planes)));
+        block.push(norm_layer(planes));
         Self { block, downsample }
     }
 }
@@ -125,11 +125,11 @@ pub struct BottleNeck {
 }
 
 impl Trainable for BottleNeck {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = StateDictOrigin::new();
-        result.append_child("block".to_owned(), self.block.parameters());
+    fn child_modules(&self) -> ModuleDict {
+        let mut result = ModuleDict::new();
+        result.insert("block".to_owned(), self.block.clone());
         if let Some(downsample) = &self.downsample {
-            result.append_child("downsample".to_owned(), downsample.parameters());
+            result.insert("downsample".to_owned(), downsample.clone());
         }
         result
     }
@@ -164,20 +164,20 @@ impl<U: Fn(i64) -> Sequential + Send + Debug + Copy> Block<U> for BottleNeck {
     ) -> Self {
         let width = (((planes as f64) * (base_width as f64) / 64.0) as i64) * groups;
         let mut block = seq!();
-        block.push(Box::new(conv1x1(inplanes, width, [1, 1])));
-        block.push(Box::new(norm_layer(width)));
-        block.push(Box::new(ReLU));
-        block.push(Box::new(conv3x3(width, width, stride, groups, dilation)));
-        block.push(Box::new(norm_layer(width)));
-        block.push(Box::new(ReLU));
-        block.push(Box::new(conv1x1(
+        block.push(conv1x1(inplanes, width, [1, 1]));
+        block.push(norm_layer(width));
+        block.push(Mod::new(ReLU));
+        block.push(conv3x3(width, width, stride, groups, dilation));
+        block.push(norm_layer(width));
+        block.push(Mod::new(ReLU));
+        block.push(conv1x1(
             width,
             planes * <BottleNeck as Block<U>>::expansion(),
             [1, 1],
-        )));
-        block.push(Box::new(norm_layer(
+        ));
+        block.push(norm_layer(
             planes * <BottleNeck as Block<U>>::expansion(),
-        )));
+        ));
         Self { block, downsample }
     }
 }
@@ -251,7 +251,7 @@ impl<T: Block<U> + 'static, U: Fn(i64) -> Sequential + Send + Debug + Copy> ResN
     fn new(config: ResNetConfig<T, U>) -> ResNet<T, U> {
         let mut config = config;
         let mut net = seq!();
-        net.push(Box::new(
+        net.push(
             Conv2dBuilder::default()
                 .kernel_size([7, 7])
                 .in_channel(3)
@@ -260,56 +260,56 @@ impl<T: Block<U> + 'static, U: Fn(i64) -> Sequential + Send + Debug + Copy> ResN
                 .padding([3, 3])
                 .bias(false)
                 .build(),
-        ));
-        net.push(Box::new((config.norm_layer)(64)));
-        net.push(Box::new(ReLU));
-        net.push(Box::new(
+        );
+        net.push((config.norm_layer)(64));
+        net.push(Mod::new(ReLU));
+        net.push(
             MaxPooling2DBuilder::default()
                 .kernel_size([3, 3])
                 .stride([2, 2])
                 .padding([1, 1])
                 .build(),
-        ));
-        net.push(Box::new(make_layer(
+        );
+        net.push(make_layer(
             config.norm_layer,
             &mut config,
             64,
             [1, 1],
             0,
-        )));
-        net.push(Box::new(make_layer(
+        ));
+        net.push(make_layer(
             config.norm_layer,
             &mut config,
             128,
             [2, 2],
             1,
-        )));
-        net.push(Box::new(make_layer(
+        ));
+        net.push(make_layer(
             config.norm_layer,
             &mut config,
             256,
             [2, 2],
             2,
-        )));
-        net.push(Box::new(make_layer(
+        ));
+        net.push(make_layer(
             config.norm_layer,
             &mut config,
             512,
             [2, 2],
             3,
-        )));
-        net.push(Box::new(
+        ));
+        net.push(
             AdaptiveAveragePooling2DBuilder::default()
                 .output_size([1, 1])
                 .build(),
-        ));
+        );
         let mut fc = seq!();
-        fc.push(Box::new(
+        fc.push(
             LinearBuilder::default()
                 .input_dim(T::expansion() * 512)
                 .output_dim(config.num_classes)
                 .build(),
-        ));
+        );
         ResNet {
             base_width: config.base_width,
             num_classes: config.num_classes,

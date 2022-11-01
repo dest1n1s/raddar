@@ -1,14 +1,11 @@
-use std::collections::BTreeMap;
-
-use raddar_derive::{ArchitectureBuilder, CallableModule, module_state};
+use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, StateDictOrigin, TensorCell};
+use crate::core::{Cellable, TensorCell};
 
-use super::{module::Module, Trainable};
+use super::{module::Module, Trainable, StateDict};
 
 // A simple fully-connected layer.
-#[module_state]
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct Linear {
     pub linear_weight: TensorCell,
@@ -22,13 +19,13 @@ pub struct Linear {
 }
 
 impl Trainable for Linear {
-    fn parameters(&self) -> StateDictOrigin {
-        let mut result = BTreeMap::new();
+    fn parameters(&self) -> StateDict {
+        let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.linear_weight.clone());
         if let Some(bias) = &self.linear_bias {
             result.insert("bias".to_owned(), bias.clone());
         }
-        StateDictOrigin::from_map(result)
+        result
     }
 }
 
@@ -65,7 +62,6 @@ impl Linear {
             input_dim,
             output_dim,
             bias,
-            a: config.a
         }
     }
 }
