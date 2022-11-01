@@ -10,7 +10,7 @@ use super::{Mod, ModuleDict, Trainable};
 #[derive(Debug, CallableModule, Default)]
 pub struct Sequential(Vec<Mod<dyn Module>>);
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug, CallableModule, Default)]
 pub struct NamedSequential(BTreeMap<String, Mod<dyn Module>>);
 
 impl Deref for Sequential {
@@ -118,7 +118,7 @@ macro_rules! seq {
 macro_rules! named_seq {
     ($($name:expr => $module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new::(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
+            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
                     .into_iter()
                     .collect::<$crate::nn::sequential::NamedSequential>())
         }

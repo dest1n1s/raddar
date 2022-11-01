@@ -32,7 +32,8 @@ fn sequential_test() {
     )
     .to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        // TODO: Replace training parameters with all the parameters of the model
+        model.training_parameters(),
         RMSPropBuilder::default().build(),
         Some(StepLRBuilder::default().build()),
     );
@@ -50,7 +51,7 @@ fn sequential_test() {
     )
     .to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         RMSPropBuilder::default().build(),
         Some(StepLRBuilder::default().build()),
     );
@@ -120,7 +121,7 @@ fn batchnorm_test() {
 #[test]
 fn layernorm() {
     let ln = LayerNormBuilder::default()
-        .shape(Box::new([3, 5, 2]))
+        .shape(vec![3, 5, 2])
         .build();
     let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
     ln(&input).print();
@@ -148,7 +149,7 @@ fn cifar10_test() {
     let num_classes = 10;
     let model = resnet50(num_classes).to(Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         AdamBuilder::default().learning_rate(0.01).build(),
         Some(CosineAnnealingLRBuilder::default().build()),
     );
