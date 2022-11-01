@@ -1,11 +1,9 @@
-use std::collections::BTreeMap;
-
 use raddar_derive::{CallableModule, NonParameterModule};
 use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, StateDict, TensorCell};
+use crate::core::{Cellable, TensorCell};
 
-use super::{Module, Trainable};
+use super::{Module, StateDict, Trainable};
 
 /// A one-hot embedding layer.
 ///
@@ -65,9 +63,9 @@ impl Embedding {
 
 impl Trainable for Embedding {
     fn parameters(&self) -> StateDict {
-        let mut result = BTreeMap::new();
+        let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.weight.clone());
-        StateDict::from_map(result)
+        result
     }
 }
 

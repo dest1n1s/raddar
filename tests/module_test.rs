@@ -14,7 +14,7 @@ use raddar::nn::{
 use raddar::optim::{
     AdamBuilder, CosineAnnealingLRBuilder, Optimizer, RMSPropBuilder, StepLRBuilder,
 };
-use raddar::{assert_tensor_eq, seq, tensor, named_seq};
+use raddar::{assert_tensor_eq, named_seq, seq, tensor};
 
 use tch::{Device, Kind, Reduction, Tensor};
 
@@ -29,9 +29,11 @@ fn sequential_test() {
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
-    ).to(tch::Device::Cuda(0));
+    )
+    .to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        // TODO: Replace training parameters with all the parameters of the model
+        model.training_parameters(),
         RMSPropBuilder::default().build(),
         Some(StepLRBuilder::default().build()),
     );
@@ -46,9 +48,10 @@ fn sequential_test() {
     let model = named_seq!(
         "linear1" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
         "linear2" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
-    ).to(tch::Device::Cuda(0));
+    )
+    .to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         RMSPropBuilder::default().build(),
         Some(StepLRBuilder::default().build()),
     );
@@ -118,7 +121,7 @@ fn batchnorm_test() {
 #[test]
 fn layernorm() {
     let ln = LayerNormBuilder::default()
-        .shape(Box::new([3, 5, 2]))
+        .shape(vec![3, 5, 2])
         .build();
     let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
     ln(&input).print();
@@ -146,7 +149,7 @@ fn cifar10_test() {
     let num_classes = 10;
     let model = resnet50(num_classes).to(Device::Cuda(0));
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         AdamBuilder::default().learning_rate(0.01).build(),
         Some(CosineAnnealingLRBuilder::default().build()),
     );
@@ -168,17 +171,16 @@ fn cifar10_test() {
         let root_path = "dataset/cifar10/train/";
         let id = id.to_owned();
 
-        let temp_dataset =
-            DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-                .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
-                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
-                    DynamicImage::into_rgb32f,
-                ))
-                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
-                    let new_inputs = inputs.permute(&[2, 0, 1]);
-                    (Arc::new(new_inputs), Arc::new(tensor!([id])))
-                })
-                .to(Device::Cuda(0));
+        let temp_dataset = DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
+            .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+            .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                DynamicImage::into_rgb32f,
+            ))
+            .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
+                let new_inputs = inputs.permute(&[2, 0, 1]);
+                (Arc::new(new_inputs), Arc::new(tensor!([id])))
+            })
+            .to(Device::Cuda(0));
 
         cifar_dataset = cifar_dataset
             .into_iter()

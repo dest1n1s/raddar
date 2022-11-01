@@ -12,7 +12,7 @@ fn gradient_descent_test() {
 
     let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         GradientDescent::new(0.01),
         Some(StepLRBuilder::default().build()),
     );
@@ -27,7 +27,7 @@ fn gradient_descent_test() {
     println!(
         "weight: {}, bias: {}",
         f64::from(&*model.linear_weight.lock()),
-        f64::from(&*model.linear_bias.unwrap().lock())
+        f64::from(&*model.linear_bias.as_ref().unwrap().lock())
     );
 }
 
@@ -38,7 +38,7 @@ fn rmsprop_test() {
 
     let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
     let mut optimizer = Optimizer::new(
-        &model,
+        model.training_parameters(),
         AdamBuilder::default().learning_rate(0.01).build(),
         Some(CosineAnnealingLRBuilder::default().build()),
     );
@@ -53,6 +53,6 @@ fn rmsprop_test() {
     println!(
         "weight: {}, bias: {}",
         f64::from(&*model.linear_weight.lock()),
-        f64::from(&*model.linear_bias.unwrap().lock())
+        f64::from(&*model.linear_bias.as_ref().unwrap().lock())
     );
 }

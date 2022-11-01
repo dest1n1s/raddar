@@ -1,13 +1,11 @@
-use std::collections::BTreeMap;
-
 use raddar_derive::{ArchitectureBuilder, CallableModule};
 use tch::{Device, Kind, Tensor};
 
-use super::{module::Module, Trainable};
-use crate::core::{Cellable, StateDict, TensorCell};
+use super::{module::Module, StateDict, Trainable};
+use crate::core::{Cellable, TensorCell};
 
 /// A batch normalization layer in 1 dimension.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm1d {
@@ -31,7 +29,7 @@ pub struct BatchNorm1d {
 
 impl Trainable for BatchNorm1d {
     fn parameters(&self) -> StateDict {
-        let mut result = BTreeMap::new();
+        let mut result = StateDict::new();
         if self.affine {
             result.insert(
                 "weight".to_owned(),
@@ -39,7 +37,7 @@ impl Trainable for BatchNorm1d {
             );
             result.insert("bias".to_owned(), self.bn_bias.as_ref().unwrap().clone());
         }
-        StateDict::from_map(result)
+        result
     }
 }
 
@@ -66,7 +64,7 @@ impl Module for BatchNorm1d {
 }
 
 /// A batch normalization layer in 2 dimensions.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 impl BatchNorm1d {
     pub fn new(config: BatchNorm1dConfig) -> BatchNorm1d {
@@ -127,7 +125,7 @@ pub struct BatchNorm2d {
 
 impl Trainable for BatchNorm2d {
     fn parameters(&self) -> StateDict {
-        let mut result = BTreeMap::new();
+        let mut result = StateDict::new();
         if self.affine {
             result.insert(
                 "weight".to_owned(),
@@ -135,7 +133,7 @@ impl Trainable for BatchNorm2d {
             );
             result.insert("bias".to_owned(), self.bn_bias.as_ref().unwrap().clone());
         }
-        StateDict::from_map(result)
+        result
     }
 }
 
@@ -199,7 +197,7 @@ impl BatchNorm2d {
 }
 
 /// A batch normalization layer in 3 dimensions.
-/// 
+///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
 pub struct BatchNorm3d {
@@ -223,7 +221,7 @@ pub struct BatchNorm3d {
 
 impl Trainable for BatchNorm3d {
     fn parameters(&self) -> StateDict {
-        let mut result = BTreeMap::new();
+        let mut result = StateDict::new();
         if self.affine {
             result.insert(
                 "weight".to_owned(),
@@ -231,7 +229,7 @@ impl Trainable for BatchNorm3d {
             );
             result.insert("bias".to_owned(), self.bn_bias.as_ref().unwrap().clone());
         }
-        StateDict::from_map(result)
+        result
     }
 }
 
