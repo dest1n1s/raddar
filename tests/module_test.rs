@@ -29,8 +29,7 @@ fn sequential_test() {
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
-    );
-    model.to(tch::Device::Cuda(0));
+    ).to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
         &model,
         RMSPropBuilder::default().build(),
@@ -47,8 +46,7 @@ fn sequential_test() {
     let model = named_seq!(
         "linear1" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
         "linear2" => LinearBuilder::default().input_dim(1).output_dim(1).build(),
-    );
-    model.to(tch::Device::Cuda(0));
+    ).to(tch::Device::Cuda(0));
     let mut optimizer = Optimizer::new(
         &model,
         RMSPropBuilder::default().build(),
@@ -146,7 +144,7 @@ fn resnet_test() {
 #[test]
 fn cifar10_test() {
     let num_classes = 10;
-    let model = resnet50(num_classes);
+    let model = resnet50(num_classes).to(Device::Cuda(0));
     let mut optimizer = Optimizer::new(
         &model,
         AdamBuilder::default().learning_rate(0.01).build(),
@@ -170,16 +168,17 @@ fn cifar10_test() {
         let root_path = "dataset/cifar10/train/";
         let id = id.to_owned();
 
-        let temp_dataset: TensorDataset =
+        let temp_dataset =
             DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
                 .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
                 .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
                     DynamicImage::into_rgb32f,
                 ))
-                .map(move |inputs: Arc<Tensor>| {
+                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
                     let new_inputs = inputs.permute(&[2, 0, 1]);
                     (Arc::new(new_inputs), Arc::new(tensor!([id])))
-                });
+                })
+                .to(Device::Cuda(0));
 
         cifar_dataset = cifar_dataset
             .into_iter()

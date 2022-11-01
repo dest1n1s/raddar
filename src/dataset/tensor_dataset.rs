@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use raddar_derive::{DatasetFromIter, DatasetIntoIter};
-use tch::Tensor;
+use tch::{Device, Tensor};
 
 use crate::core::TensorIntoIter;
 
@@ -148,21 +148,108 @@ impl Dataset for DictTensorDataset {
 impl TensorDataset {
     /// Creates a new `TensorDataset` from the given inputs and labels.
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>, labels: Vec<Arc<Tensor>>) -> Self {
+        // Assert that the inputs and labels have the same length.
+        assert_eq!(inputs.len(), labels.len(), "The number of inputs and labels must be the same.");
+
+        // Assert that the inputs and labels are all on the same device.
+        let device = inputs[0].device();
+        for input in &inputs {
+            assert_eq!(input.device(), device, "All inputs and labels must be on the same device.");
+        }
+        for label in &labels {
+            assert_eq!(label.device(), device, "All inputs and labels must be on the same device.");
+        }
+
+        // Assert that the inputs and labels are respectively all the same shape.
+        let input_shape = inputs[0].size();
+        for input in &inputs {
+            assert_eq!(input.size(), input_shape, "All inputs must be the same shape.");
+        }
+        let label_shape = labels[0].size();
+        for label in &labels {
+            assert_eq!(label.size(), label_shape, "All labels must be the same shape.");
+        }
+        
         Self { inputs, labels }
+    }
+
+    /// Move all tensor to the specific device.
+    pub fn to(self, device: Device) -> Self
+    where
+        Self: Sized,
+    {
+        self.map(move |(input, label): (Arc<Tensor>, Arc<Tensor>)| {
+            (Arc::new(input.to(device)), Arc::new(label.to(device)))
+        })
     }
 }
 
 impl UnsupervisedTensorDataset {
     /// Creates a new `UnsupervisedTensorDataset` from the given inputs.
     pub fn from_tensors(inputs: Vec<Arc<Tensor>>) -> Self {
+        // Assert that all inputs have the same shape.
+        let shape = inputs[0].size();
+        for input in &inputs {
+            assert_eq!(input.size(), shape, "All inputs must have the same shape.");
+        }
+
+        // Assert that all inputs are on the same device.
+        let device = inputs[0].device();
+        for input in &inputs {
+            assert_eq!(input.device(), device, "All inputs must be on the same device.");
+        }
+
         Self { inputs }
+    }
+
+    /// Move all tensor to the specific device.
+    pub fn to(self, device: Device) -> Self
+    where
+        Self: Sized,
+    {
+        self.map(move |input: Arc<Tensor>| Arc::new(input.to(device)))
     }
 }
 
 impl DictTensorDataset {
     /// Creates a new `DictTensorDataset` from the given inputs.
     pub fn from_tensors(inputs: HashMap<String, Vec<Arc<Tensor>>>) -> Self {
+        // Assert that all fields have the same length.
+        let length = inputs.values().next().unwrap().len();
+        for values in inputs.values() {
+            assert_eq!(values.len(), length, "All fields must have the same length.");
+        }
+
+        // Assert that all tensors are on the same device.
+        let device = inputs.values().next().unwrap()[0].device();
+        for values in inputs.values() {
+            for value in values {
+                assert_eq!(value.device(), device, "All tensors must be on the same device.");
+            }
+        }
+
+        // Assert that all tensors in a field have the same shape.
+        for (key, values) in inputs.iter() {
+            let shape = values[0].size();
+            for value in values {
+                assert_eq!(value.size(), shape, "Field {} has tensors with different shapes.", key);
+            }
+        }
+        
         Self { inputs }
+    }
+
+    /// Move all tensor to the specific device.
+    pub fn to(self, device: Device) -> Self
+    where
+        Self: Sized,
+    {
+        self.map(move |input: HashMap<String, Arc<Tensor>>| {
+            input
+                .into_iter()
+                .map(|(key, value)| (key, Arc::new(value.to(device))))
+                .collect()
+        })
     }
 }
 

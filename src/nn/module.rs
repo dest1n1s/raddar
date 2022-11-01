@@ -56,7 +56,10 @@ pub trait Trainable: std::fmt::Debug + Send {
     }
 
     /// Move the parameters of the module to a certain device.
-    fn to(&self, device: Device) {
+    fn to(self, device: Device) -> Self
+    where
+        Self: Sized,
+    {
         self.parameters()
             .to_vec()
             .iter()
@@ -68,17 +71,15 @@ pub trait Trainable: std::fmt::Debug + Send {
                     *param = param.to(device).set_requires_grad(requires_grad);
                 })
             });
+        self
     }
 
     /// Clear the gradients of the trainable parameters of the module.
     fn zero_grad(&self) {
-        self.parameters()
-            .to_vec()
-            .iter()
-            .for_each(|param| {
-                let mut param = param.lock();
-                param.zero_grad();
-            });
+        self.parameters().to_vec().iter().for_each(|param| {
+            let mut param = param.lock();
+            param.zero_grad();
+        });
     }
 }
 
