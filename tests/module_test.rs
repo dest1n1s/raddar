@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::num;
 use std::sync::Arc;
 
 use image::DynamicImage;
@@ -9,11 +8,11 @@ use raddar::dataset::{
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, resnet18, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
+    alexnet, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
     LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
-    gradient_descent, step_lr, AdamBuilder, ConstantScheduler, CosineAnnealingLRBuilder, Optimizer,
+    gradient_descent, ConstantScheduler, Optimizer,
     RMSPropBuilder, StepLRBuilder,
 };
 use raddar::{assert_tensor_eq, named_seq, seq, tensor};
@@ -159,7 +158,7 @@ fn cifar10_test() {
     let model = resnet50(num_classes).to(device);
     let mut optimizer = Optimizer::new(
         model.training_parameters(),
-        gradient_descent(0.01),
+        gradient_descent(0.0001),
         Some(ConstantScheduler::new()),
     );
     let classes_vec = vec![

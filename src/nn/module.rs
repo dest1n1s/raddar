@@ -208,6 +208,8 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Change the mode of the module to `Train`.
+    /// 
+    /// If `affect_children` is `true`, the mode of the child modules will also be changed to `Train`. Otherwise, the mode of the child modules will not be changed.
     pub fn train(&self, affect_children: bool) {
         *self.mode.write() = ModuleMode::Train;
         if affect_children {
@@ -219,6 +221,8 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Change the mode of the module to `Eval`.
+    /// 
+    /// If `affect_children` is `true`, the mode of the child modules will also be changed to `Eval`. Otherwise, the mode of the child modules will not be changed.
     pub fn eval(&self, affect_children: bool) {
         *self.mode.write() = ModuleMode::Eval;
         if affect_children {
