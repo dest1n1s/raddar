@@ -10,21 +10,23 @@ use super::{Module, StateDict, Trainable};
 /// This layer is used to convert a sequence of integers into a sequence of one-hot vectors.
 #[derive(Debug, CallableModule, NonParameterModule)]
 pub struct OneHot {
-    pub num_classes: u32,
+    pub num_classes: i64,
 }
 
 impl Module for OneHot {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
-        let mut original_size = input.size();
-        original_size.push(self.num_classes as i64);
-        let mut one_hot = Tensor::zeros(&original_size, (input.kind(), input.device()));
-        let input = input.unsqueeze(-1);
-        one_hot.scatter_(-1, &input, &input.ones_like())
+        let mut original_size = input.size(); //(32,1)
+        original_size.push(self.num_classes); //(32,1,10)
+        let one_hot = Tensor::zeros(&original_size, (input.kind(), input.device()));
+        let input = input.unsqueeze(-1); //(32,1,1)
+        let one_hot = one_hot.scatter(-1, &input, &input.ones_like());
+        // one_hot.squeeze_dim(-2)
+        one_hot
     }
 }
 
 impl OneHot {
-    pub fn new(num_classes: u32) -> Self {
+    pub fn new(num_classes: i64) -> Self {
         Self { num_classes }
     }
 }
@@ -56,7 +58,7 @@ impl Embedding {
             num_embeddings,
             embedding_dim,
             weight: weight.cell(),
-            one_hot: OneHot::new(num_embeddings as u32),
+            one_hot: OneHot::new(num_embeddings as i64),
         }
     }
 }

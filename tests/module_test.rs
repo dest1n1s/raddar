@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::num;
 use std::sync::Arc;
 
 use image::DynamicImage;
@@ -8,15 +9,16 @@ use raddar::dataset::{
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
+    alexnet, resnet18, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
     LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
-    AdamBuilder, CosineAnnealingLRBuilder, Optimizer, RMSPropBuilder, StepLRBuilder,
+    gradient_descent, step_lr, AdamBuilder, ConstantScheduler, CosineAnnealingLRBuilder, Optimizer,
+    RMSPropBuilder, StepLRBuilder,
 };
 use raddar::{assert_tensor_eq, named_seq, seq, tensor};
 
-use tch::{Device, Kind, Reduction, Tensor};
+use tch::{no_grad, Device, Kind, Reduction, Tensor};
 
 #[test]
 fn sequential_test() {
@@ -69,7 +71,6 @@ fn embedding_test() {
     let inputs = tensor!([1i64, 2, 3, 4, 5]);
     let one_hot = OneHot::new(6);
     one_hot(&inputs).print();
-
     let embedding = Embedding::new(6, 3);
     embedding(&inputs).print();
 }
@@ -120,9 +121,7 @@ fn batchnorm_test() {
 }
 #[test]
 fn layernorm() {
-    let ln = LayerNormBuilder::default()
-        .shape(vec![3, 5, 2])
-        .build();
+    let ln = LayerNormBuilder::default().shape(vec![3, 5, 2]).build();
     let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
     ln(&input).print();
 }
@@ -138,6 +137,14 @@ fn vgg_test() {
 
 #[test]
 fn resnet_test() {
+    // let x = tensor!([[1, 2], [2, 3], [3, 1]]);
+    // let y = tensor!([[2, 2], [2, 3], [1, 2]]);
+    // let temp = x
+    //     .eq_tensor(&y)
+    //     .sum_dim_intlist(&[1], false, Kind::Float)
+    //     .mean(Kind::Float);
+    // let mut acc = Tensor::zeros(&[1], (Kind::Float, Device::Cpu));
+    // acc += temp;
     let num_classes = 100;
     let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
     let net = resnet50(num_classes);
@@ -147,11 +154,13 @@ fn resnet_test() {
 #[test]
 fn cifar10_test() {
     let num_classes = 10;
-    let model = resnet50(num_classes).to(Device::Cuda(0));
+    let batch_size = 128;
+    let device = Device::Cuda(0);
+    let model = resnet50(num_classes).to(device);
     let mut optimizer = Optimizer::new(
         model.training_parameters(),
-        AdamBuilder::default().learning_rate(0.01).build(),
-        Some(CosineAnnealingLRBuilder::default().build()),
+        gradient_descent(0.01),
+        Some(ConstantScheduler::new()),
     );
     let classes_vec = vec![
         (0, "airplane".to_string()),
@@ -167,42 +176,68 @@ fn cifar10_test() {
     ];
     let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
+    let mut valid_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
-        let root_path = "dataset/cifar10/train/";
+        let train_path = "dataset/cifar10/train/";
+        let valid_path = "dataset/cifar10/val/";
         let id = id.to_owned();
-
-        let temp_dataset = DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-            .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
-            .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
-                DynamicImage::into_rgb32f,
-            ))
-            .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
-                let new_inputs = inputs.permute(&[2, 0, 1]);
-                (Arc::new(new_inputs), Arc::new(tensor!([id])))
-            })
-            .to(Device::Cuda(0));
-
+        let train_temp_dataset =
+            DynImageDataset::from_image_folder(&(train_path.to_owned() + class), ())
+                // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
+                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
+                    let new_inputs = inputs.permute(&[2, 0, 1]);
+                    (Arc::new(new_inputs), Arc::new(Tensor::from(id)))
+                })
+                .to(device);
+        let valid_temp_dataset =
+            DynImageDataset::from_image_folder(&(valid_path.to_owned() + class), ())
+                // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
+                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
+                    let new_inputs = inputs.permute(&[2, 0, 1]);
+                    (Arc::new(new_inputs), Arc::new(Tensor::from(id)))
+                })
+                .to(device);
         cifar_dataset = cifar_dataset
             .into_iter()
-            .chain(temp_dataset.into_iter())
+            .chain(train_temp_dataset.into_iter())
+            .collect();
+        valid_dataset = valid_dataset
+            .into_iter()
+            .chain(valid_temp_dataset.into_iter())
             .collect();
         println!("Class {} is loaded.", *class);
     }
     let cifar_dataloader = cifar_dataset.into_loader(
         DataLoaderConfigBuilder::default()
-            .batch_size(32)
+            .batch_size(batch_size)
+            .shuffle(true)
+            .build()
+            .unwrap(),
+    );
+    let valid_dataloader = valid_dataset.into_loader(
+        DataLoaderConfigBuilder::default()
+            .batch_size(batch_size)
             .shuffle(true)
             .build()
             .unwrap(),
     );
     println!("DataLoader is prepared.");
-    let onehot = OneHot::new(10);
+    let onehot = OneHot::new(num_classes);
     for _ in 1..5 {
         let epoch_loader = cifar_dataloader.clone();
+        let valid_loader = valid_dataloader.clone();
         for (img, label) in epoch_loader {
             // label.print();
+            // break;
             model.zero_grad();
-            let loss = model(&img.to_kind(Kind::Double)).mse_loss(
+            let output = model(&img.to_kind(Kind::Double));
+            let loss = output.mse_loss(
                 &(onehot)(&label.to_kind(Kind::Int64)).to_kind(Kind::Double),
                 Reduction::Mean,
             );
@@ -210,5 +245,21 @@ fn cifar10_test() {
             loss.print();
             optimizer.step();
         }
+        model.eval(true);
+        let mut acc = Tensor::zeros(&[1], (Kind::Float, device));
+        let mut now_bnum = 0;
+        for (img, label) in valid_loader {
+            no_grad(|| {
+                let output = model(&img.to_kind(Kind::Double));
+                let output = output.argmax(1, false);
+                let bacc = output.eq_tensor(&label).mean(Kind::Float);
+                acc += bacc;
+                now_bnum += 1;
+            });
+        }
+        acc = acc / now_bnum;
+        acc.print();
+        model.train(true);
+        // break;
     }
 }
