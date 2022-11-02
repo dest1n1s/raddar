@@ -12,7 +12,7 @@ use raddar::nn::{
     LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
-    AdamBuilder, CosineAnnealingLRBuilder, Optimizer, RMSPropBuilder, StepLRBuilder,
+    adam, cosine_annealing_lr, opt_with_sched, Optimizer, RMSPropBuilder, StepLRBuilder,
 };
 use raddar::{assert_tensor_eq, named_seq, seq, tensor};
 
@@ -120,9 +120,7 @@ fn batchnorm_test() {
 }
 #[test]
 fn layernorm() {
-    let ln = LayerNormBuilder::default()
-        .shape(vec![3, 5, 2])
-        .build();
+    let ln = LayerNormBuilder::default().shape(vec![3, 5, 2]).build();
     let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
     ln(&input).print();
 }
@@ -148,10 +146,10 @@ fn resnet_test() {
 fn cifar10_test() {
     let num_classes = 10;
     let model = resnet50(num_classes).to(Device::Cuda(0));
-    let mut optimizer = Optimizer::new(
+    let mut optimizer = opt_with_sched(
         model.training_parameters(),
-        AdamBuilder::default().learning_rate(0.01).build(),
-        Some(CosineAnnealingLRBuilder::default().build()),
+        adam(0.01, (0.9, 0.99)),
+        cosine_annealing_lr(100, 100, 0.001),
     );
     let classes_vec = vec![
         (0, "airplane".to_string()),
@@ -172,7 +170,7 @@ fn cifar10_test() {
         let id = id.to_owned();
 
         let temp_dataset = DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-            .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+            // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
             .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
                 DynamicImage::into_rgb32f,
             ))

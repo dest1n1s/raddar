@@ -36,7 +36,11 @@ where
         }
         self.opt.step(&self.parameters);
     }
-    pub fn new(parameters: Vec<TensorCell>, mut opt: T, mut scheduler: Option<U>) -> Optimizer<T, U> {
+    pub fn new(
+        parameters: Vec<TensorCell>,
+        mut opt: T,
+        mut scheduler: Option<U>,
+    ) -> Optimizer<T, U> {
         opt.init(&parameters);
         let init_lr = opt.learning_rate();
         if let Some(sched) = &mut scheduler {
@@ -49,4 +53,35 @@ where
             step: 0,
         }
     }
+}
+pub struct ConstantScheduler {
+    lr: f64,
+}
+impl SchedulerAlgorithm for ConstantScheduler {
+    fn init(&mut self, init_lr: f64) {
+        self.lr = init_lr;
+    }
+
+    fn update(&mut self, _step: i64, lr: f64) -> f64 {
+        lr
+    }
+}
+impl ConstantScheduler {
+    pub fn new() -> ConstantScheduler {
+        ConstantScheduler { lr: 0. }
+    }
+}
+pub fn opt_with_sched<T, U>(parameters: Vec<TensorCell>, opt: T, sched: U) -> Optimizer<T, U>
+where
+    T: OptimizerAlgorithm,
+    U: SchedulerAlgorithm,
+{
+    Optimizer::new(parameters, opt, Some(sched))
+}
+
+pub fn opt<T>(parameters: Vec<TensorCell>, opt: T) -> Optimizer<T, ConstantScheduler>
+where
+    T: OptimizerAlgorithm,
+{
+    Optimizer::new(parameters, opt, Some(ConstantScheduler::new()))
 }
