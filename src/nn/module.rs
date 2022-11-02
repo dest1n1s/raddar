@@ -203,8 +203,18 @@ impl<T: Trainable + ?Sized> Mod<T> {
                     *param = param.to(device).set_requires_grad(requires_grad);
                 })
             });
-        *self.device.write() = device;
+
+        self._set_device(device);
         self
+    }
+
+    /// Update the device state of the module and its child modules, without practically moving the parameters.
+    fn _set_device(&self, device: Device) {
+        *self.device.write() = device;
+        self.children
+            .write()
+            .iter()
+            .for_each(|(_, child)| child._set_device(device));
     }
 
     /// Change the mode of the module to `Train`.
