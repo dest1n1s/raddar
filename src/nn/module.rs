@@ -299,10 +299,10 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     /// 
     /// ```text
     /// BTreeMap {
-    ///     "layer1.weight": TensorCell,
-    ///     "layer1.bias": TensorCell,
-    ///     "layer2.weight": TensorCell,
-    ///     "layer2.bias": TensorCell,
+    ///     "layer1.linear_weight": TensorCell,
+    ///     "layer1.linear_bias": TensorCell,
+    ///     "layer2.linear_weight": TensorCell,
+    ///     "layer2.linear_bias": TensorCell,
     /// }
     /// ```
     fn parameters(&self) -> StateDict {
