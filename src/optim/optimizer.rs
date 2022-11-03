@@ -22,7 +22,6 @@ pub trait SchedulerAlgorithm {
     fn init(&mut self, init_lr: f64);
     fn update(&mut self, step: i64, lr: f64) -> f64;
 }
-
 impl<T, U> Optimizer<T, U>
 where
     T: OptimizerAlgorithm,

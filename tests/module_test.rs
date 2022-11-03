@@ -28,9 +28,12 @@ fn sequential_test() {
     let model = seq!(
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
-        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     )
     .to(tch::Device::Cuda(0));
+    model
+        .module_mut()
+        .push(LinearBuilder::default().input_dim(1).output_dim(1).build());
+    assert!(model.parameters().contains_key("1.weight"));
     let mut optimizer = Optimizer::new(
         // TODO: Replace training parameters with all the parameters of the model
         model.training_parameters(),
@@ -69,7 +72,6 @@ fn embedding_test() {
     let inputs = tensor!([1i64, 2, 3, 4, 5]);
     let one_hot = OneHot::new(6);
     one_hot(&inputs).print();
-
     let embedding = Embedding::new(6, 3);
     embedding(&inputs).print();
 }
@@ -136,6 +138,14 @@ fn vgg_test() {
 
 #[test]
 fn resnet_test() {
+    // let x = tensor!([[1, 2], [2, 3], [3, 1]]);
+    // let y = tensor!([[2, 2], [2, 3], [1, 2]]);
+    // let temp = x
+    //     .eq_tensor(&y)
+    //     .sum_dim_intlist(&[1], false, Kind::Float)
+    //     .mean(Kind::Float);
+    // let mut acc = Tensor::zeros(&[1], (Kind::Float, Device::Cpu));
+    // acc += temp;
     let num_classes = 100;
     let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
     let net = resnet50(num_classes);
@@ -167,6 +177,7 @@ fn cifar10_test() {
     ];
     let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
+    let mut valid_dataset = TensorDataset::default();
     let mut valid_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
         let train_path = "dataset/cifar10/train/";
@@ -225,6 +236,7 @@ fn cifar10_test() {
         let valid_loader = valid_dataloader.clone();
         for (img, label) in epoch_loader {
             // label.print();
+            // break;
             // break;
             model.zero_grad();
             let output = model(&img.to_kind(Kind::Double));

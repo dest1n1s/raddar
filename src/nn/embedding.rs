@@ -15,11 +15,13 @@ pub struct OneHot {
 
 impl Module for OneHot {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
-        let mut original_size = input.size();
-        original_size.push(self.num_classes as i64);
-        let mut one_hot = Tensor::zeros(&original_size, (input.kind(), input.device()));
-        let input = input.unsqueeze(-1);
-        one_hot.scatter_(-1, &input, &input.ones_like())
+        let mut original_size = input.size(); //(32,1)
+        original_size.push(self.num_classes); //(32,1,10)
+        let one_hot = Tensor::zeros(&original_size, (input.kind(), input.device()));
+        let input = input.unsqueeze(-1); //(32,1,1)
+        let one_hot = one_hot.scatter(-1, &input, &input.ones_like());
+        // one_hot.squeeze_dim(-2)
+        one_hot
     }
 }
 
