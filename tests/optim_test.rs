@@ -26,8 +26,8 @@ fn gradient_descent_test() {
     println!("final model:");
     println!(
         "weight: {}, bias: {}",
-        f64::from(&*model.linear_weight.lock()),
-        f64::from(&*model.linear_bias.as_ref().unwrap().lock())
+        f64::from(&*model.module().linear_weight.lock()),
+        f64::from(&*model.module().linear_bias.as_ref().unwrap().lock())
     );
 }
 
@@ -52,7 +52,7 @@ fn rmsprop_test() {
     println!("final model:");
     println!(
         "weight: {}, bias: {}",
-        f64::from(&*model.linear_weight.lock()),
-        f64::from(&*model.linear_bias.as_ref().unwrap().lock())
+        f64::from(&*model.module().linear_weight.lock()),
+        f64::from(&*model.module().linear_bias.as_ref().unwrap().lock())
     );
 }

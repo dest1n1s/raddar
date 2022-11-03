@@ -36,13 +36,13 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
 
         impl #impl_generics Fn<(&Tensor, )> for raddar::nn::Mod<#name #ty_generics> #where_clause {
             extern "rust-call" fn call(&self, input: (&Tensor, )) -> tch::Tensor {
-                self.forward(input.0)
+                self.module().forward(input.0)
             }
         }
 
         impl #impl_generics FnMut<(&Tensor, )> for raddar::nn::Mod<#name #ty_generics> #where_clause {
             extern "rust-call" fn call_mut(&mut self, input: (&Tensor, )) -> tch::Tensor {
-                self.forward(input.0)
+                self.module().forward(input.0)
             }
         }
 
@@ -50,7 +50,7 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
             type Output = Tensor;
 
             extern "rust-call" fn call_once(self, input: (&Tensor, )) -> Tensor {
-                self.forward(input.0)
+                self.module().forward(input.0)
             }
         }
     };

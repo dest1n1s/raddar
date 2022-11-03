@@ -79,7 +79,7 @@ impl Module for Sequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for module in self.iter() {
-            x = module.forward(&x)
+            x = module(&x)
         }
         x
     }
@@ -99,7 +99,7 @@ impl Module for NamedSequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for (_, module) in self.iter() {
-            x = module.forward(&x)
+            x = module(&x)
         }
         x
     }

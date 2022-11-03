@@ -7,15 +7,18 @@ use std::{
 };
 
 use anyhow::Ok;
-use parking_lot::RwLock;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tch::{no_grad, Device, Tensor};
 
-use crate::core::{Cellable, TensorCell};
+use crate::{
+    core::{Cellable, TensorCell},
+    util::DropGuard,
+};
 
 pub type StateDict = BTreeMap<String, TensorCell>;
 pub type ModuleDict = BTreeMap<String, Mod<dyn Trainable>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ModuleMode {
     Train,
     Eval,
@@ -49,7 +52,7 @@ pub trait Trainable: std::fmt::Debug {
     }
 
     /// Load the parameters from another `StateDict`.
-    /// 
+    ///
     /// This method will load all parameters with the same name from the `StateDict` into the module.
     fn load(&self, parameters: StateDict) {
         for (name, other_parameter) in parameters {
@@ -124,7 +127,7 @@ pub struct ModData<T: Trainable + ?Sized> {
     pub children: RwLock<BTreeMap<String, Mod<dyn Trainable>>>,
     pub device: RwLock<Device>,
     pub mode: RwLock<ModuleMode>,
-    pub module: T,
+    pub module: RwLock<T>,
 }
 
 impl<T: Trainable + ?Sized> Clone for Mod<T> {
@@ -135,27 +138,12 @@ impl<T: Trainable + ?Sized> Clone for Mod<T> {
     }
 }
 
-impl<T: Trainable + ?Sized> Deref for ModData<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.module
-    }
-}
-
 impl<T: Trainable + ?Sized> Deref for Mod<T> {
     type Target = ModData<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.arc
     }
-}
-
-impl<T, U> CoerceUnsized<ModData<U>> for ModData<T>
-where
-    T: CoerceUnsized<U> + Trainable + ?Sized,
-    U: Trainable + ?Sized,
-{
 }
 
 impl<T, U> CoerceUnsized<Mod<U>> for Mod<T>
@@ -174,7 +162,7 @@ impl<T: Trainable + 'static> Mod<T> {
                 children: RwLock::new(module.child_modules()),
                 device: RwLock::new(Device::Cpu),
                 mode: RwLock::new(ModuleMode::Train),
-                module,
+                module: RwLock::new(module),
             }),
         };
         this.children.write().iter_mut().for_each(|(_, child)| {
@@ -185,10 +173,40 @@ impl<T: Trainable + 'static> Mod<T> {
         });
         this
     }
+
+    /// Get a mutable reference to the underlying module.
+    ///
+    /// This method will update the parent of child modules when the mutable reference is dropped. The device of the child modules will also be checked and updated to the device of this module.
+    pub fn module_mut(&self) -> DropGuard<RwLockWriteGuard<T>> {
+        let this = self.clone();
+        let module = self.module.write();
+        DropGuard::new(
+            module,
+            Box::new(move |module| {
+                let mut children = this.children.write();
+                let new_children = module.child_modules();
+                *children = new_children;
+                children.iter_mut().for_each(|(_, child)| {
+                    if child.device() != this.device() {
+                        child.to_(this.device());
+                    }
+                    child
+                        .parent
+                        .write()
+                        .replace(Arc::downgrade(&(this.arc.clone() as _)));
+                });
+            }),
+        )
+    }
 }
 
 impl<T: Trainable + ?Sized> Mod<T> {
-    /// Move the parameters of the module to a certain device.
+    /// Get a reference to the underlying module.
+    pub fn module(&self) -> RwLockReadGuard<T> {
+        self.module.read()
+    }
+
+    /// Move the parameters of the module to a certain device, and return a new [Mod].
     pub fn to(self, device: Device) -> Self
     where
         Self: Sized,
@@ -208,6 +226,22 @@ impl<T: Trainable + ?Sized> Mod<T> {
         self
     }
 
+    /// Move the parameters of the module to a certain device.
+    pub fn to_(&self, device: Device) {
+        self.parameters()
+            .values()
+            .chain(self.static_tensors().values())
+            .for_each(|param| {
+                let mut param = param.lock();
+                let requires_grad = param.requires_grad();
+                no_grad(|| {
+                    *param = param.to(device).set_requires_grad(requires_grad);
+                })
+            });
+
+        self._set_device(device);
+    }
+
     /// Update the device state of the module and its child modules, without practically moving the parameters.
     fn _set_device(&self, device: Device) {
         *self.device.write() = device;
@@ -217,8 +251,13 @@ impl<T: Trainable + ?Sized> Mod<T> {
             .for_each(|(_, child)| child._set_device(device));
     }
 
+    /// Get the device of the module.
+    pub fn device(&self) -> Device {
+        self.device.read().clone()
+    }
+
     /// Change the mode of the module to `Train`.
-    /// 
+    ///
     /// If `affect_children` is `true`, the mode of the child modules will also be changed to `Train`. Otherwise, the mode of the child modules will not be changed.
     pub fn train(&self, affect_children: bool) {
         *self.mode.write() = ModuleMode::Train;
@@ -231,7 +270,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Change the mode of the module to `Eval`.
-    /// 
+    ///
     /// If `affect_children` is `true`, the mode of the child modules will also be changed to `Eval`. Otherwise, the mode of the child modules will not be changed.
     pub fn eval(&self, affect_children: bool) {
         *self.mode.write() = ModuleMode::Eval;
@@ -243,32 +282,47 @@ impl<T: Trainable + ?Sized> Mod<T> {
         }
     }
 
+    /// Get the mode of the module.
+    pub fn mode(&self) -> ModuleMode {
+        self.mode.read().clone()
+    }
+
+    /// Get the parent of the module.
+    pub fn parent(&self) -> Option<Mod<dyn Trainable>> {
+        self.parent.read().as_ref().and_then(|parent| parent.upgrade()).map(Mod::from)
+    }
+
+    /// Get the children of the module.
+    pub fn children(&self) -> BTreeMap<String, Mod<dyn Trainable>> {
+        self.children.read().clone()
+    }    
+
     /// Load parameters from a numpy .npz file. This method won't load static tensors.
-    /// 
+    ///
     /// The tensors in the file should be named as the path to them.
-    /// 
+    ///
     /// For example, a model architecture like this:
-    /// 
+    ///
     /// ```text
     /// SomeModule {
     ///     "layer1": Linear {
-    ///         "linear_weight": TensorCell,
-    ///         "linear_bias": TensorCell,
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
     ///     },
     ///     "layer2": Linear {
-    ///         "linear_weight": TensorCell,
-    ///         "linear_bias": TensorCell,
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
     ///     },
     /// }
     /// ```
-    /// 
+    ///
     /// Should be saved in a .npz file like this:
-    /// 
+    ///
     /// ```text
-    /// layer1.linear_weight.npy
-    /// layer1.linear_bias.npy
-    /// layer2.linear_weight.npy
-    /// layer2.linear_bias.npy
+    /// layer1.weight.npy
+    /// layer1.bias.npy
+    /// layer2.weight.npy
+    /// layer2.bias.npy
     /// ```
     pub fn load_npz<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         self.load(
@@ -293,34 +347,34 @@ impl<T: Trainable + ?Sized> Mod<T> {
 
 impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     /// Returns all trainable parameters in the module, including the parameters in child modules. The parameters are stored in a `BTreeMap` with their path as keys.
-    /// 
+    ///
     /// For example, a model architecture like this:
-    /// 
+    ///
     /// ```text
     /// SomeModule {
     ///     "layer1": Linear {
-    ///         "linear_weight": TensorCell,
-    ///         "linear_bias": TensorCell,
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
     ///     },
     ///     "layer2": Linear {
-    ///         "linear_weight": TensorCell,
-    ///         "linear_bias": TensorCell,
+    ///         "weight": TensorCell,
+    ///         "bias": TensorCell,
     ///     },
     /// }
     /// ```
-    /// 
+    ///
     /// will return a `BTreeMap` like this:
-    /// 
+    ///
     /// ```text
     /// BTreeMap {
-    ///     "layer1.linear_weight": TensorCell,
-    ///     "layer1.linear_bias": TensorCell,
-    ///     "layer2.linear_weight": TensorCell,
-    ///     "layer2.linear_bias": TensorCell,
+    ///     "layer1.weight": TensorCell,
+    ///     "layer1.bias": TensorCell,
+    ///     "layer2.weight": TensorCell,
+    ///     "layer2.bias": TensorCell,
     /// }
     /// ```
     fn parameters(&self) -> StateDict {
-        let mut parameters = self.module.parameters();
+        let mut parameters = self.module().parameters();
         for (name, child) in self.children.read().iter() {
             for (child_name, child_parameter) in child.parameters() {
                 parameters.insert(format!("{}.{}", name, child_name), child_parameter);
@@ -331,7 +385,7 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
 
     /// Returns all static tensors in the module, including the static tensors in child modules. The static tensors are stored in a `BTreeMap` with their path as keys.
     fn static_tensors(&self) -> StateDict {
-        let mut static_tensors = self.module.static_tensors();
+        let mut static_tensors = self.module().static_tensors();
         for (name, child) in self.children.read().iter() {
             for (child_name, child_static_tensor) in child.static_tensors() {
                 static_tensors.insert(format!("{}.{}", name, child_name), child_static_tensor);
@@ -341,10 +395,36 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     }
 }
 
+impl<T: Trainable + ?Sized> From<Arc<ModData<T>>> for Mod<T> {
+    fn from(data: Arc<ModData<T>>) -> Self {
+        Self { arc: data }
+    }
+}
+
 /// A module is a neural network layer, which can be seen as a function from `Tensor` to `Tensor`, with some trainable parameters.
 pub trait Module: Trainable {
     /// The forward function for Module.
     fn forward(&self, input: &Tensor) -> Tensor;
+}
+
+impl Fn<(&Tensor,)> for Mod<dyn Module> {
+    extern "rust-call" fn call(&self, input: (&Tensor,)) -> tch::Tensor {
+        self.module().forward(input.0)
+    }
+}
+
+impl FnMut<(&Tensor,)> for Mod<dyn Module> {
+    extern "rust-call" fn call_mut(&mut self, input: (&Tensor,)) -> tch::Tensor {
+        self.module().forward(input.0)
+    }
+}
+
+impl FnOnce<(&Tensor,)> for Mod<dyn Module> {
+    type Output = Tensor;
+
+    extern "rust-call" fn call_once(self, input: (&Tensor,)) -> Tensor {
+        self.module().forward(input.0)
+    }
 }
 
 /// A module without trainable parameters.

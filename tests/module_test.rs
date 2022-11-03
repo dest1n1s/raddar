@@ -29,9 +29,10 @@ fn sequential_test() {
     let model = seq!(
         LinearBuilder::default().input_dim(1).output_dim(1).build(),
         // LeakyReLU::new(0.01),
-        LinearBuilder::default().input_dim(1).output_dim(1).build(),
     )
     .to(tch::Device::Cuda(0));
+    model.module_mut().push(LinearBuilder::default().input_dim(1).output_dim(1).build());
+    assert!(model.parameters().contains_key("1.weight"));
     let mut optimizer = Optimizer::new(
         // TODO: Replace training parameters with all the parameters of the model
         model.training_parameters(),
