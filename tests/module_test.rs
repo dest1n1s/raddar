@@ -12,11 +12,11 @@ use raddar::nn::{
     LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
-    adam, cosine_annealing_lr, opt_with_sched, Optimizer, RMSPropBuilder, StepLRBuilder,
+    cosine_annealing_lr, opt_with_sched, rmsprop, Optimizer, RMSPropBuilder, StepLRBuilder,
 };
 use raddar::{assert_tensor_eq, named_seq, seq, tensor};
 
-use tch::{Device, Kind, Reduction, Tensor};
+use tch::{no_grad, Device, Kind, Reduction, Tensor};
 
 #[test]
 fn sequential_test() {
@@ -145,11 +145,13 @@ fn resnet_test() {
 #[test]
 fn cifar10_test() {
     let num_classes = 10;
-    let model = resnet50(num_classes).to(Device::Cuda(0));
+    let batch_size = 32;
+    let device = Device::Cuda(0);
+    let model = resnet50(num_classes).to(device);
     let mut optimizer = opt_with_sched(
         model.training_parameters(),
-        adam(0.01, (0.9, 0.99)),
-        cosine_annealing_lr(100, 100, 0.001),
+        rmsprop(0.03, 0.99),
+        cosine_annealing_lr(200, 100, 0.01),
     );
     let classes_vec = vec![
         (0, "airplane".to_string()),
@@ -165,48 +167,91 @@ fn cifar10_test() {
     ];
     let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
+    let mut valid_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
-        let root_path = "dataset/cifar10/train/";
+        let train_path = "dataset/cifar10/train/";
+        let valid_path = "dataset/cifar10/val/";
         let id = id.to_owned();
-
-        let temp_dataset = DynImageDataset::from_image_folder(&(root_path.to_owned() + class), ())
-            // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
-            .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
-                DynamicImage::into_rgb32f,
-            ))
-            .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
-                let new_inputs = inputs.permute(&[2, 0, 1]);
-                (Arc::new(new_inputs), Arc::new(tensor!([id])))
-            })
-            .to(Device::Cuda(0));
-
+        let train_temp_dataset =
+            DynImageDataset::from_image_folder(&(train_path.to_owned() + class), ())
+                // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
+                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
+                    let new_inputs = inputs.permute(&[2, 0, 1]);
+                    (Arc::new(new_inputs), Arc::new(Tensor::from(id)))
+                })
+                .to(device);
+        let valid_temp_dataset =
+            DynImageDataset::from_image_folder(&(valid_path.to_owned() + class), ())
+                // .map::<DynImageDataset, _>(image_mappings::resize(224, 224))
+                .map::<UnsupervisedTensorDataset, _>(image_mappings::to_tensor(
+                    DynamicImage::into_rgb32f,
+                ))
+                .map::<TensorDataset, _>(move |inputs: Arc<Tensor>| {
+                    let new_inputs = inputs.permute(&[2, 0, 1]);
+                    (Arc::new(new_inputs), Arc::new(Tensor::from(id)))
+                })
+                .to(device);
         cifar_dataset = cifar_dataset
             .into_iter()
-            .chain(temp_dataset.into_iter())
+            .chain(train_temp_dataset.into_iter())
+            .collect();
+        valid_dataset = valid_dataset
+            .into_iter()
+            .chain(valid_temp_dataset.into_iter())
             .collect();
         println!("Class {} is loaded.", *class);
     }
     let cifar_dataloader = cifar_dataset.into_loader(
         DataLoaderConfigBuilder::default()
-            .batch_size(32)
+            .batch_size(batch_size)
+            .shuffle(true)
+            .build()
+            .unwrap(),
+    );
+    let valid_dataloader = valid_dataset.into_loader(
+        DataLoaderConfigBuilder::default()
+            .batch_size(batch_size)
             .shuffle(true)
             .build()
             .unwrap(),
     );
     println!("DataLoader is prepared.");
-    let onehot = OneHot::new(10);
-    for _ in 1..5 {
+    let onehot = OneHot::new(num_classes);
+    for _ in 1..50 {
         let epoch_loader = cifar_dataloader.clone();
+        let valid_loader = valid_dataloader.clone();
         for (img, label) in epoch_loader {
             // label.print();
+            // break;
             model.zero_grad();
-            let loss = model(&img.to_kind(Kind::Double)).mse_loss(
+            let output = model(&img.to_kind(Kind::Double));
+            let loss = output.mse_loss(
                 &(onehot)(&label.to_kind(Kind::Int64)).to_kind(Kind::Double),
                 Reduction::Mean,
             );
             loss.backward();
-            loss.print();
+            // loss.print();
+            // println!("{}", optimizer.opt.learning_rate());
             optimizer.step();
         }
+        model.eval(true);
+        let mut acc = Tensor::zeros(&[1], (Kind::Float, device));
+        let mut now_bnum = 0;
+        for (img, label) in valid_loader {
+            no_grad(|| {
+                let output = model(&img.to_kind(Kind::Double));
+                let output = output.argmax(1, false);
+                let bacc = output.eq_tensor(&label).mean(Kind::Float);
+                acc += bacc;
+                now_bnum += 1;
+            });
+        }
+        acc = acc / now_bnum;
+        acc.print();
+        model.train(true);
+        // break;
     }
 }

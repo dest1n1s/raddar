@@ -5,10 +5,10 @@ where
     T: OptimizerAlgorithm,
     U: SchedulerAlgorithm,
 {
-    opt: T,
-    parameters: Vec<TensorCell>,
-    scheduler: Option<U>,
-    step: i64,
+    pub opt: T,
+    pub parameters: Vec<TensorCell>,
+    pub scheduler: Option<U>,
+    pub step: i64,
 }
 
 pub trait OptimizerAlgorithm {

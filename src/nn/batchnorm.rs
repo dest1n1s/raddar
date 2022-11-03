@@ -39,6 +39,12 @@ impl Trainable for BatchNorm1d {
         }
         result
     }
+    fn static_tensors(&self) -> StateDict {
+        let mut result = StateDict::new();
+        result.insert("running_mean".to_owned(), self.running_mean.clone());
+        result.insert("running_var".to_owned(), self.running_var.clone());
+        result
+    }
 }
 
 impl Module for BatchNorm1d {
@@ -135,6 +141,12 @@ impl Trainable for BatchNorm2d {
         }
         result
     }
+    fn static_tensors(&self) -> StateDict {
+        let mut result = StateDict::new();
+        result.insert("running_mean".to_owned(), self.running_mean.clone());
+        result.insert("running_var".to_owned(), self.running_var.clone());
+        result
+    }
 }
 
 impl Module for BatchNorm2d {
@@ -229,6 +241,12 @@ impl Trainable for BatchNorm3d {
             );
             result.insert("bias".to_owned(), self.bn_bias.as_ref().unwrap().clone());
         }
+        result
+    }
+    fn static_tensors(&self) -> StateDict {
+        let mut result = StateDict::new();
+        result.insert("running_mean".to_owned(), self.running_mean.clone());
+        result.insert("running_var".to_owned(), self.running_var.clone());
         result
     }
 }
