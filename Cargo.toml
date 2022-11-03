@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tch = { path = "./tch-rs", git = "https://github.com/dest1n1s/tch-rs/" }
+tch = { path = "./tch-rs" }
 anyhow = "1.0.65"
 raddar_derive = { version="0.1.0", path = "./raddar_derive" }
 derive_builder = "0.11.2"

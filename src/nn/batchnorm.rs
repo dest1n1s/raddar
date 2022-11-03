@@ -47,7 +47,7 @@ impl Trainable for BatchNorm1d {
     }
 }
 
-impl Module for BatchNorm1d {
+impl Module<Tensor, Tensor> for BatchNorm1d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 2 || input.dim() == 3);
         let running_mean = self.running_mean.lock();
@@ -149,7 +149,7 @@ impl Trainable for BatchNorm2d {
     }
 }
 
-impl Module for BatchNorm2d {
+impl Module<Tensor, Tensor> for BatchNorm2d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 4);
         let running_mean = self.running_mean.lock();
@@ -251,7 +251,7 @@ impl Trainable for BatchNorm3d {
     }
 }
 
-impl Module for BatchNorm3d {
+impl Module<Tensor, Tensor> for BatchNorm3d {
     fn forward(&self, input: &Tensor) -> Tensor {
         assert!(input.dim() == 5);
         let running_mean = self.running_mean.lock();

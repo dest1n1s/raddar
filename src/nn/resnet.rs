@@ -10,7 +10,7 @@ use super::{
     MaxPooling2DBuilder, Mod, Module, ModuleDict, Sequential, Trainable,
 };
 
-pub trait Block<U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy>: Module {
+pub trait Block<U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy>: Module<Tensor, Tensor> {
     fn expansion() -> i64;
     fn new_block(
         inplanes: i64,
@@ -76,7 +76,7 @@ impl Trainable for BasicBlock {
     }
 }
 
-impl Module for BasicBlock {
+impl Module<Tensor, Tensor> for BasicBlock {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut identity = input.copy();
         let mut output = (self.block)(input);
@@ -136,7 +136,7 @@ impl Trainable for BottleNeck {
     }
 }
 
-impl Module for BottleNeck {
+impl Module<Tensor, Tensor> for BottleNeck {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut identity = input.copy();
         let mut output = (self.block)(input);
@@ -243,7 +243,7 @@ impl<T: Block<U>, U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Trainable
     }
 }
 
-impl<T: Block<U>, U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Module for ResNet<T, U> {
+impl<T: Block<U>, U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Module<Tensor, Tensor> for ResNet<T, U> {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut output = (self.net)(input);
         output = output.flatten(1, 3);

@@ -8,13 +8,13 @@ use super::{Mod, ModuleDict, Trainable};
 
 /// A module composed by a sequential of modules.
 #[derive(Debug, CallableModule, Default)]
-pub struct Sequential(Vec<Mod<dyn Module>>);
+pub struct Sequential(Vec<Mod<dyn Module<Tensor, Tensor>>>);
 
 #[derive(Debug, CallableModule, Default)]
-pub struct NamedSequential(BTreeMap<String, Mod<dyn Module>>);
+pub struct NamedSequential(BTreeMap<String, Mod<dyn Module<Tensor, Tensor>>>);
 
 impl Deref for Sequential {
-    type Target = Vec<Mod<dyn Module>>;
+    type Target = Vec<Mod<dyn Module<Tensor, Tensor>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -34,33 +34,33 @@ impl DerefMut for NamedSequential {
 }
 
 impl Deref for NamedSequential {
-    type Target = BTreeMap<String, Mod<dyn Module>>;
+    type Target = BTreeMap<String, Mod<dyn Module<Tensor, Tensor>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<Vec<Mod<dyn Module>>> for Sequential {
-    fn from(seq: Vec<Mod<dyn Module>>) -> Self {
+impl From<Vec<Mod<dyn Module<Tensor, Tensor>>>> for Sequential {
+    fn from(seq: Vec<Mod<dyn Module<Tensor, Tensor>>>) -> Self {
         Sequential(seq)
     }
 }
 
-impl FromIterator<Mod<dyn Module>> for Sequential {
-    fn from_iter<I: IntoIterator<Item = Mod<dyn Module>>>(iter: I) -> Self {
+impl FromIterator<Mod<dyn Module<Tensor, Tensor>>> for Sequential {
+    fn from_iter<I: IntoIterator<Item = Mod<dyn Module<Tensor, Tensor>>>>(iter: I) -> Self {
         Sequential(iter.into_iter().collect())
     }
 }
 
-impl From<BTreeMap<String, Mod<dyn Module>>> for NamedSequential {
-    fn from(seq: BTreeMap<String, Mod<dyn Module>>) -> Self {
+impl From<BTreeMap<String, Mod<dyn Module<Tensor, Tensor>>>> for NamedSequential {
+    fn from(seq: BTreeMap<String, Mod<dyn Module<Tensor, Tensor>>>) -> Self {
         NamedSequential(seq)
     }
 }
 
-impl FromIterator<(String, Mod<dyn Module>)> for NamedSequential {
-    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module>)>>(iter: I) -> Self {
+impl FromIterator<(String, Mod<dyn Module<Tensor, Tensor>>)> for NamedSequential {
+    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module<Tensor, Tensor>>)>>(iter: I) -> Self {
         NamedSequential(iter.into_iter().collect())
     }
 }
@@ -75,7 +75,7 @@ impl Trainable for Sequential {
     }
 }
 
-impl Module for Sequential {
+impl Module<Tensor, Tensor> for Sequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for module in self.iter() {
@@ -95,7 +95,7 @@ impl Trainable for NamedSequential {
     }
 }
 
-impl Module for NamedSequential {
+impl Module<Tensor, Tensor> for NamedSequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for (_, module) in self.iter() {
@@ -109,7 +109,7 @@ impl Module for NamedSequential {
 macro_rules! seq {
     ($($module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new($crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module>,)*]))
+            $crate::nn::Mod::new($crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module<tch::Tensor, tch::Tensor>>,)*]))
         }
     };
 }
@@ -118,7 +118,7 @@ macro_rules! seq {
 macro_rules! named_seq {
     ($($name:expr => $module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
+            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module<Tensor, Tensor>>),)*]
                     .into_iter()
                     .collect::<$crate::nn::sequential::NamedSequential>())
         }

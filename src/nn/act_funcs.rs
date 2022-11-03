@@ -29,13 +29,13 @@ impl LeakyReLU {
     }
 }
 
-impl Module for GeLU {
+impl Module<Tensor, Tensor> for GeLU {
     fn forward(&self, input: &Tensor) -> Tensor {
         let z = (input + &input.pow_tensor_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
         0.5 * input * (1 + z.tanh())
     }
 }
-impl Module for ReLU {
+impl Module<Tensor, Tensor> for ReLU {
     fn forward(&self, input: &Tensor) -> Tensor {
         let y = input.zeros_like();
         let condition = input.ge(0);
@@ -43,7 +43,7 @@ impl Module for ReLU {
     }
 }
 
-impl Module for LeakyReLU {
+impl Module<Tensor, Tensor> for LeakyReLU {
     fn forward(&self, input: &Tensor) -> Tensor {
         let y = -input * self.lambda;
         let condition = input.ge(0);

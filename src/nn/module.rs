@@ -294,13 +294,17 @@ impl<T: Trainable + ?Sized> Mod<T> {
 
     /// Get the parent of the module.
     pub fn parent(&self) -> Option<Mod<dyn Trainable>> {
-        self.parent.read().as_ref().and_then(|parent| parent.upgrade()).map(Mod::from)
+        self.parent
+            .read()
+            .as_ref()
+            .and_then(|parent| parent.upgrade())
+            .map(Mod::from)
     }
 
     /// Get the children of the module.
     pub fn children(&self) -> BTreeMap<String, Mod<dyn Trainable>> {
         self.children.read().clone()
-    }    
+    }
 
     /// Load parameters from a numpy .npz file. This method won't load static tensors.
     ///
@@ -407,32 +411,32 @@ impl<T: Trainable + ?Sized> From<Arc<ModData<T>>> for Mod<T> {
 }
 
 /// A module is a neural network layer, which can be seen as a function from `Tensor` to `Tensor`, with some trainable parameters.
-pub trait Module: Trainable {
+pub trait Module<InputType, OutputType>: Trainable {
     /// The forward function for Module.
-    fn forward(&self, input: &Tensor) -> Tensor;
+    fn forward(&self, input: &InputType) -> OutputType;
 }
 
-impl Fn<(&Tensor,)> for Mod<dyn Module> {
-    extern "rust-call" fn call(&self, input: (&Tensor,)) -> tch::Tensor {
+impl<T, U> Fn<(&T,)> for Mod<dyn Module<T, U>> {
+    extern "rust-call" fn call(&self, input: (&T,)) -> U {
         self.module().forward(input.0)
     }
 }
 
-impl FnMut<(&Tensor,)> for Mod<dyn Module> {
-    extern "rust-call" fn call_mut(&mut self, input: (&Tensor,)) -> tch::Tensor {
+impl<T, U> FnMut<(&T,)> for Mod<dyn Module<T, U>> {
+    extern "rust-call" fn call_mut(&mut self, input: (&T,)) -> U {
         self.module().forward(input.0)
     }
 }
 
-impl FnOnce<(&Tensor,)> for Mod<dyn Module> {
-    type Output = Tensor;
+impl<T, U> FnOnce<(&T,)> for Mod<dyn Module<T, U>> {
+    type Output = U;
 
-    extern "rust-call" fn call_once(self, input: (&Tensor,)) -> Tensor {
+    extern "rust-call" fn call_once(self, input: (&T,)) -> U {
         self.module().forward(input.0)
     }
 }
 
 /// A module without trainable parameters.
-pub trait NonParameterModule: Module {}
+pub trait NonParameterModule: Module<Tensor, Tensor> {}
 
 impl<T: NonParameterModule> Trainable for T {}

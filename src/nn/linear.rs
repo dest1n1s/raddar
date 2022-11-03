@@ -29,7 +29,7 @@ impl Trainable for Linear {
     }
 }
 
-impl Module for Linear {
+impl Module<Tensor, Tensor> for Linear {
     fn forward(&self, input: &Tensor) -> Tensor {
         let weight = &self.linear_weight.lock();
         if let Some(bias) = &self.linear_bias {
