@@ -180,6 +180,8 @@ impl<T: Trainable + 'static> Mod<T> {
     pub fn module_mut(&self) -> DropGuard<RwLockWriteGuard<T>> {
         let this = self.clone();
         let module = self.module.write();
+
+        // Use a [DropGuard] to update the parent of child modules before the mutable reference is dropped, so that when the write lock is released, the parent of child modules is already up-to-date.
         DropGuard::new(
             module,
             Box::new(move |module| {
@@ -187,9 +189,12 @@ impl<T: Trainable + 'static> Mod<T> {
                 let new_children = module.child_modules();
                 *children = new_children;
                 children.iter_mut().for_each(|(_, child)| {
+                    // Check and update the device of child modules.
                     if child.device() != this.device() {
                         child.to_(this.device());
                     }
+
+                    // Update the parent of child modules.
                     child
                         .parent
                         .write()

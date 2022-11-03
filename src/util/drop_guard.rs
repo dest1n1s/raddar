@@ -1,6 +1,8 @@
 use std::{mem::ManuallyDrop, ops::{Deref, DerefMut}};
 
+/// A guard to execute some function before the inner object drops.
 pub struct DropGuard<T>{
+    // Both the inner object and the function should be wrapped in a [ManuallyDrop], to avoid dropping before the guard drops.
     inner: ManuallyDrop<T>,
     drop_cb: ManuallyDrop<Box<dyn FnMut(&mut T)>>,
 }
@@ -30,7 +32,10 @@ impl<T> DropGuard<T> {
 
 impl<T> Drop for DropGuard<T> {
     fn drop(&mut self) {
+        // Execute the drop callback.
         (self.drop_cb)(&mut *self.inner);
+
+        // Drop the inner object and the callback.
         unsafe {
             ManuallyDrop::drop(&mut self.drop_cb);
             ManuallyDrop::drop(&mut self.inner);
