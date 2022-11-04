@@ -13,7 +13,7 @@ pub struct OneHot {
     pub num_classes: i64,
 }
 
-impl Module<Tensor, Tensor> for OneHot {
+impl Module for OneHot {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut original_size = input.size(); //(32,1)
         original_size.push(self.num_classes); //(32,1,10)
@@ -71,7 +71,7 @@ impl Trainable for Embedding {
     }
 }
 
-impl Module<Tensor, Tensor> for Embedding {
+impl Module for Embedding {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let one_hotted = (self.one_hot)(input);
         let weight = self.weight.lock();

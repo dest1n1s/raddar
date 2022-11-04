@@ -7,13 +7,13 @@ use super::{Mod, Trainable, TrainableDict};
 
 /// A module composed by a sequential of modules.
 #[derive(Debug, CallableModule, Default)]
-pub struct Sequential(Vec<Mod<dyn Module<Tensor, Tensor>>>);
+pub struct Sequential(Vec<Mod<dyn Module>>);
 
 #[derive(Debug, CallableModule, Default)]
 pub struct NamedSequential(Vec<(String, Mod<dyn Module>)>);
 
 impl Deref for Sequential {
-    type Target = Vec<Mod<dyn Module<Tensor, Tensor>>>;
+    type Target = Vec<Mod<dyn Module>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -40,14 +40,14 @@ impl Deref for NamedSequential {
     }
 }
 
-impl From<Vec<Mod<dyn Module<Tensor, Tensor>>>> for Sequential {
-    fn from(seq: Vec<Mod<dyn Module<Tensor, Tensor>>>) -> Self {
+impl From<Vec<Mod<dyn Module>>> for Sequential {
+    fn from(seq: Vec<Mod<dyn Module>>) -> Self {
         Sequential(seq)
     }
 }
 
-impl FromIterator<Mod<dyn Module<Tensor, Tensor>>> for Sequential {
-    fn from_iter<I: IntoIterator<Item = Mod<dyn Module<Tensor, Tensor>>>>(iter: I) -> Self {
+impl FromIterator<Mod<dyn Module>> for Sequential {
+    fn from_iter<I: IntoIterator<Item = Mod<dyn Module>>>(iter: I) -> Self {
         Sequential(iter.into_iter().collect())
     }
 }
@@ -58,8 +58,8 @@ impl From<Vec<(String, Mod<dyn Module>)>> for NamedSequential {
     }
 }
 
-impl FromIterator<(String, Mod<dyn Module<Tensor, Tensor>>)> for NamedSequential {
-    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module<Tensor, Tensor>>)>>(
+impl FromIterator<(String, Mod<dyn Module>)> for NamedSequential {
+    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module>)>>(
         iter: I,
     ) -> Self {
         NamedSequential(iter.into_iter().collect())
@@ -76,7 +76,7 @@ impl Trainable for Sequential {
     }
 }
 
-impl Module<Tensor, Tensor> for Sequential {
+impl Module for Sequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for module in self.iter() {
@@ -96,7 +96,7 @@ impl Trainable for NamedSequential {
     }
 }
 
-impl Module<Tensor, Tensor> for NamedSequential {
+impl Module for NamedSequential {
     fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
         let mut x = input + 0;
         for (_, module) in self.iter() {
@@ -119,7 +119,7 @@ macro_rules! seq {
 macro_rules! named_seq {
     ($($name:expr => $module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module<Tensor, Tensor>>),)*]
+            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
                     .into_iter()
                     .collect::<$crate::nn::sequential::NamedSequential>())
         }

@@ -34,7 +34,7 @@ impl Trainable for LayerNorm {
     }
 }
 
-impl Module<Tensor, Tensor> for LayerNorm {
+impl Module for LayerNorm {
     fn forward(&self, input: &Tensor) -> Tensor {
         let ln_weight = self.ln_weight.as_ref().map(|weight| weight.lock());
         let ln_weight = ln_weight.as_deref();

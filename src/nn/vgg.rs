@@ -82,7 +82,7 @@ impl Trainable for Vgg {
     }
 }
 
-impl Module<Tensor, Tensor> for Vgg {
+impl Module for Vgg {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut output = (self.features)(input);
         output = (self.avgpool)(&output);

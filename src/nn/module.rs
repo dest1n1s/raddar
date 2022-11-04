@@ -412,7 +412,7 @@ impl<T: Trainable + ?Sized> From<Arc<ModData<T>>> for Mod<T> {
 }
 
 /// A module is a neural network layer, which can be seen as a function from `Tensor` to `Tensor`, with some trainable parameters.
-pub trait Module<InputType, OutputType>: Trainable {
+pub trait Module<InputType = Tensor, OutputType = Tensor>: Trainable {
     /// The forward function for Module.
     fn forward(&self, input: &InputType) -> OutputType;
 }
@@ -438,6 +438,6 @@ impl<T, U> FnOnce<(&T,)> for Mod<dyn Module<T, U>> {
 }
 
 /// A module without trainable parameters.
-pub trait NonParameterModule: Module<Tensor, Tensor> {}
+pub trait NonParameterModule: Module {}
 
 impl<T: NonParameterModule> Trainable for T {}

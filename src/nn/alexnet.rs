@@ -36,7 +36,7 @@ impl Trainable for AlexNet {
     }
 }
 
-impl Module<Tensor, Tensor> for AlexNet {
+impl Module for AlexNet {
     fn forward(&self, input: &Tensor) -> Tensor {
         let mut output = (self.features)(input);
         output = (self.avgpool)(&output);

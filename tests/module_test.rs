@@ -8,7 +8,7 @@ use raddar::dataset::{
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, densenet121, densenet161, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder,
+    alexnet, densenet161, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder,
     BatchNorm3dBuilder, LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
@@ -178,7 +178,6 @@ fn cifar10_test() {
     ];
     let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
-    let mut valid_dataset = TensorDataset::default();
     let mut valid_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
         let train_path = "dataset/cifar10/train/";
