@@ -16,7 +16,8 @@ use crate::{
 };
 
 pub type StateDict = BTreeMap<String, TensorCell>;
-pub type ModuleDict = BTreeMap<String, Mod<dyn Trainable>>;
+pub type TrainableDict = BTreeMap<String, Mod<dyn Trainable>>;
+pub type ModuleDict = BTreeMap<String, Mod<dyn Module>>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ModuleMode {
@@ -42,7 +43,7 @@ pub trait Trainable: std::fmt::Debug {
     /// Defines the child modules of the module.
     ///
     /// By default, this returns an empty map. If your module has child modules, you should override this method.
-    fn child_modules(&self) -> ModuleDict {
+    fn child_modules(&self) -> TrainableDict {
         BTreeMap::new()
     }
 
@@ -294,13 +295,17 @@ impl<T: Trainable + ?Sized> Mod<T> {
 
     /// Get the parent of the module.
     pub fn parent(&self) -> Option<Mod<dyn Trainable>> {
-        self.parent.read().as_ref().and_then(|parent| parent.upgrade()).map(Mod::from)
+        self.parent
+            .read()
+            .as_ref()
+            .and_then(|parent| parent.upgrade())
+            .map(Mod::from)
     }
 
     /// Get the children of the module.
     pub fn children(&self) -> BTreeMap<String, Mod<dyn Trainable>> {
         self.children.read().clone()
-    }    
+    }
 
     /// Load parameters from a numpy .npz file. This method won't load static tensors.
     ///

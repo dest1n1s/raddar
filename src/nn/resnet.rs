@@ -7,7 +7,7 @@ use crate::{nn::ReLU, seq};
 
 use super::{
     AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2d, Conv2dBuilder, LinearBuilder,
-    MaxPooling2DBuilder, Mod, Module, ModuleDict, Sequential, Trainable,
+    MaxPooling2DBuilder, Mod, Module, Sequential, Trainable, TrainableDict,
 };
 
 pub trait Block<U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy>: Module {
@@ -66,8 +66,8 @@ pub struct BasicBlock {
 }
 
 impl Trainable for BasicBlock {
-    fn child_modules(&self) -> ModuleDict {
-        let mut result = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut result = TrainableDict::new();
         result.insert("block".to_owned(), self.block.clone());
         if let Some(ref downsample) = self.downsample {
             result.insert("downsample".to_owned(), downsample.clone());
@@ -126,8 +126,8 @@ pub struct BottleNeck {
 }
 
 impl Trainable for BottleNeck {
-    fn child_modules(&self) -> ModuleDict {
-        let mut result = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut result = TrainableDict::new();
         result.insert("block".to_owned(), self.block.clone());
         if let Some(downsample) = &self.downsample {
             result.insert("downsample".to_owned(), downsample.clone());
@@ -235,8 +235,8 @@ impl<T: Block<fn(i64) -> Mod<Sequential>>> DefaultNormLayer<fn(i64) -> Mod<Seque
 }
 
 impl<T: Block<U>, U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Trainable for ResNet<T, U> {
-    fn child_modules(&self) -> ModuleDict {
-        let mut result = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut result = TrainableDict::new();
         result.insert("net".to_owned(), self.net.clone());
         result.insert("fc".to_owned(), self.fc.clone());
         result

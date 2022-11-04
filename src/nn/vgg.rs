@@ -7,8 +7,8 @@ use crate::seq;
 
 use super::{
     AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2dBuilder,
-    DropoutBuilder, LinearBuilder, MaxPooling2DBuilder, Mod, Module, ModuleDict, ReLU, Sequential,
-    Trainable,
+    DropoutBuilder, LinearBuilder, MaxPooling2DBuilder, Mod, Module, ReLU, Sequential, Trainable,
+    TrainableDict,
 };
 #[derive(Clone, Debug)]
 pub enum VggType {
@@ -74,8 +74,8 @@ fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Mod<Sequential> {
 }
 
 impl Trainable for Vgg {
-    fn child_modules(&self) -> ModuleDict {
-        let mut result = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut result = TrainableDict::new();
         result.insert("features".to_owned(), self.features.clone());
         result.insert("classifier".to_owned(), self.classifier.clone());
         result

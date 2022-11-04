@@ -8,8 +8,8 @@ use raddar::dataset::{
 };
 use raddar::nn::embedding::{Embedding, OneHot};
 use raddar::nn::{
-    alexnet, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder, BatchNorm3dBuilder,
-    LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
+    alexnet, densenet121, densenet161, resnet50, vgg, BatchNorm1dBuilder, BatchNorm2dBuilder,
+    BatchNorm3dBuilder, LayerNormBuilder, LinearBuilder, MaxPooling1DBuilder, Trainable, VggType,
 };
 use raddar::optim::{
     cosine_annealing_lr, opt_with_sched, rmsprop, Optimizer, RMSPropBuilder, StepLRBuilder,
@@ -138,17 +138,18 @@ fn vgg_test() {
 
 #[test]
 fn resnet_test() {
-    // let x = tensor!([[1, 2], [2, 3], [3, 1]]);
-    // let y = tensor!([[2, 2], [2, 3], [1, 2]]);
-    // let temp = x
-    //     .eq_tensor(&y)
-    //     .sum_dim_intlist(&[1], false, Kind::Float)
-    //     .mean(Kind::Float);
-    // let mut acc = Tensor::zeros(&[1], (Kind::Float, Device::Cpu));
-    // acc += temp;
     let num_classes = 100;
     let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
     let net = resnet50(num_classes);
+    let output = net(&inputs);
+    assert!(output.size2().unwrap().1 == num_classes);
+}
+
+#[test]
+fn densenet_test() {
+    let num_classes = 100;
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let net = densenet161(num_classes, 0.5);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
 }

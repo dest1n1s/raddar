@@ -9,7 +9,7 @@ use crate::{
     seq,
 };
 
-use super::{Mod, ModuleDict};
+use super::{Mod, TrainableDict};
 
 /// AlexNet architecture.
 ///
@@ -28,8 +28,8 @@ pub struct AlexNet {
 }
 
 impl Trainable for AlexNet {
-    fn child_modules(&self) -> ModuleDict {
-        let mut result = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut result = TrainableDict::new();
         result.insert("features".to_owned(), self.features.clone());
         result.insert("classifier".to_owned(), self.classifier.clone());
         result

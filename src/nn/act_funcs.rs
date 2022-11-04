@@ -6,15 +6,15 @@ use tch::Tensor;
 use crate::nn::Module;
 
 /// GeLU activation function.
-/// 
+///
 /// See [Gaussian Error Linear Units (GELUs)](https://arxiv.org/abs/1606.08415).
 #[derive(Debug, NonParameterModule)]
 pub struct GeLU;
-#[derive(Debug, NonParameterModule)]
 
 /// ReLU activation function.
-/// 
+///
 /// See [Rectified Linear Units Improve Restricted Boltzmann Machines](https://www.cs.toronto.edu/~fritz/absps/reluICML.pdf).
+#[derive(Debug, NonParameterModule)]
 pub struct ReLU;
 
 /// Leaky ReLU activation function.

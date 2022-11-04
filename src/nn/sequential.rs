@@ -1,17 +1,16 @@
 use crate::nn::Module;
 use raddar_derive::CallableModule;
-use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 use tch::Tensor;
 
-use super::{Mod, ModuleDict, Trainable};
+use super::{Mod, Trainable, TrainableDict};
 
 /// A module composed by a sequential of modules.
 #[derive(Debug, CallableModule, Default)]
 pub struct Sequential(Vec<Mod<dyn Module>>);
 
 #[derive(Debug, CallableModule, Default)]
-pub struct NamedSequential(BTreeMap<String, Mod<dyn Module>>);
+pub struct NamedSequential(Vec<(String, Mod<dyn Module>)>);
 
 impl Deref for Sequential {
     type Target = Vec<Mod<dyn Module>>;
@@ -34,7 +33,7 @@ impl DerefMut for NamedSequential {
 }
 
 impl Deref for NamedSequential {
-    type Target = BTreeMap<String, Mod<dyn Module>>;
+    type Target = Vec<(String, Mod<dyn Module>)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -53,8 +52,8 @@ impl FromIterator<Mod<dyn Module>> for Sequential {
     }
 }
 
-impl From<BTreeMap<String, Mod<dyn Module>>> for NamedSequential {
-    fn from(seq: BTreeMap<String, Mod<dyn Module>>) -> Self {
+impl From<Vec<(String, Mod<dyn Module>)>> for NamedSequential {
+    fn from(seq: Vec<(String, Mod<dyn Module>)>) -> Self {
         NamedSequential(seq)
     }
 }
@@ -66,8 +65,8 @@ impl FromIterator<(String, Mod<dyn Module>)> for NamedSequential {
 }
 
 impl Trainable for Sequential {
-    fn child_modules(&self) -> ModuleDict {
-        let mut children = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut children = TrainableDict::new();
         for (i, module) in self.iter().enumerate() {
             children.insert(i.to_string(), module.clone());
         }
@@ -86,8 +85,8 @@ impl Module for Sequential {
 }
 
 impl Trainable for NamedSequential {
-    fn child_modules(&self) -> ModuleDict {
-        let mut children = ModuleDict::new();
+    fn child_modules(&self) -> TrainableDict {
+        let mut children = TrainableDict::new();
         for (name, module) in self.iter() {
             children.insert(name.clone(), module.clone());
         }
