@@ -1082,7 +1082,6 @@ dependencies = [
 [[package]]
 name = "tch"
 version = "0.8.0"
-source = "git+https://github.com/dest1n1s/tch-rs/#6f6079f4578ac84368ad145b84d9398573c9c134"
 dependencies = [
  "half 1.8.2",
  "lazy_static",
@@ -1155,7 +1154,6 @@ checksum = "42657b1a6f4d817cda8e7a0ace261fe0cc946cf3a80314390b22cc61ae080792"
 [[package]]
 name = "torch-sys"
 version = "0.8.0"
-source = "git+https://github.com/dest1n1s/tch-rs/#6f6079f4578ac84368ad145b84d9398573c9c134"
 dependencies = [
  "anyhow",
  "cc",

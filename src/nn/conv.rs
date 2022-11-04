@@ -49,7 +49,7 @@ impl Trainable for Conv1d {
     }
 }
 
-impl Module for Conv1d {
+impl Module<Tensor, Tensor> for Conv1d {
     fn forward(&self, input: &Tensor) -> Tensor {
         let weight = self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
@@ -133,7 +133,7 @@ impl Trainable for Conv2d {
     }
 }
 
-impl Module for Conv2d {
+impl Module<Tensor, Tensor> for Conv2d {
     fn forward(&self, input: &Tensor) -> Tensor {
         let weight = &self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
@@ -228,7 +228,7 @@ impl Trainable for Conv3d {
     }
 }
 
-impl Module for Conv3d {
+impl Module<Tensor, Tensor> for Conv3d {
     fn forward(&self, input: &Tensor) -> Tensor {
         let weight = &self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());

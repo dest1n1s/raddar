@@ -11,7 +11,7 @@ pub struct Dropout {
     train: bool,
 }
 
-impl Module for Dropout {
+impl Module<Tensor, Tensor> for Dropout {
     fn forward(&self, input: &Tensor) -> Tensor {
         input.dropout(self.p, self.train)
     }
