@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     marker::Unsize,
     ops::{CoerceUnsized, Deref},
     path::Path,
@@ -7,6 +6,7 @@ use std::{
 };
 
 use anyhow::Ok;
+use linked_hash_map::LinkedHashMap;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tch::{no_grad, Device, Tensor};
 
@@ -15,9 +15,20 @@ use crate::{
     util::DropGuard,
 };
 
-pub type StateDict = BTreeMap<String, TensorCell>;
-pub type TrainableDict = BTreeMap<String, Mod<dyn Trainable>>;
-pub type ModuleDict = BTreeMap<String, Mod<dyn Module>>;
+/// A `StateDict` is a collection of named tensors. It uses [LinkedHashMap] to preserve the insertion order of the tensors. This is useful when saving and loading the model.
+/// 
+/// A potentially substitute for `LinkedHashMap` is [IndexMap](https://docs.rs/indexmap/1.7.0/indexmap/map/struct.IndexMap.html). In comparision, `LinkedHashMap` can provide a more strict guarantee on the order of the tensors. For example, the order is preserved even when the tensors are removed from the [StateDict].
+/// 
+/// However, `LinkedHashMap` may cause a performance issue in iteration. This is because `LinkedHashMap` uses a doubly linked list to maintain the insertion order.
+pub type StateDict = LinkedHashMap<String, TensorCell>;
+
+/// A `TrainableDict` is a collection of named [Trainable]s. For the same reason as `StateDict`, it uses [LinkedHashMap] to preserve the insertion order of the `Trainable`s. See [StateDict] for more details.
+pub type TrainableDict = LinkedHashMap<String, Mod<dyn Trainable>>;
+
+/// A `ModuleDict` is a collection of named [Module]s. For the same reason as `StateDict`, it uses [LinkedHashMap] to preserve the insertion order of the `Module`s. See [StateDict] for more details.
+/// 
+/// It is recommended to use `ModuleDict` in the implemention of a `Module` to store child `Module`s with a repetitive pattern when you don't want an extra layer of abstraction.
+pub type ModuleDict = LinkedHashMap<String, Mod<dyn Module>>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ModuleMode {
@@ -30,21 +41,21 @@ pub trait Trainable: std::fmt::Debug {
     ///
     /// By default, this returns an empty map. If your module has trainable parameters, you should override this method.
     fn parameters(&self) -> StateDict {
-        BTreeMap::new()
+        LinkedHashMap::new()
     }
 
     /// Defines the static tensors of the module. This does not include the static tensors in child modules.
     ///
     /// By default, this returns an empty map. If your module has static tensors, you should override this method.
     fn static_tensors(&self) -> StateDict {
-        BTreeMap::new()
+        LinkedHashMap::new()
     }
 
     /// Defines the child modules of the module.
     ///
     /// By default, this returns an empty map. If your module has child modules, you should override this method.
     fn child_modules(&self) -> TrainableDict {
-        BTreeMap::new()
+        LinkedHashMap::new()
     }
 
     /// Returns the size of the parameters of the module.
@@ -66,7 +77,8 @@ pub trait Trainable: std::fmt::Debug {
     /// Returns all trainable parameters that is not freezed.
     fn training_parameters(&self) -> Vec<TensorCell> {
         self.parameters()
-            .into_values()
+            .into_iter()
+            .map(|(_, parameter)| parameter)
             .filter(|tensor| tensor.lock().requires_grad())
             .collect()
     }
@@ -125,7 +137,7 @@ pub struct Mod<T: Trainable + ?Sized> {
 #[derive(Debug)]
 pub struct ModData<T: Trainable + ?Sized> {
     pub parent: RwLock<Option<Weak<ModData<dyn Trainable>>>>,
-    pub children: RwLock<BTreeMap<String, Mod<dyn Trainable>>>,
+    pub children: RwLock<LinkedHashMap<String, Mod<dyn Trainable>>>,
     pub device: RwLock<Device>,
     pub mode: RwLock<ModuleMode>,
     pub module: RwLock<T>,
@@ -303,7 +315,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Get the children of the module.
-    pub fn children(&self) -> BTreeMap<String, Mod<dyn Trainable>> {
+    pub fn children(&self) -> LinkedHashMap<String, Mod<dyn Trainable>> {
         self.children.read().clone()
     }
 
@@ -356,7 +368,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
 }
 
 impl<T: Trainable + ?Sized> Trainable for Mod<T> {
-    /// Returns all trainable parameters in the module, including the parameters in child modules. The parameters are stored in a `BTreeMap` with their path as keys.
+    /// Returns all trainable parameters in the module, including the parameters in child modules. The parameters are stored in a `LinkedHashMap` with their path as keys.
     ///
     /// For example, a model architecture like this:
     ///
@@ -373,10 +385,10 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     /// }
     /// ```
     ///
-    /// will return a `BTreeMap` like this:
+    /// will return a `LinkedHashMap` like this:
     ///
     /// ```text
-    /// BTreeMap {
+    /// LinkedHashMap {
     ///     "layer1.weight": TensorCell,
     ///     "layer1.bias": TensorCell,
     ///     "layer2.weight": TensorCell,
@@ -393,7 +405,7 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
         parameters
     }
 
-    /// Returns all static tensors in the module, including the static tensors in child modules. The static tensors are stored in a `BTreeMap` with their path as keys.
+    /// Returns all static tensors in the module, including the static tensors in child modules. The static tensors are stored in a `LinkedHashMap` with their path as keys.
     fn static_tensors(&self) -> StateDict {
         let mut static_tensors = self.module().static_tensors();
         for (name, child) in self.children.read().iter() {

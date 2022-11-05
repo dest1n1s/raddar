@@ -143,7 +143,7 @@ pub struct DenseBlock {
     pub growth_rate: i64,
     #[builder]
     pub drop_rate: f64,
-    pub layers: Vec<(String, Mod<dyn Module>)>,
+    pub layers: ModuleDict,
 }
 impl Module for DenseBlock {
     fn forward(&self, input: &Tensor) -> Tensor {
@@ -165,9 +165,9 @@ impl Trainable for DenseBlock {
 }
 impl DenseBlock {
     pub fn new(config: DenseBlockConfig) -> DenseBlock {
-        let mut layers: Vec<(String, Mod<dyn Module>)> = Vec::new();
+        let mut layers = ModuleDict::new();
         for i in 0..config.num_layers {
-            layers.push((
+            layers.insert(
                 format!("denselayer{}", i + 1),
                 denselayer(
                     config.num_input_features + i * config.growth_rate,
@@ -175,7 +175,7 @@ impl DenseBlock {
                     config.bn_size,
                     config.drop_rate,
                 ),
-            ));
+            );
         }
         DenseBlock {
             num_layers: config.num_layers,

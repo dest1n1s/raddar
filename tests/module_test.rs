@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use image::DynamicImage;
+use linked_hash_map::LinkedHashMap;
 use raddar::dataset::{
     image_mappings, DataLoaderConfigBuilder, Dataset, DynImageDataset, LoadFromImageFolder,
     TensorDataset, UnsupervisedTensorDataset,
@@ -153,6 +153,7 @@ fn densenet_test() {
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
 }
+
 #[test]
 fn cifar10_test() {
     let num_classes = 10;
@@ -176,7 +177,7 @@ fn cifar10_test() {
         (8, "ship".to_string()),
         (9, "truck".to_string()),
     ];
-    let classes_map: BTreeMap<_, _> = classes_vec.into_iter().collect();
+    let classes_map: LinkedHashMap<_, _> = classes_vec.into_iter().collect();
     let mut cifar_dataset = TensorDataset::default();
     let mut valid_dataset = TensorDataset::default();
     for (id, class) in &classes_map {
