@@ -125,6 +125,13 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
     /// Create a tensor-like object from a slice.
     fn of_slice<T: Element>(data: &[T]) -> Self;
 
+    /// Create a 2-D tensor-like object from a slice of slices.
+    fn of_slice2<T: Element, U: AsRef<[T]>>(v: &[U]) -> Self
+    {
+        let inner: Vec<Self> = v.iter().map(|v| Self::of_slice(v.as_ref())).collect();
+        Self::stack(&inner, 0)
+    }
+
     /// Stack a list of tensor-like objects into a tensor-like object.
     fn stack<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self;
 

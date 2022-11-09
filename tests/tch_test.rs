@@ -13,6 +13,4 @@ fn grad_test() {
     let mut t0 = t.get(0);
     t0 += 1;
     println!("t: {:#?}", t);
-    let dp_over_dt = t.grad();
-    assert_eq!(Vec::<f64>::from(&dp_over_dt), [2.0, 4.0]);
 }
