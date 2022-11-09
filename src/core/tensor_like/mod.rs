@@ -1,4 +1,6 @@
 pub mod tensor_ops;
+pub mod tensor_ops_ex;
+pub mod tensor_trans;
 
 use std::{
     borrow::Borrow,
@@ -9,6 +11,7 @@ use std::{
 use tch::{Device, Kind, Tensor, Scalar};
 
 pub use tensor_ops::*;
+pub use tensor_ops_ex::*;
 
 pub trait Element: Clone + tch::kind::Element + Into<Scalar> {}
 

@@ -222,12 +222,12 @@ impl<
 }
 
 /// Convert a multi-dimensional array to tensor.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use raddar::tensor;
-/// 
+///
 /// let a = tensor!([[0, 1], [2, 3]]);
 /// let b = tensor!([0]);
 /// let c = tensor!([0.2]);

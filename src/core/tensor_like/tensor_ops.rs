@@ -6,6 +6,14 @@ use tch::Tensor;
 
 use super::{TensorLike, Element};
 
+// Trait bounds for tensor-like objects that can perform arithmetic operations.
+// 
+// These bounds include:
+// - `Tensor` and `Tensor`, `Tensor` and `&Tensor`, `&Tensor` and `Tensor`, `&Tensor` and `&Tensor`, `Tensor` and `Scalar`, `Scalar` and `Tensor`, `&Tensor` and `Scalar`, `Scalar` and `&Tensor` can be added, subtracted, multiplied, and divided.
+// - `Tensor` and `Tensor`, `Tensor` and `&Tensor`, `Tensor` and `Scalar` can be added, subtracted, multiplied, and divided in place.
+// - `Tensor` can be negated.
+// 
+// Scalar types include `i32`, `i64`, `f32`, `f64`.
 
 pub trait AddSelf<T> = Add<T, Output = T> + for<'a> Add<&'a T, Output = T> where T: Sized;
 pub trait AddScalar<T> = Add<f64, Output = T> + Add<i64, Output = T> where T: Sized;
