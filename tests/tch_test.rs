@@ -1,5 +1,4 @@
 use raddar::tensor;
-use tch::Device;
 
 #[test]
 fn device_test() {
@@ -10,11 +9,10 @@ fn device_test() {
 
 #[test]
 fn grad_test() {
-    let t = tensor!([3.0, 1.0])
-        .to(Device::Cuda(0))
-        .set_requires_grad(true);
-    let p = t.get(0) * t.get(1) + t.get(0) + t.get(1);
-    p.backward();
+    let t = tensor!([3.0, 1.0]);
+    let mut t0 = t.get(0);
+    t0 += 1;
+    println!("t: {:#?}", t);
     let dp_over_dt = t.grad();
     assert_eq!(Vec::<f64>::from(&dp_over_dt), [2.0, 4.0]);
 }
