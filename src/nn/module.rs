@@ -16,9 +16,9 @@ use crate::{
 };
 
 /// A `StateDict` is a collection of named tensors. It uses [LinkedHashMap] to preserve the insertion order of the tensors. This is useful when saving and loading the model.
-/// 
+///
 /// A potentially substitute for `LinkedHashMap` is [IndexMap](https://docs.rs/indexmap/1.7.0/indexmap/map/struct.IndexMap.html). In comparision, `LinkedHashMap` can provide a more strict guarantee on the order of the tensors. For example, the order is preserved even when the tensors are removed from the [StateDict].
-/// 
+///
 /// However, `LinkedHashMap` may cause a performance issue in iteration. This is because `LinkedHashMap` uses a doubly linked list to maintain the insertion order.
 pub type StateDict = LinkedHashMap<String, TensorCell>;
 
@@ -26,9 +26,9 @@ pub type StateDict = LinkedHashMap<String, TensorCell>;
 pub type TrainableDict = LinkedHashMap<String, Mod<dyn Trainable>>;
 
 /// A `ModuleDict` is a collection of named [Module]s. For the same reason as `StateDict`, it uses [LinkedHashMap] to preserve the insertion order of the `Module`s. See [StateDict] for more details.
-/// 
+///
 /// It is recommended to use `ModuleDict` in the implemention of a `Module` to store child `Module`s with a repetitive pattern when you don't want an extra layer of abstraction.
-pub type ModuleDict = LinkedHashMap<String, Mod<dyn Module>>;
+pub type ModuleDict = LinkedHashMap<String, Mod<dyn Module<OutputType = Tensor>>>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ModuleMode {
@@ -424,27 +424,28 @@ impl<T: Trainable + ?Sized> From<Arc<ModData<T>>> for Mod<T> {
 }
 
 /// A module is a neural network layer, which can be seen as a function from `Tensor` to `Tensor`, with some trainable parameters.
-pub trait Module<InputType = Tensor, OutputType = Tensor>: Trainable {
+pub trait Module<InputType = Tensor>: Trainable {
+    type OutputType = Tensor;
     /// The forward function for Module.
-    fn forward(&self, input: &InputType) -> OutputType;
+    fn forward(&self, input: &InputType) -> Self::OutputType;
 }
 
-impl<T, U> Fn<(&T,)> for Mod<dyn Module<T, U>> {
-    extern "rust-call" fn call(&self, input: (&T,)) -> U {
+impl<T, U: Module<T>> Fn<(&T,)> for Mod<U> {
+    extern "rust-call" fn call(&self, input: (&T,)) -> U::OutputType {
         self.module().forward(input.0)
     }
 }
 
-impl<T, U> FnMut<(&T,)> for Mod<dyn Module<T, U>> {
-    extern "rust-call" fn call_mut(&mut self, input: (&T,)) -> U {
+impl<T, U: Module<T>> FnMut<(&T,)> for Mod<U> {
+    extern "rust-call" fn call_mut(&mut self, input: (&T,)) -> U::OutputType {
         self.module().forward(input.0)
     }
 }
 
-impl<T, U> FnOnce<(&T,)> for Mod<dyn Module<T, U>> {
-    type Output = U;
+impl<T, U: Module<T>> FnOnce<(&T,)> for Mod<U> {
+    type Output = U::OutputType;
 
-    extern "rust-call" fn call_once(self, input: (&T,)) -> U {
+    extern "rust-call" fn call_once(self, input: (&T,)) -> Self::Output {
         self.module().forward(input.0)
     }
 }

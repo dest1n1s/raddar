@@ -1,12 +1,12 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::{no_grad, Device, Kind, Tensor};
 
 use crate::core::{Cellable, TensorCell};
 
-use super::{module::Module, Trainable, StateDict};
+use super::{module::Module, StateDict, Trainable};
 
 // A simple fully-connected layer.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct Linear {
     pub linear_weight: TensorCell,
     pub linear_bias: Option<TensorCell>,

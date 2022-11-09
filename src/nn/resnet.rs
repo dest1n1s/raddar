@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData};
 
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::Tensor;
 
 use crate::{nn::ReLU, seq};
@@ -59,7 +59,7 @@ pub fn batchnorm2d(num_features: i64) -> Mod<Sequential> {
         .build())
 }
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug)]
 pub struct BasicBlock {
     pub block: Mod<Sequential>,
     pub downsample: Option<Mod<Sequential>>,
@@ -119,7 +119,7 @@ impl<U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Block<U> for BasicBloc
     }
 }
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug)]
 pub struct BottleNeck {
     pub block: Mod<Sequential>,
     pub downsample: Option<Mod<Sequential>>,
@@ -187,7 +187,7 @@ impl<U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy> Block<U> for BottleNec
 /// A ResNet model
 ///
 /// See [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct ResNet<
     T: Block<U> + 'static,
     U: Fn(i64) -> Mod<Sequential> + Send + Debug + Copy + 'static,

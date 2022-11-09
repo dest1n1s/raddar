@@ -1,12 +1,12 @@
 use super::{module::Module, StateDict, Trainable};
 use crate::core::{Cellable, TensorCell};
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::{Device, Kind, Tensor};
 
 /// A layer normalization layer.
 ///
 /// See [Layer Normalization](https://arxiv.org/abs/1607.06450).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct LayerNorm {
     pub ln_weight: Option<TensorCell>,
     pub ln_bias: Option<TensorCell>,

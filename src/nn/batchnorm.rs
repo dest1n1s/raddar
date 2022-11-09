@@ -1,4 +1,4 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::{Device, Kind, Tensor};
 
 use super::{module::Module, StateDict, Trainable};
@@ -7,7 +7,7 @@ use crate::core::{Cellable, TensorCell};
 /// A batch normalization layer in 1 dimension.
 ///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct BatchNorm1d {
     #[builder]
     pub num_features: i64,
@@ -109,7 +109,7 @@ impl BatchNorm1d {
     }
 }
 
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct BatchNorm2d {
     #[builder]
     pub num_features: i64,
@@ -211,7 +211,7 @@ impl BatchNorm2d {
 /// A batch normalization layer in 3 dimensions.
 ///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct BatchNorm3d {
     #[builder]
     pub num_features: i64,

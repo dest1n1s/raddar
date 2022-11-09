@@ -11,6 +11,7 @@ pub use module::*;
 pub use pooling::*;
 pub use resnet::*;
 pub use sequential::*;
+pub use trainer::*;
 pub use vgg::*;
 
 pub mod act_funcs;
@@ -26,4 +27,5 @@ pub mod module;
 pub mod pooling;
 pub mod resnet;
 pub mod sequential;
+pub mod trainer;
 pub mod vgg;

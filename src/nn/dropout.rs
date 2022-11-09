@@ -1,9 +1,9 @@
 use super::Module;
-use raddar_derive::{ArchitectureBuilder, CallableModule, NonParameterModule};
+use raddar_derive::{ArchitectureBuilder, NonParameterModule};
 use tch::Tensor;
 
 /// A dropout layer.
-#[derive(ArchitectureBuilder, Debug, CallableModule, NonParameterModule)]
+#[derive(ArchitectureBuilder, Debug, NonParameterModule)]
 pub struct Dropout {
     #[builder(default = "0.5")]
     p: f64,

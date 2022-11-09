@@ -1,4 +1,4 @@
-use raddar_derive::{CallableModule, NonParameterModule};
+use raddar_derive::NonParameterModule;
 use tch::{no_grad, Device, Kind, Tensor};
 
 use crate::core::{Cellable, TensorCell};
@@ -8,7 +8,7 @@ use super::{Module, StateDict, Trainable};
 /// A one-hot embedding layer.
 ///
 /// This layer is used to convert a sequence of integers into a sequence of one-hot vectors.
-#[derive(Debug, CallableModule, NonParameterModule)]
+#[derive(Debug, NonParameterModule)]
 pub struct OneHot {
     pub num_classes: i64,
 }
@@ -34,7 +34,7 @@ impl OneHot {
 /// An embedding layer.
 ///
 /// See [Distributed Representations of Words and Phrases and their Compositionality](https://arxiv.org/abs/1310.4546).
-#[derive(Debug, CallableModule)]
+#[derive(Debug)]
 pub struct Embedding {
     pub num_embeddings: i64,
     pub embedding_dim: i64,

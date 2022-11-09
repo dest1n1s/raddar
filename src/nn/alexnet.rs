@@ -1,4 +1,4 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::Tensor;
 
 use crate::{
@@ -14,7 +14,7 @@ use super::{Mod, TrainableDict};
 /// AlexNet architecture.
 ///
 /// See [ImageNet Classification with Deep Convolutional Neural Networks](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct AlexNet {
     pub features: Mod<Sequential>,
     pub avgpool: Mod<AdaptiveAveragePooling2D>,

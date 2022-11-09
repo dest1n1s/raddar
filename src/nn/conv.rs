@@ -1,4 +1,4 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::ArchitectureBuilder;
 use tch::{no_grad, Device, Kind, Tensor};
 
 use crate::core::{Cellable, TensorCell};
@@ -8,7 +8,7 @@ use super::{Module, StateDict, Trainable};
 /// A Convolution layer in 1 dimension.
 ///
 /// See [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct Conv1d {
     pub conv_weight: TensorCell,
     pub conv_bias: Option<TensorCell>,
@@ -96,7 +96,7 @@ impl Conv1d {
 }
 
 /// A Convolution layer in 2 dimensions.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct Conv2d {
     pub conv_weight: TensorCell,
     pub conv_bias: Option<TensorCell>,
@@ -187,7 +187,7 @@ impl Conv2d {
 }
 
 /// A convolution layer in 3 dimensions.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
+#[derive(Debug, ArchitectureBuilder)]
 pub struct Conv3d {
     pub conv_weight: TensorCell,
     pub conv_bias: Option<TensorCell>,
