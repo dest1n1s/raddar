@@ -1,6 +1,8 @@
 pub mod tensor_ops;
 pub mod tensor_ops_ex;
 pub mod tensor_trans;
+pub mod tensor_nn;
+pub mod tensor_grad;
 
 use std::{
     borrow::Borrow,
@@ -12,6 +14,9 @@ use tch::{Device, Kind, Tensor, Scalar};
 
 pub use tensor_ops::*;
 pub use tensor_ops_ex::*;
+pub use tensor_trans::*;
+pub use tensor_nn::*;
+pub use tensor_grad::*;
 
 pub trait Element: Clone + tch::kind::Element + Into<Scalar> {}
 
@@ -39,8 +44,8 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
     /// Get the env variable.
     fn env(&self) -> Self::Env;
 
-    /// Get the size of the tensor-like object.
-    fn size(&self) -> Vec<i64>;
+    /// Get the shape of the tensor-like object.
+    fn shape(&self) -> Vec<i64>;
 
     /// Create a tensor-like object from a slice.
     fn of_slice<T: Element>(data: &[T]) -> Self;
@@ -69,17 +74,17 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 
     /// Create a tensor-like object with the same size and env as the given tensor-like object, filled with zeros.
     fn zeros_like(&self) -> Self {
-        Self::zeros(&self.size(), self.env())
+        Self::zeros(&self.shape(), self.env())
     }
 
     /// Create a tensor-like object with the same size and env as the given tensor-like object, filled with ones.
     fn ones_like(&self) -> Self {
-        Self::ones(&self.size(), self.env())
+        Self::ones(&self.shape(), self.env())
     }
 
     /// Create a tensor-like object with the same size and env as the given tensor-like object, filled with uninitialized values.
     fn empty_like(&self) -> Self {
-        Self::empty(&self.size(), self.env())
+        Self::empty(&self.shape(), self.env())
     }
 
     /// Create a 2-D tensor-like object with ones on the diagonal and zeros elsewhere.
@@ -109,7 +114,7 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 
     /// Initialize the tensor-like object with values from kaiming uniform distribution.
     fn kaiming_uniform_(&mut self) {
-        let fan_in: i64 = self.size().iter().skip(1).product();
+        let fan_in: i64 = self.shape().iter().skip(1).product();
         let bound = (1.0 / fan_in as f64).sqrt();
         self.uniform_(-bound, bound);
     }
@@ -119,7 +124,7 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 
     /// Reshape the tensor-like object as the same size as the given tensor-like object.
     fn reshape_as(&self, other: &Self) -> Self {
-        self.reshape(&other.size())
+        self.reshape(&other.shape())
     }
 
     /// View the tensor-like object as the given size.
@@ -127,7 +132,7 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 
     /// View the tensor-like object as the same size as the given tensor-like object.
     fn view_as(&self, other: &Self) -> Self {
-        self.view(&other.size())
+        self.view(&other.shape())
     }
 }
 
@@ -138,7 +143,7 @@ impl TensorLike for Tensor {
         (self.kind(), self.device())
     }
 
-    fn size(&self) -> Vec<i64> {
+    fn shape(&self) -> Vec<i64> {
         self.size().iter().map(|x| *x as i64).collect()
     }
 

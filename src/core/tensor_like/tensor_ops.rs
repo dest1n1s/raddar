@@ -4,15 +4,15 @@ use std::{
 };
 use tch::Tensor;
 
-use super::{TensorLike, Element};
+use super::{Element, TensorLike};
 
 // Trait bounds for tensor-like objects that can perform arithmetic operations.
-// 
+//
 // These bounds include:
 // - `Tensor` and `Tensor`, `Tensor` and `&Tensor`, `&Tensor` and `Tensor`, `&Tensor` and `&Tensor`, `Tensor` and `Scalar`, `Scalar` and `Tensor`, `&Tensor` and `Scalar`, `Scalar` and `&Tensor` can be added, subtracted, multiplied, and divided.
 // - `Tensor` and `Tensor`, `Tensor` and `&Tensor`, `Tensor` and `Scalar` can be added, subtracted, multiplied, and divided in place.
 // - `Tensor` can be negated.
-// 
+//
 // Scalar types include `i32`, `i64`, `f32`, `f64`.
 
 pub trait AddSelf<T> = Add<T, Output = T> + for<'a> Add<&'a T, Output = T> where T: Sized;
@@ -101,7 +101,6 @@ pub trait DivAssignTrait = DivAssign<Self>
 
 pub trait NegTrait = Neg<Output = Self> + for<'a> Neg<Output = Self> + Sized;
 
-
 /// A trait for a tensor-like object that can perform basic algebraic operations, including arithmetic operations, matrix multiplication, trigonometric functions, and so on.
 ///
 /// Some more advanced operations, such as gradient calculation, convolution, and so on, are not included in this trait.
@@ -121,7 +120,7 @@ pub trait TensorOps:
     fn sum(&self) -> Self;
 
     /// Calculate the sum of each row of the tensor-like object in the given dimensions `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
     fn sum_dim(&self, dim: &[i64], keep_dim: bool) -> Self;
 
@@ -129,7 +128,7 @@ pub trait TensorOps:
     fn mean(&self) -> Self;
 
     /// Calculate the mean of each row of the tensor-like object in the given dimensions `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
     fn mean_dim(&self, dim: &[i64], keep_dim: bool) -> Self;
 
@@ -137,9 +136,9 @@ pub trait TensorOps:
     fn max(&self) -> Self;
 
     /// Calculate the maximum of each row of the tensor-like object in the given dimension `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
-    /// 
+    ///
     /// Returns a tuple of the maximum value and the index of the maximum value.
     fn max_dim(&self, dim: i64, keep_dim: bool) -> (Self, Self);
 
@@ -147,9 +146,9 @@ pub trait TensorOps:
     fn min(&self) -> Self;
 
     /// Calculate the minimum of each row of the tensor-like object in the given dimension `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
-    /// 
+    ///
     /// Returns a tuple of the minimum value and the index of the minimum value.
     fn min_dim(&self, dim: i64, keep_dim: bool) -> (Self, Self);
 
@@ -157,7 +156,7 @@ pub trait TensorOps:
     fn argmax(&self) -> Self;
 
     /// Calculate the argmax of each row of the tensor-like object in the given dimension `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
     fn argmax_dim(&self, dim: i64, keep_dim: bool) -> Self;
 
@@ -165,7 +164,7 @@ pub trait TensorOps:
     fn argmin(&self) -> Self;
 
     /// Calculate the argmin of each row of the tensor-like object in the given dimension `dim`.
-    /// 
+    ///
     /// If `keepdim` is true, the dimensions of the tensor-like object will be kept.
     fn argmin_dim(&self, dim: i64, keep_dim: bool) -> Self;
 
@@ -180,6 +179,12 @@ pub trait TensorOps:
 
     /// Calculate the element-wise square of the tensor-like object.
     fn square(&self) -> Self;
+
+    /// Calculate the element-wise power of the tensor-like object.
+    fn pow<T: Borrow<Self>>(&self, exponent: T) -> Self;
+
+    /// Calculate the element-wise power of the tensor-like object with a scalar.
+    fn pow_scalar<S: Element>(&self, exponent: S) -> Self;
 
     /// Calculate the element-wise square root of the tensor-like object.
     fn sqrt(&self) -> Self;
@@ -227,7 +232,7 @@ pub trait TensorOps:
     fn atanh(&self) -> Self;
 
     /// Compute the element-wise less-than comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn lt<T: Borrow<Self>>(&self, other: T) -> Self;
 
@@ -235,7 +240,7 @@ pub trait TensorOps:
     fn lt_scalar<S: Element>(&self, other: S) -> Self;
 
     /// Compute the element-wise less-than-or-equal comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn le<T: Borrow<Self>>(&self, other: T) -> Self;
 
@@ -243,7 +248,7 @@ pub trait TensorOps:
     fn le_scalar<S: Element>(&self, other: S) -> Self;
 
     /// Compute the element-wise greater-than comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn gt<T: Borrow<Self>>(&self, other: T) -> Self;
 
@@ -251,7 +256,7 @@ pub trait TensorOps:
     fn gt_scalar<S: Element>(&self, other: S) -> Self;
 
     /// Compute the element-wise greater-than-or-equal comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn ge<T: Borrow<Self>>(&self, other: T) -> Self;
 
@@ -259,7 +264,7 @@ pub trait TensorOps:
     fn ge_scalar<S: Element>(&self, other: S) -> Self;
 
     /// Compute the element-wise equality comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn eq<T: Borrow<Self>>(&self, other: T) -> Self;
 
@@ -267,186 +272,229 @@ pub trait TensorOps:
     fn eq_scalar<S: Element>(&self, other: S) -> Self;
 
     /// Compute the element-wise inequality comparison of the tensor-like object and the given tensor-like object.
-    /// 
+    ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
     fn ne<T: Borrow<Self>>(&self, other: T) -> Self;
 
     /// Compute the element-wise inequality comparison of the tensor-like object and the given scalar.
     fn ne_scalar<S: Element>(&self, other: S) -> Self;
+
+    /// Return a tensor of elements selected from either `self` or `other`, depending on `condition`.
+    fn r#where<T: Borrow<Self>, U: Borrow<Self>>(&self, condition: T, other: U) -> Self;
+
+    /// Gather slices from the tensor-like object along the given axis.
+    fn gather<T: Borrow<Self>>(&self, dim: i64, indices: T) -> Self;
+
+    /// Returns a tensor-like object where all dimensions of size 1 are removed.
+    fn squeeze(&self) -> Self;
+
+    /// Returns a tensor-like object where a dimension along the given axis is removed if its size is 1.
+    fn squeeze_dim(&self, dim: i64) -> Self;
+
+    /// Returns a tensor-like object with a dimension of size one inserted at the specified position.
+    ///
+    /// The dimension index `axis` starts at zero; if you specify a negative number, it is counted backward from the end.
+    fn unsqueeze(&self, dim: i64) -> Self;
 }
-
-
 
 impl TensorOps for Tensor {
     fn sum(&self) -> Self {
-        Tensor::sum(self, self.kind())
+        self.sum(self.kind())
     }
 
     fn sum_dim(&self, dim: &[i64], keep_dim: bool) -> Self {
-        Tensor::sum_dim_intlist(self, dim, keep_dim, self.kind())
+        self.sum_dim_intlist(dim, keep_dim, self.kind())
     }
 
     fn mean(&self) -> Self {
-        Tensor::mean(self, self.kind())
+        self.mean(self.kind())
     }
 
     fn mean_dim(&self, dim: &[i64], keep_dim: bool) -> Self {
-        Tensor::mean_dim(self, dim, keep_dim, self.kind())
+        self.mean_dim(dim, keep_dim, self.kind())
     }
 
     fn max(&self) -> Self {
-        Tensor::max(self)
+        self.max()
     }
 
     fn max_dim(&self, dim: i64, keep_dim: bool) -> (Self, Self) {
-        Tensor::max_dim(self, dim, keep_dim)
+        self.max_dim(dim, keep_dim)
     }
 
     fn min(&self) -> Self {
-        Tensor::min(self)
+        self.min()
     }
 
     fn min_dim(&self, dim: i64, keep_dim: bool) -> (Self, Self) {
-        Tensor::min_dim(self, dim, keep_dim)
+        self.min_dim(dim, keep_dim)
     }
 
     fn argmax(&self) -> Self {
-        Tensor::argmax(self, None, false)
+        self.argmax(None, false)
     }
 
     fn argmax_dim(&self, dim: i64, keep_dim: bool) -> Self {
-        Tensor::argmax(self, Some(dim), keep_dim)
+        self.argmax(Some(dim), keep_dim)
     }
 
     fn argmin(&self) -> Self {
-        Tensor::argmin(self, None, false)
+        self.argmin(None, false)
     }
 
     fn argmin_dim(&self, dim: i64, keep_dim: bool) -> Self {
-        Tensor::argmin(self, Some(dim), keep_dim)
+        self.argmin(Some(dim), keep_dim)
     }
 
     fn transpose(&self, dim0: i64, dim1: i64) -> Self {
-        Tensor::transpose(self, dim0, dim1)
+        self.transpose(dim0, dim1)
     }
 
     fn matmul<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::matmul(self, other.borrow())
+        self.matmul(other.borrow())
     }
-    
+
     fn abs(&self) -> Self {
-        Tensor::abs(self)
+        self.abs()
     }
 
     fn square(&self) -> Self {
-        Tensor::square(self)
+        self.square()
+    }
+
+    fn pow<T: Borrow<Self>>(&self, exponent: T) -> Self {
+        self.pow(exponent.borrow())
+    }
+
+    fn pow_scalar<S: Element>(&self, exponent: S) -> Self {
+        self.pow_tensor_scalar(exponent)
     }
 
     fn sqrt(&self) -> Self {
-        Tensor::sqrt(self)
+        self.sqrt()
     }
 
     fn exp(&self) -> Self {
-        Tensor::exp(self)
+        self.exp()
     }
 
     fn log(&self) -> Self {
-        Tensor::log(self)
+        self.log()
     }
 
     fn sin(&self) -> Self {
-        Tensor::sin(self)
+        self.sin()
     }
 
     fn cos(&self) -> Self {
-        Tensor::cos(self)
+        self.cos()
     }
 
     fn tan(&self) -> Self {
-        Tensor::tan(self)
+        self.tan()
     }
 
     fn asin(&self) -> Self {
-        Tensor::asin(self)
+        self.asin()
     }
 
     fn acos(&self) -> Self {
-        Tensor::acos(self)
+        self.acos()
     }
 
     fn atan(&self) -> Self {
-        Tensor::atan(self)
+        self.atan()
     }
 
     fn sinh(&self) -> Self {
-        Tensor::sinh(self)
+        self.sinh()
     }
 
     fn cosh(&self) -> Self {
-        Tensor::cosh(self)
+        self.cosh()
     }
 
     fn tanh(&self) -> Self {
-        Tensor::tanh(self)
+        self.tanh()
     }
 
     fn asinh(&self) -> Self {
-        Tensor::asinh(self)
+        self.asinh()
     }
 
     fn acosh(&self) -> Self {
-        Tensor::acosh(self)
+        self.acosh()
     }
 
     fn atanh(&self) -> Self {
-        Tensor::atanh(self)
+        self.atanh()
     }
 
     fn lt<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::less_tensor(self, other.borrow())
+        self.lt_tensor(other.borrow())
     }
 
     fn lt_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::less(self, other)
+        self.lt(other)
     }
 
     fn gt<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::greater_tensor(self, other.borrow())
+        self.gt_tensor(other.borrow())
     }
 
     fn gt_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::greater(self, other)
+        self.gt(other)
     }
 
     fn le<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::le_tensor(self, other.borrow())
+        self.le_tensor(other.borrow())
     }
 
     fn le_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::le(self, other)
+        self.le(other)
     }
 
     fn ge<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::ge_tensor(self, other.borrow())
+        self.ge_tensor(other.borrow())
     }
 
     fn ge_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::ge(self, other)
+        self.ge(other)
     }
 
     fn eq<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::eq_tensor(self, other.borrow())
+        self.eq_tensor(other.borrow())
     }
 
     fn eq_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::eq(self, other)
+        self.eq(other)
     }
 
     fn ne<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::ne_tensor(self, other.borrow())
+        self.ne_tensor(other.borrow())
     }
 
     fn ne_scalar<S: Element>(&self, other: S) -> Self {
-        Tensor::ne(self, other)
+        self.ne(other)
+    }
+
+    fn r#where<T: Borrow<Self>, U: Borrow<Self>>(&self, condition: T, other: U) -> Self {
+        self.where_self(condition.borrow(), other.borrow())
+    }
+
+    fn gather<T: Borrow<Self>>(&self, dim: i64, indices: T) -> Self {
+        self.gather(dim, indices.borrow(), false)
+    }
+
+    fn squeeze(&self) -> Self {
+        self.squeeze()
+    }
+
+    fn squeeze_dim(&self, dim: i64) -> Self {
+        self.squeeze_dim(dim)
+    }
+
+    fn unsqueeze(&self, dim: i64) -> Self {
+        self.unsqueeze(dim)
     }
 }
