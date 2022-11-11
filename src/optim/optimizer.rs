@@ -1,19 +1,20 @@
-use crate::core::TensorCell;
+use crate::core::{TensorCell, TensorNN};
 
-pub struct Optimizer<T, U>
+pub struct Optimizer<T, U, Ts>
 where
-    T: OptimizerAlgorithm,
+    T: OptimizerAlgorithm<Ts>,
     U: SchedulerAlgorithm,
+    Ts: TensorNN
 {
     pub opt: T,
-    pub parameters: Vec<TensorCell>,
+    pub parameters: Vec<TensorCell<Ts>>,
     pub scheduler: Option<U>,
     pub step: i64,
 }
 
-pub trait OptimizerAlgorithm {
-    fn step(&mut self, training_parameters: &Vec<TensorCell>);
-    fn init(&mut self, training_parameters: &Vec<TensorCell>);
+pub trait OptimizerAlgorithm<Ts: TensorNN> {
+    fn step(&mut self, training_parameters: &Vec<TensorCell<Ts>>);
+    fn init(&mut self, training_parameters: &Vec<TensorCell<Ts>>);
     fn learning_rate(&self) -> f64;
     fn set_learning_rate(&mut self, lr: f64);
 }
@@ -22,10 +23,11 @@ pub trait SchedulerAlgorithm {
     fn init(&mut self, init_lr: f64);
     fn update(&mut self, step: i64, lr: f64) -> f64;
 }
-impl<T, U> Optimizer<T, U>
+impl<T, U, Ts> Optimizer<T, U, Ts>
 where
-    T: OptimizerAlgorithm,
+    T: OptimizerAlgorithm<Ts>,
     U: SchedulerAlgorithm,
+    Ts: TensorNN
 {
     pub fn step(&mut self) {
         self.step += 1;
@@ -36,10 +38,10 @@ where
         self.opt.step(&self.parameters);
     }
     pub fn new(
-        parameters: Vec<TensorCell>,
+        parameters: Vec<TensorCell<Ts>>,
         mut opt: T,
         mut scheduler: Option<U>,
-    ) -> Optimizer<T, U> {
+    ) -> Optimizer<T, U, Ts> {
         opt.init(&parameters);
         let init_lr = opt.learning_rate();
         if let Some(sched) = &mut scheduler {
@@ -53,9 +55,11 @@ where
         }
     }
 }
+
 pub struct ConstantScheduler {
     lr: f64,
 }
+
 impl SchedulerAlgorithm for ConstantScheduler {
     fn init(&mut self, init_lr: f64) {
         self.lr = init_lr;
@@ -65,22 +69,25 @@ impl SchedulerAlgorithm for ConstantScheduler {
         lr
     }
 }
+
 impl ConstantScheduler {
     pub fn new() -> ConstantScheduler {
         ConstantScheduler { lr: 0. }
     }
 }
-pub fn opt_with_sched<T, U>(parameters: Vec<TensorCell>, opt: T, sched: U) -> Optimizer<T, U>
+pub fn opt_with_sched<T, U, Ts>(parameters: Vec<TensorCell<Ts>>, opt: T, sched: U) -> Optimizer<T, U, Ts>
 where
-    T: OptimizerAlgorithm,
+    T: OptimizerAlgorithm<Ts>,
     U: SchedulerAlgorithm,
+    Ts: TensorNN
 {
     Optimizer::new(parameters, opt, Some(sched))
 }
 
-pub fn opt<T>(parameters: Vec<TensorCell>, opt: T) -> Optimizer<T, ConstantScheduler>
+pub fn opt<T, Ts>(parameters: Vec<TensorCell<Ts>>, opt: T) -> Optimizer<T, ConstantScheduler, Ts>
 where
-    T: OptimizerAlgorithm,
+    T: OptimizerAlgorithm<Ts>,
+    Ts: TensorNN
 {
     Optimizer::new(parameters, opt, Some(ConstantScheduler::new()))
 }

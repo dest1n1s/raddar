@@ -1,12 +1,11 @@
 use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::Tensor;
 
 use crate::{
     nn::{
         AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, Conv2dBuilder, DropoutBuilder,
         LinearBuilder, MaxPooling2DBuilder, Module, ReLU, Sequential, Trainable,
     },
-    seq,
+    seq, core::TensorNN,
 };
 
 use super::{Mod, TrainableDict};
@@ -15,10 +14,11 @@ use super::{Mod, TrainableDict};
 ///
 /// See [ImageNet Classification with Deep Convolutional Neural Networks](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct AlexNet {
-    pub features: Mod<Sequential>,
-    pub avgpool: Mod<AdaptiveAveragePooling2D>,
-    pub classifier: Mod<Sequential>,
+#[module(tensor_type="Ts")]
+pub struct AlexNet<Ts: TensorNN> {
+    pub features: Mod<Sequential<Ts>, Ts>,
+    pub avgpool: Mod<AdaptiveAveragePooling2D, Ts>,
+    pub classifier: Mod<Sequential<Ts>, Ts>,
 
     #[builder(default = "1000")]
     pub num_classes: i64,
@@ -27,8 +27,8 @@ pub struct AlexNet {
     pub dropout: f64,
 }
 
-impl Trainable for AlexNet {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for AlexNet<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         let mut result = TrainableDict::new();
         result.insert("features".to_owned(), self.features.clone());
         result.insert("classifier".to_owned(), self.classifier.clone());
@@ -36,8 +36,8 @@ impl Trainable for AlexNet {
     }
 }
 
-impl Module for AlexNet {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AlexNet<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let mut output = (self.features)(input);
         output = (self.avgpool)(&output);
         output = output.flatten(1, 3);
@@ -46,8 +46,8 @@ impl Module for AlexNet {
     }
 }
 
-impl AlexNet {
-    pub fn new(config: AlexNetConfig) -> Self {
+impl<Ts: TensorNN> AlexNet<Ts> {
+    pub fn new(config: AlexNetConfig<Ts>) -> Self {
         let features = seq!(
             Conv2dBuilder::default()
                 .in_channel(3)
@@ -128,7 +128,7 @@ impl AlexNet {
         }
     }
 }
-pub fn alexnet(num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<AlexNet> {
+pub fn alexnet<Ts: TensorNN>(num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<AlexNet<Ts>, Ts> {
     let model = AlexNetBuilder::default()
         .num_classes(num_classes)
         .dropout(dropout)

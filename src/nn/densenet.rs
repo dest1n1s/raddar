@@ -1,7 +1,6 @@
 use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::Tensor;
 
-use crate::seq;
+use crate::{seq, core::TensorNN};
 
 use super::{
     AdaptiveAveragePooling2DBuilder, AveragePooling2DBuilder, BatchNorm2dBuilder, Conv2dBuilder,
@@ -9,7 +8,7 @@ use super::{
     NamedSequential, ReLU, Trainable, TrainableDict,
 };
 
-pub fn transition(num_input_features: i64, num_output_features: i64) -> Mod<NamedSequential> {
+pub fn transition<Ts: TensorNN>(num_input_features: i64, num_output_features: i64) -> Mod<NamedSequential<Ts>, Ts> {
     let mut res = NamedSequential::default();
     res.push((
         "norm".to_owned(),
@@ -39,12 +38,13 @@ pub fn transition(num_input_features: i64, num_output_features: i64) -> Mod<Name
 }
 
 #[derive(Debug, CallableModule)]
-pub struct DenseLayer {
-    modules: ModuleDict,
+#[module(tensor_type = "Ts")]
+pub struct DenseLayer<Ts: TensorNN> {
+    modules: ModuleDict<Ts>,
     drop_rate: f64,
 }
-impl Module for DenseLayer {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for DenseLayer<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         // println!("denselayer input {:?}", input.size());
         let norm1 = &self.modules["norm1"];
         let norm2 = &self.modules["norm2"];
@@ -63,21 +63,21 @@ impl Module for DenseLayer {
         }
     }
 }
-impl Trainable for DenseLayer {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for DenseLayer<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         self.modules
             .iter()
-            .map(|(key, value)| (key.to_owned(), value.clone() as Mod<dyn Trainable>))
+            .map(|(key, value)| (key.to_owned(), value.clone() as Mod<dyn Trainable<Ts>, Ts>))
             .collect()
     }
 }
-impl DenseLayer {
+impl<Ts: TensorNN> DenseLayer<Ts> {
     pub fn new(
         num_input_features: i64,
         growth_rate: i64,
         bn_size: i64,
         drop_rate: f64,
-    ) -> DenseLayer {
+    ) -> DenseLayer<Ts> {
         let mut modules = ModuleDict::new();
         modules.insert(
             "norm1".to_owned(),
@@ -118,12 +118,12 @@ impl DenseLayer {
     }
 }
 
-pub fn denselayer(
+pub fn denselayer<Ts: TensorNN>(
     num_input_features: i64,
     growth_rate: i64,
     bn_size: i64,
     drop_rate: f64,
-) -> Mod<DenseLayer> {
+) -> Mod<DenseLayer<Ts>, Ts> {
     Mod::new(DenseLayer::new(
         num_input_features,
         growth_rate,
@@ -132,7 +132,8 @@ pub fn denselayer(
     ))
 }
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct DenseBlock {
+#[module(tensor_type="Ts")]
+pub struct DenseBlock<Ts: TensorNN> {
     #[builder]
     pub num_layers: i64,
     #[builder]
@@ -143,28 +144,28 @@ pub struct DenseBlock {
     pub growth_rate: i64,
     #[builder]
     pub drop_rate: f64,
-    pub layers: ModuleDict,
+    pub layers: ModuleDict<Ts>,
 }
-impl Module for DenseBlock {
-    fn forward(&self, input: &Tensor) -> Tensor {
-        let mut output = input.clone();
+impl<Ts: TensorNN> Module<Ts> for DenseBlock<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
+        let mut output = input.copy();
         for (_, layer) in &self.layers {
             let new_features = layer(&output);
-            output = Tensor::concat(&[output, new_features], 1);
+            output = Ts::concat(&[output, new_features], 1);
         }
         output
     }
 }
-impl Trainable for DenseBlock {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for DenseBlock<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         self.layers
             .iter()
-            .map(|(key, value)| (key.to_owned(), value.clone() as Mod<dyn Trainable>))
+            .map(|(key, value)| (key.to_owned(), value.clone() as Mod<dyn Trainable<Ts>, Ts>))
             .collect()
     }
 }
-impl DenseBlock {
-    pub fn new(config: DenseBlockConfig) -> DenseBlock {
+impl<Ts: TensorNN> DenseBlock<Ts> {
+    pub fn new(config: DenseBlockConfig<Ts>) -> DenseBlock<Ts> {
         let mut layers = ModuleDict::new();
         for i in 0..config.num_layers {
             layers.insert(
@@ -188,9 +189,10 @@ impl DenseBlock {
     }
 }
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct DenseNet {
-    pub features: NamedSequential,
-    pub classifier: Mod<Linear>,
+#[module(tensor_type="Ts")]
+pub struct DenseNet<Ts: TensorNN> {
+    pub features: NamedSequential<Ts>,
+    pub classifier: Mod<Linear<Ts>, Ts>,
     #[builder(default = "32")]
     pub growth_rate: i64,
     #[builder(default = "vec![6,12,24,16]")]
@@ -204,8 +206,8 @@ pub struct DenseNet {
     #[builder]
     pub num_classes: i64,
 }
-impl Module for DenseNet {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for DenseNet<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let features = (self.features)(input);
         let temp_relu = seq!(Mod::new(ReLU));
         let temp_avgpool = AdaptiveAveragePooling2DBuilder::default()
@@ -217,9 +219,9 @@ impl Module for DenseNet {
         out
     }
 }
-impl Trainable for DenseNet {}
-impl DenseNet {
-    pub fn new(config: DenseNetConfig) -> DenseNet {
+impl<Ts: TensorNN> Trainable<Ts> for DenseNet<Ts> {}
+impl<Ts: TensorNN> DenseNet<Ts> {
+    pub fn new(config: DenseNetConfig<Ts>) -> DenseNet<Ts> {
         let mut features = NamedSequential::default();
         features.push((
             "conv0".to_owned(),
@@ -293,7 +295,7 @@ impl DenseNet {
         }
     }
 }
-pub fn densenet121(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
+pub fn densenet121<Ts: TensorNN>(num_classes: i64, drop_rate: f64) -> Mod<DenseNet<Ts>, Ts> {
     DenseNetBuilder::default()
         .num_classes(num_classes)
         .drop_rate(drop_rate)
@@ -303,7 +305,7 @@ pub fn densenet121(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
         .build()
 }
 
-pub fn densenet161(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
+pub fn densenet161<Ts: TensorNN>(num_classes: i64, drop_rate: f64) -> Mod<DenseNet<Ts>, Ts> {
     DenseNetBuilder::default()
         .num_classes(num_classes)
         .drop_rate(drop_rate)
@@ -313,7 +315,7 @@ pub fn densenet161(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
         .build()
 }
 
-pub fn densenet169(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
+pub fn densenet169<Ts: TensorNN>(num_classes: i64, drop_rate: f64) -> Mod<DenseNet<Ts>, Ts> {
     DenseNetBuilder::default()
         .num_classes(num_classes)
         .drop_rate(drop_rate)
@@ -323,7 +325,7 @@ pub fn densenet169(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
         .build()
 }
 
-pub fn densenet201(num_classes: i64, drop_rate: f64) -> Mod<DenseNet> {
+pub fn densenet201<Ts: TensorNN>(num_classes: i64, drop_rate: f64) -> Mod<DenseNet<Ts>, Ts> {
     DenseNetBuilder::default()
         .num_classes(num_classes)
         .drop_rate(drop_rate)

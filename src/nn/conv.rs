@@ -1,7 +1,6 @@
 use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::{no_grad, Device, Kind, Tensor};
 
-use crate::core::{Cellable, TensorCell};
+use crate::core::{Cellable, TensorCell, TensorNN};
 
 use super::{Module, StateDict, Trainable};
 
@@ -9,9 +8,10 @@ use super::{Module, StateDict, Trainable};
 ///
 /// See [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882).
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct Conv1d {
-    pub conv_weight: TensorCell,
-    pub conv_bias: Option<TensorCell>,
+#[module(tensor_type="Ts")]
+pub struct Conv1d<Ts: TensorNN> {
+    pub conv_weight: TensorCell<Ts>,
+    pub conv_bias: Option<TensorCell<Ts>>,
 
     #[builder]
     pub in_channel: i64,
@@ -38,8 +38,8 @@ pub struct Conv1d {
     pub bias: bool,
 }
 
-impl Trainable for Conv1d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for Conv1d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
@@ -49,13 +49,13 @@ impl Trainable for Conv1d {
     }
 }
 
-impl Module for Conv1d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for Conv1d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let weight = self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv1d(
-            &weight,
+            weight.as_ref(),
             bias,
             &self.stride,
             &self.padding,
@@ -65,17 +65,15 @@ impl Module for Conv1d {
     }
 }
 
-impl Conv1d {
-    pub fn new(config: Conv1dConfig) -> Conv1d {
+impl<Ts: TensorNN> Conv1d<Ts> {
+    pub fn new(config: Conv1dConfig<Ts>) -> Conv1d<Ts> {
         let size: [i64; 3] = [config.out_channel, config.in_channel, config.kernel_size[0]];
         let mut conv_weight =
-            Tensor::empty(&size, (Kind::Double, Device::Cpu)).set_requires_grad(true);
-        let mut conv_bias = Tensor::empty(&[config.out_channel], (Kind::Double, Device::Cpu))
+            Ts::empty(&size, Ts::Env::default()).set_requires_grad(true);
+        let mut conv_bias = Ts::empty(&[config.out_channel], Ts::Env::default())
             .set_requires_grad(true);
-        no_grad(|| {
-            conv_weight.init(tch::nn::Init::KaimingUniform);
-            conv_bias.init(tch::nn::Init::KaimingUniform);
-        });
+        conv_weight.no_grad_mut().kaiming_uniform_();
+        conv_bias.no_grad_mut().kaiming_uniform_();
         Conv1d {
             conv_weight: conv_weight.cell(),
             conv_bias: if config.bias {
@@ -97,9 +95,10 @@ impl Conv1d {
 
 /// A Convolution layer in 2 dimensions.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct Conv2d {
-    pub conv_weight: TensorCell,
-    pub conv_bias: Option<TensorCell>,
+#[module(tensor_type="Ts")]
+pub struct Conv2d<Ts: TensorNN> {
+    pub conv_weight: TensorCell<Ts>,
+    pub conv_bias: Option<TensorCell<Ts>>,
 
     #[builder]
     pub in_channel: i64,
@@ -122,8 +121,8 @@ pub struct Conv2d {
     pub bias: bool,
 }
 
-impl Trainable for Conv2d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for Conv2d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
@@ -133,13 +132,13 @@ impl Trainable for Conv2d {
     }
 }
 
-impl Module for Conv2d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for Conv2d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let weight = &self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv2d(
-            weight,
+            weight.as_ref(),
             bias,
             &self.stride,
             &self.padding,
@@ -149,8 +148,8 @@ impl Module for Conv2d {
     }
 }
 
-impl Conv2d {
-    pub fn new(config: Conv2dConfig) -> Conv2d {
+impl<Ts: TensorNN> Conv2d<Ts> {
+    pub fn new(config: Conv2dConfig<Ts>) -> Conv2d<Ts> {
         let size: [i64; 4] = [
             config.out_channel,
             config.in_channel,
@@ -158,14 +157,12 @@ impl Conv2d {
             config.kernel_size[1],
         ];
         let mut conv_weight =
-            Tensor::empty(&size, (Kind::Double, Device::Cpu)).set_requires_grad(true);
-        let mut conv_bias = Tensor::empty(&[config.out_channel], (Kind::Double, Device::Cpu))
+            Ts::empty(&size, Ts::Env::default()).set_requires_grad(true);
+        let mut conv_bias = Ts::empty(&[config.out_channel], Ts::Env::default())
             .set_requires_grad(true);
 
-        no_grad(|| {
-            conv_weight.init(tch::nn::Init::KaimingUniform);
-            conv_bias.init(tch::nn::Init::KaimingUniform);
-        });
+        conv_weight.no_grad_mut().kaiming_uniform_();
+        conv_bias.no_grad_mut().kaiming_uniform_();
 
         Conv2d {
             conv_weight: conv_weight.cell(),
@@ -188,9 +185,10 @@ impl Conv2d {
 
 /// A convolution layer in 3 dimensions.
 #[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct Conv3d {
-    pub conv_weight: TensorCell,
-    pub conv_bias: Option<TensorCell>,
+#[module(tensor_type="Ts")]
+pub struct Conv3d<Ts: TensorNN> {
+    pub conv_weight: TensorCell<Ts>,
+    pub conv_bias: Option<TensorCell<Ts>>,
 
     #[builder]
     pub in_channel: i64,
@@ -217,8 +215,8 @@ pub struct Conv3d {
     pub bias: bool,
 }
 
-impl Trainable for Conv3d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for Conv3d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.conv_weight.clone());
         if let Some(bias) = &self.conv_bias {
@@ -228,13 +226,13 @@ impl Trainable for Conv3d {
     }
 }
 
-impl Module for Conv3d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for Conv3d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let weight = &self.conv_weight.lock();
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv3d(
-            weight,
+            weight.as_ref(),
             bias,
             &self.stride,
             &self.padding,
@@ -244,8 +242,8 @@ impl Module for Conv3d {
     }
 }
 
-impl Conv3d {
-    pub fn new(config: Conv3dConfig) -> Conv3d {
+impl<Ts: TensorNN> Conv3d<Ts> {
+    pub fn new(config: Conv3dConfig<Ts>) -> Conv3d<Ts> {
         let size: [i64; 5] = [
             config.out_channel,
             config.in_channel,
@@ -254,14 +252,12 @@ impl Conv3d {
             config.kernel_size[2],
         ];
         let mut conv_weight =
-            Tensor::empty(&size, (Kind::Double, Device::Cpu)).set_requires_grad(true);
-        let mut conv_bias = Tensor::empty(&[config.out_channel], (Kind::Double, Device::Cpu))
+            Ts::empty(&size, Ts::Env::default()).set_requires_grad(true);
+        let mut conv_bias = Ts::empty(&[config.out_channel], Ts::Env::default())
             .set_requires_grad(true);
 
-        no_grad(|| {
-            conv_weight.init(tch::nn::Init::KaimingUniform);
-            conv_bias.init(tch::nn::Init::KaimingUniform);
-        });
+        conv_weight.no_grad_mut().kaiming_uniform_();
+        conv_bias.no_grad_mut().kaiming_uniform_();
 
         Conv3d {
             conv_weight: conv_weight.cell(),

@@ -285,6 +285,9 @@ pub trait TensorOps:
     /// Gather slices from the tensor-like object along the given axis.
     fn gather<T: Borrow<Self>>(&self, dim: i64, indices: T) -> Self;
 
+    /// Scatter the tensor-like object along the given axis.
+    fn scatter<T: Borrow<Self>, U: Borrow<Self>>(&self, dim: i64, indices: T, src: U) -> Self;
+
     /// Returns a tensor-like object where all dimensions of size 1 are removed.
     fn squeeze(&self) -> Self;
 
@@ -295,6 +298,9 @@ pub trait TensorOps:
     ///
     /// The dimension index `axis` starts at zero; if you specify a negative number, it is counted backward from the end.
     fn unsqueeze(&self, dim: i64) -> Self;
+
+    /// Flatten the tensor-like object from `start_dim` to `end_dim` into a single dimension.
+    fn flatten(&self, start_dim: i64, end_dim: i64) -> Self;
 }
 
 impl TensorOps for Tensor {
@@ -485,6 +491,10 @@ impl TensorOps for Tensor {
     fn gather<T: Borrow<Self>>(&self, dim: i64, indices: T) -> Self {
         self.gather(dim, indices.borrow(), false)
     }
+    
+    fn scatter<T: Borrow<Self>, U: Borrow<Self>>(&self, dim: i64, indices: T, src: U) -> Self {
+        self.scatter(dim, indices.borrow(), src.borrow())
+    }
 
     fn squeeze(&self) -> Self {
         self.squeeze()
@@ -496,5 +506,9 @@ impl TensorOps for Tensor {
 
     fn unsqueeze(&self, dim: i64) -> Self {
         self.unsqueeze(dim)
+    }
+    
+    fn flatten(&self, start_dim: i64, end_dim: i64) -> Self {
+        self.flatten(start_dim, end_dim)
     }
 }

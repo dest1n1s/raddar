@@ -21,8 +21,8 @@ use tch::{no_grad, Device, Kind, Reduction, Tensor};
 #[test]
 fn sequential_test() {
     let inputs =
-        tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]).to(tch::Device::Cuda(0));
-    let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
+        tensor!([[1.0f32], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]).to(tch::Device::Cuda(0));
+    let labels = tensor!([[4.0f32], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
         .to(tch::Device::Cuda(0));
 
     let model = seq!(
@@ -90,7 +90,7 @@ fn pooling_test() {
 #[test]
 fn alexnet_test() {
     let num_classes = 100;
-    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Float, Device::Cpu));
     let net = alexnet(num_classes, 0.5, true);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
@@ -102,35 +102,35 @@ fn batchnorm_test() {
         .num_features(4)
         .affine(false)
         .build();
-    let input1 = tensor!([[2., 3., 4., 5.], [3., 4., 5., 6.], [4., 5., 6., 7.]]);
+    let input1 = tensor!([[2.0f32, 3., 4., 5.], [3., 4., 5., 6.], [4., 5., 6., 7.]]);
     let _output1 = bn1d_2(&input1);
 
     let bn1d_3 = BatchNorm1dBuilder::default().num_features(2).build();
     let input2 = tensor!([
-        [[2., 3., 4., 5.], [2., 3., 4., 5.]],
-        [[2., 3., 4., 5.], [2., 3., 4., 5.]]
+        [[2.0f32, 3., 4., 5.], [2., 3., 4., 5.]],
+        [[2.0f32, 3., 4., 5.], [2., 3., 4., 5.]]
     ]);
     let _output2 = bn1d_3(&input2);
 
     let bn2d = BatchNorm2dBuilder::default().num_features(3).build();
-    let input3 = Tensor::ones(&[6, 3, 5, 14], (Kind::Double, Device::Cpu));
+    let input3 = Tensor::ones(&[6, 3, 5, 14], (Kind::Float, Device::Cpu));
     let _output3 = bn2d(&input3);
 
     let bn3d = BatchNorm3dBuilder::default().num_features(8).build();
-    let input4 = Tensor::ones(&[6, 8, 5, 14, 11], (Kind::Double, Device::Cpu));
+    let input4 = Tensor::ones(&[6, 8, 5, 14, 11], (Kind::Float, Device::Cpu));
     let _output4 = bn3d(&input4);
 }
 #[test]
 fn layernorm() {
     let ln = LayerNormBuilder::default().shape(vec![3, 5, 2]).build();
-    let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Double, Device::Cpu));
+    let input = Tensor::ones(&[6, 3, 5, 2], (Kind::Float, Device::Cpu));
     ln(&input).print();
 }
 
 #[test]
 fn vgg_test() {
     let num_classes = 100;
-    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Float, Device::Cpu));
     let net = vgg(VggType::Vgg11, num_classes, 0.5, true);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
@@ -139,7 +139,7 @@ fn vgg_test() {
 #[test]
 fn resnet_test() {
     let num_classes = 100;
-    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Float, Device::Cpu));
     let net = resnet50(num_classes);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
@@ -148,7 +148,7 @@ fn resnet_test() {
 #[test]
 fn densenet_test() {
     let num_classes = 100;
-    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Double, Device::Cpu));
+    let inputs = Tensor::rand(&[1, 3, 224, 224], (Kind::Float, Device::Cpu));
     let net = densenet161(num_classes, 0.5);
     let output = net(&inputs);
     assert!(output.size2().unwrap().1 == num_classes);
@@ -240,9 +240,9 @@ fn cifar10_test() {
             // break;
             // break;
             model.zero_grad();
-            let output = model(&img.to_kind(Kind::Double));
+            let output = model(&img.to_kind(Kind::Float));
             let loss = output.mse_loss(
-                &(onehot)(&label.to_kind(Kind::Int64)).to_kind(Kind::Double),
+                &(onehot)(&label.to_kind(Kind::Int64)).to_kind(Kind::Float),
                 Reduction::Mean,
             );
             loss.backward();
@@ -255,7 +255,7 @@ fn cifar10_test() {
         let mut now_bnum = 0;
         for (img, label) in valid_loader {
             no_grad(|| {
-                let output = model(&img.to_kind(Kind::Double));
+                let output = model(&img.to_kind(Kind::Float));
                 let output = output.argmax(1, false);
                 let bacc = output.eq_tensor(&label).mean(Kind::Float);
                 acc += bacc;

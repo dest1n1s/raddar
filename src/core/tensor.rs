@@ -3,10 +3,12 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use tch::{kind::Element, Tensor};
 
-pub type TensorCell = Arc<Mutex<Tensor>>;
+use super::TensorLike;
 
-pub trait Cellable {
-    fn cell(self) -> TensorCell;
+pub type TensorCell<T: TensorLike> = Arc<Mutex<T>>;
+
+pub trait Cellable<T: TensorLike> {
+    fn cell(self) -> TensorCell<T>;
 }
 
 pub trait TensorIntoIter {
@@ -44,8 +46,8 @@ impl Iterator for TensorIter {
     }
 }
 
-impl Cellable for Tensor {
-    fn cell(self) -> TensorCell {
+impl<T: TensorLike> Cellable<T> for T {
+    fn cell(self) -> TensorCell<T> {
         Arc::new(Mutex::new(self))
     }
 }

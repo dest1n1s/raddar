@@ -1,9 +1,6 @@
-use std::f64::consts::PI;
-
 use raddar_derive::NonParameterModule;
-use tch::Tensor;
 
-use crate::nn::Module;
+use crate::{core::TensorNN, nn::Module};
 
 /// GeLU activation function.
 ///
@@ -29,25 +26,20 @@ impl LeakyReLU {
     }
 }
 
-impl Module for GeLU {
-    fn forward(&self, input: &Tensor) -> Tensor {
-        let z = (input + &input.pow_tensor_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
-        0.5 * input * (1 + z.tanh())
+impl<Ts: TensorNN> Module<Ts> for GeLU {
+    fn forward(&self, input: &Ts) -> Ts {
+        input.gelu()
     }
 }
-impl Module for ReLU {
-    fn forward(&self, input: &Tensor) -> Tensor {
-        let y = input.zeros_like();
-        let condition = input.ge(0);
-        input.where_self(&condition, &y)
+impl<Ts: TensorNN> Module<Ts> for ReLU {
+    fn forward(&self, input: &Ts) -> Ts {
+        input.relu()
     }
 }
 
-impl Module for LeakyReLU {
-    fn forward(&self, input: &Tensor) -> Tensor {
-        let y = -input * self.lambda;
-        let condition = input.ge(0);
-        input.where_self(&condition, &y)
+impl<Ts: TensorNN> Module<Ts> for LeakyReLU {
+    fn forward(&self, input: &Ts) -> Ts {
+        input.leaky_relu(self.lambda)
     }
 }
 

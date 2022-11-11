@@ -1,5 +1,6 @@
-use raddar_derive::{CallableModule, NonParameterModule, ArchitectureBuilder};
-use tch::Tensor;
+use raddar_derive::{NonParameterModule, CallableModule, ArchitectureBuilder};
+
+use crate::core::TensorNN;
 
 use super::Module;
 
@@ -34,8 +35,8 @@ impl MaxPooling1D {
     }
 }
 
-impl Module for MaxPooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool1d(
             &self.kernel_size,
             &self.stride,
@@ -77,8 +78,8 @@ impl MaxPooling2D {
     }
 }
 
-impl Module for MaxPooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool2d(
             &self.kernel_size,
             &self.stride,
@@ -120,8 +121,8 @@ impl MaxPooling3D {
     }
 }
 
-impl Module for MaxPooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool3d(
             &self.kernel_size,
             &self.stride,
@@ -163,8 +164,8 @@ impl AveragePooling1D {
     }
 }
 
-impl Module for AveragePooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool1d(
             &self.kernel_size,
             &self.stride,
@@ -211,8 +212,8 @@ impl AveragePooling2D {
     }
 }
 
-impl Module for AveragePooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool2d(
             &self.kernel_size,
             &self.stride,
@@ -259,8 +260,8 @@ impl AveragePooling3D {
     }
 }
 
-impl Module for AveragePooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool3d(
             &self.kernel_size,
             &self.stride,
@@ -287,8 +288,8 @@ impl AdaptiveMaxPooling1D {
     }
 }
 
-impl Module for AdaptiveMaxPooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool1d(&self.output_size).0
     }
 }
@@ -308,8 +309,8 @@ impl AdaptiveMaxPooling2D {
     }
 }
 
-impl Module for AdaptiveMaxPooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool2d(&self.output_size).0
     }
 }
@@ -329,8 +330,8 @@ impl AdaptiveMaxPooling3D {
     }
 }
 
-impl Module for AdaptiveMaxPooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool3d(&self.output_size).0
     }
 }
@@ -350,8 +351,8 @@ impl AdaptiveAveragePooling1D {
     }
 }
 
-impl Module for AdaptiveAveragePooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool1d(&self.output_size)
     }
 }
@@ -371,8 +372,8 @@ impl AdaptiveAveragePooling2D {
     }
 }
 
-impl Module for AdaptiveAveragePooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool2d(&self.output_size)
     }
 }
@@ -392,8 +393,8 @@ impl AdaptiveAveragePooling3D {
     }
 }
 
-impl Module for AdaptiveAveragePooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool3d(&self.output_size)
     }
 }

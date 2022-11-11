@@ -37,15 +37,15 @@ impl Element for bool {}
 /// - It should also be able to perform some other operations, such as reshaping, transposing, and slicing.
 ///
 /// Of course, a real tensor-like object should also be able to perform some tensor operations, such as arithmetic operations, matrix multiplication, gradient calculation, and so on. However, this trait just focuses on the properties of tensor-like objects, and does not require further functions.
-pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
+pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default + 'static {
     /// The type of data kind.
-    type Kind;
+    type Kind: Default + Clone + Debug + PartialEq + Eq + Copy;
 
     /// The type of device.
-    type Device;
+    type Device: Default + Clone + Debug + PartialEq + Eq + Copy;
 
     /// The type of the env variable. We assume that the env variable is at least consists of the data kind and the device, and may also contain other information.
-    type Env: Default = (Kind, Device);
+    type Env: Default + Clone + Debug + PartialEq + Eq + Copy = (Kind, Device);
 
     /// Get the env variable.
     fn env(&self) -> Self::Env;
@@ -61,6 +61,9 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 
     /// Get the shape of the tensor-like object.
     fn shape(&self) -> Vec<i64>;
+
+    /// Get the dimension of the tensor-like object.
+    fn dim(&self) -> usize;
 
     /// Create a tensor-like object from a slice.
     fn of_slice<T: Element>(data: &[T]) -> Self;
@@ -106,10 +109,10 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
     fn eye(size: i64, env: Self::Env) -> Self;
 
     /// Read named tensor-like objects from a .npz file.
-    fn read_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error>;
+    fn read_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
 
     /// Read named tensor-like objects from a .ot file.
-    fn read_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error>;
+    fn read_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
 
     /// Copy the tensor-like object to self.
     fn copy_(&mut self, other: &Self);
@@ -149,6 +152,12 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
     fn view_as(&self, other: &Self) -> Self {
         self.view(&other.shape())
     }
+
+    /// Concatenate a slice of tensor-like objects along the given dimension.
+    fn concat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self;
+
+    /// Convert the tensor-like object to type as the given tensor-like object.
+    fn type_as<T: Borrow<Self>>(&self, other: T) -> Self;
 }
 
 impl TensorLike for Tensor {
@@ -173,6 +182,10 @@ impl TensorLike for Tensor {
 
     fn shape(&self) -> Vec<i64> {
         self.size()
+    }
+
+    fn dim(&self) -> usize {
+        self.dim()
     }
 
     fn of_slice<T: Element>(data: &[T]) -> Self {
@@ -229,5 +242,13 @@ impl TensorLike for Tensor {
     
     fn view(&self, size: &[i64]) -> Self {
         Tensor::view(self, size)
+    }
+
+    fn concat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
+        Tensor::concat(tensors, dim)
+    }
+
+    fn type_as<T: Borrow<Self>>(&self, other: T) -> Self {
+        Tensor::type_as(self, other.borrow())
     }
 }
