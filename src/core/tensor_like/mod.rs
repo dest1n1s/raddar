@@ -38,11 +38,26 @@ impl Element for bool {}
 ///
 /// Of course, a real tensor-like object should also be able to perform some tensor operations, such as arithmetic operations, matrix multiplication, gradient calculation, and so on. However, this trait just focuses on the properties of tensor-like objects, and does not require further functions.
 pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
-    /// The type of the env variable.
-    type Env: Default;
+    /// The type of data kind.
+    type Kind;
+
+    /// The type of device.
+    type Device;
+
+    /// The type of the env variable. We assume that the env variable is at least consists of the data kind and the device, and may also contain other information.
+    type Env: Default = (Kind, Device);
 
     /// Get the env variable.
     fn env(&self) -> Self::Env;
+
+    /// Convert the tensor-like object to a specific kind.
+    fn to_kind(&self, kind: Self::Kind) -> Self;
+
+    /// Convert the tensor-like object to a specific device.
+    fn to_device(&self, device: Self::Device) -> Self;
+
+    /// Convert the tensor-like object to a specific env.
+    fn to_env(&self, env: Self::Env) -> Self;
 
     /// Get the shape of the tensor-like object.
     fn shape(&self) -> Vec<i64>;
@@ -137,14 +152,27 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default {
 }
 
 impl TensorLike for Tensor {
-    type Env = (Kind, Device);
+    type Kind = Kind;
+    type Device = Device;
 
     fn env(&self) -> Self::Env {
         (self.kind(), self.device())
     }
 
+    fn to_kind(&self, kind: Self::Kind) -> Self {
+        self.to_kind(kind)
+    }
+
+    fn to_device(&self, device: Self::Device) -> Self {
+        self.to_device(device)
+    }
+
+    fn to_env(&self, env: Self::Env) -> Self {
+        self.to_kind(env.0).to_device(env.1)
+    }
+
     fn shape(&self) -> Vec<i64> {
-        self.size().iter().map(|x| *x as i64).collect()
+        self.size()
     }
 
     fn of_slice<T: Element>(data: &[T]) -> Self {
