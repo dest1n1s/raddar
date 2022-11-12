@@ -4,14 +4,101 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{self, parse::Parser, Ident};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct ModuleAttr {
     pub tensor_type: Option<Ident>,
+    pub callable: bool,    
+    pub paramless: bool,
+    pub builder: bool,
 }
 
-#[proc_macro_derive(CallableModule, attributes(module))]
-pub fn callable_module_derive(input: TokenStream) -> TokenStream {
+impl Default for ModuleAttr {
+    fn default() -> Self {
+        ModuleAttr {
+            tensor_type: None,
+            callable: true,
+            paramless: false,
+            builder: false,
+        }
+    }
+}
+
+fn extract_module_attr(attrs: &[syn::Attribute]) -> ModuleAttr {
+    let mut module_attr = ModuleAttr::default();
+    for attr in attrs {
+        if let syn::Meta::List(list) = attr.parse_meta().unwrap() {
+            if list.path.is_ident("module") {
+                for nested in list.nested {
+                    if let syn::NestedMeta::Meta(meta) = nested {
+                        match meta {
+                            syn::Meta::NameValue(name_value) => {
+                                if name_value.path.is_ident("tensor_type") {
+                                    if let syn::Lit::Str(lit_str) = name_value.lit {
+                                        module_attr.tensor_type = Some(Ident::new(&lit_str.value(), lit_str.span()));
+                                    }
+                                } else if name_value.path.is_ident("callable") {
+                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
+                                        module_attr.callable = lit_bool.value;
+                                    }
+                                } else if name_value.path.is_ident("paramless") {
+                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
+                                        module_attr.paramless = lit_bool.value;
+                                    }
+                                } else if name_value.path.is_ident("builder") {
+                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
+                                        module_attr.builder = lit_bool.value;
+                                    }
+                                }
+                            }
+                            syn::Meta::Path(path) => {
+                                if path.is_ident("callable") {
+                                    module_attr.callable = true;
+                                }
+                                if path.is_ident("paramless") {
+                                    module_attr.paramless = true;
+                                }
+                                if path.is_ident("builder") {
+                                    module_attr.builder = true;
+                                }
+                            }
+                            _ => {}
+                        }
+                    } 
+                }
+            }
+        }
+    }
+    module_attr
+}
+
+#[proc_macro_derive(
+    Module,
+    attributes(
+        module,
+        builder,
+        builder_field_attr,
+        builder_impl_attr,
+        builder_setter_attr,
+        builder_struct_attr
+    )
+)]
+pub fn module_derive(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    let mut output = TokenStream::new();
+    let module_attr = extract_module_attr(&ast.attrs);
+    output.extend(callable_derive(&ast, &module_attr));
+    output.extend(paramless_derive(&ast, &module_attr));
+    output.extend(architecture_builder_derive(&ast, &module_attr));
+
+
+
+    output
+}
+
+fn callable_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> TokenStream {
+    if !attr.callable {
+        return TokenStream::new();
+    }
 
     let name = &ast.ident;
 
@@ -23,7 +110,10 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
         (quote! { #impl_generics }, quote! { #tensor_type })
     } else {
         let type_params = generics.type_params();
-        (quote! { <Ts: raddar::core::TensorNN, #(#type_params),*> }, quote! { Ts })
+        (
+            quote! { <Ts: raddar::core::TensorNN, #(#type_params),*> },
+            quote! { Ts },
+        )
     };
 
     let gen = quote! {
@@ -70,9 +160,10 @@ pub fn callable_module_derive(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-#[proc_macro_derive(NonParameterModule, attributes(module))]
-pub fn non_parameter_module_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+fn paramless_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> TokenStream {
+    if !attr.paramless {
+        return TokenStream::new();
+    }
 
     let name = &ast.ident;
 
@@ -94,65 +185,19 @@ pub fn non_parameter_module_derive(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-#[proc_macro_derive(NonParameterModuleAny)]
-pub fn non_parameter_module_any_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
-
-    let name = &ast.ident;
-
-    let generics = &ast.generics;
-    let (_, ty_generics, where_clause) = generics.split_for_impl();
-
-    let type_params = generics.type_params();
-
-    let gen = quote! {
-        impl<Ts: raddar::core::TensorNN, #(#type_params),*> raddar::nn::Trainable<Ts> for #name #ty_generics #where_clause {}
-    };
-    gen.into()
-}
-
-fn extract_module_attr(attrs: &[syn::Attribute]) -> ModuleAttr {
-    let mut module_attr = ModuleAttr::default();
-    for attr in attrs {
-        if let syn::Meta::List(list) = attr.parse_meta().unwrap() {
-            if list.path.is_ident("module") {
-                for nested in list.nested {
-                    if let syn::NestedMeta::Meta(syn::Meta::NameValue(name_value)) = nested {
-                        if name_value.path.is_ident("tensor_type") {
-                            if let syn::Lit::Str(lit_str) = name_value.lit {
-                                module_attr.tensor_type = Some(lit_str.parse().unwrap());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+fn architecture_builder_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> TokenStream {
+    if !attr.builder {
+        return TokenStream::new();
     }
-    module_attr
-}
 
-#[proc_macro_derive(
-    ArchitectureBuilder,
-    attributes(
-        module,
-        builder,
-        builder_field_attr,
-        builder_impl_attr,
-        builder_setter_attr,
-        builder_struct_attr
-    )
-)]
-pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input.clone()).unwrap();
-    
-    let data_struct = match ast.data {
+    let data_struct = match &ast.data {
         syn::Data::Struct(data_struct) => data_struct,
         _ => panic!("ArchitectureBuilder can only be derived for structs"),
     };
 
-    let tensor_type = extract_module_attr(&ast.attrs).tensor_type;
+    let tensor_type = &attr.tensor_type;
 
-    let builder_fields = match data_struct.fields{
+    let builder_fields = match data_struct.fields.clone() {
         syn::Fields::Named(syn::FieldsNamed { named, .. }) => {
             let mut named = named
                 .into_iter()
@@ -167,15 +212,17 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>();
             if let Some(tensor_type) = tensor_type.as_ref() {
-                named.push(syn::Field::parse_named
-                    .parse2(quote! {
-                        #[builder(default="std::marker::PhantomData")]
-                        _marker_ts: std::marker::PhantomData<#tensor_type>
-                    })
-                    .unwrap());
+                named.push(
+                    syn::Field::parse_named
+                        .parse2(quote! {
+                            #[builder(default="std::marker::PhantomData")]
+                            _marker_ts: std::marker::PhantomData<#tensor_type>
+                        })
+                        .unwrap(),
+                );
             }
             named
-        },
+        }
         _ => panic!("ArchitectureBuilder can only be used on structs with named fields"),
     };
 
@@ -193,7 +240,7 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
             pub struct #config_name #impl_generics #where_clause {
                 #(#builder_fields),*
             }
-    
+
             impl #impl_generics #builder_name #ty_generics #where_clause {
                 pub fn build(self) -> raddar::nn::Mod<#name #ty_generics, #tensor_type> {
                     raddar::nn::Mod::new(#name::new(self.build_config().unwrap()))
@@ -207,7 +254,7 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
             pub struct #config_name #impl_generics #where_clause {
                 #(#builder_fields),*
             }
-    
+
             impl #impl_generics #builder_name #ty_generics #where_clause {
                 pub fn build<Ts: raddar::core::TensorNN>(self) -> raddar::nn::Mod<#name #ty_generics, Ts> {
                     raddar::nn::Mod::new(#name::new(self.build_config().unwrap()))
@@ -215,7 +262,7 @@ pub fn architecture_builder_derive(input: TokenStream) -> TokenStream {
             }
         }
     };
-     
+
     output.into()
 }
 

@@ -1,15 +1,15 @@
 use crate::{nn::Module, core::TensorNN};
-use raddar_derive::CallableModule;
+use raddar_derive::Module;
 use std::ops::{Deref, DerefMut};
 
 use super::{Mod, Trainable, TrainableDict};
 
 /// A module composed by a sequential of modules.
-#[derive(Debug, CallableModule, Default)]
+#[derive(Debug, Default, Module)]
 #[module(tensor_type="Ts")]
 pub struct Sequential<Ts: TensorNN>(Vec<Mod<dyn Module<Ts>, Ts>>);
 
-#[derive(Debug, CallableModule, Default)]
+#[derive(Debug, Default, Module)]
 #[module(tensor_type="Ts")]
 pub struct NamedSequential<Ts: TensorNN>(Vec<(String, Mod<dyn Module<Ts>, Ts>)>);
 

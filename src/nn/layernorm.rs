@@ -1,12 +1,13 @@
+use raddar_derive::Module;
+
 use super::{module::Module, StateDict, Trainable};
 use crate::core::{Cellable, TensorCell, TensorNN};
-use raddar_derive::{ArchitectureBuilder, CallableModule};
 
 /// A layer normalization layer.
 ///
 /// See [Layer Normalization](https://arxiv.org/abs/1607.06450).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-#[module(tensor_type="Ts")]
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
 pub struct LayerNorm<Ts: TensorNN> {
     pub ln_weight: Option<TensorCell<Ts>>,
     pub ln_bias: Option<TensorCell<Ts>>,

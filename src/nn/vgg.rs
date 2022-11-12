@@ -1,6 +1,6 @@
 use std::vec;
 
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::Module;
 
 use crate::{seq, core::TensorNN};
 
@@ -24,8 +24,8 @@ pub enum VggType {
 /// VGG model
 ///
 /// The VGG model is a convolutional neural network that is 16 or 19 layers deep. See [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/abs/1409.1556) for more details.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-#[module(tensor_type="Ts")]
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
 pub struct Vgg<Ts: TensorNN> {
     pub features: Mod<Sequential<Ts>, Ts>,
     pub avgpool: Mod<AdaptiveAveragePooling2D, Ts>,

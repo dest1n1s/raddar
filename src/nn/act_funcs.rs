@@ -1,21 +1,25 @@
-use raddar_derive::NonParameterModule;
+
+use raddar_derive::Module;
 
 use crate::{core::TensorNN, nn::Module};
 
 /// GeLU activation function.
 ///
 /// See [Gaussian Error Linear Units (GELUs)](https://arxiv.org/abs/1606.08415).
-#[derive(Debug, NonParameterModule)]
+#[derive(Debug, Module)]
+#[module(paramless)]
 pub struct GeLU;
 
 /// ReLU activation function.
 ///
 /// See [Rectified Linear Units Improve Restricted Boltzmann Machines](https://www.cs.toronto.edu/~fritz/absps/reluICML.pdf).
-#[derive(Debug, NonParameterModule)]
+#[derive(Debug, Module)]
+#[module(paramless)]
 pub struct ReLU;
 
 /// Leaky ReLU activation function.
-#[derive(Debug, NonParameterModule)]
+#[derive(Debug, Module)]
+#[module(paramless)]
 pub struct LeakyReLU {
     pub lambda: f64,
 }

@@ -1,4 +1,4 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
+use raddar_derive::Module;
 
 use crate::{seq, core::TensorNN};
 
@@ -37,7 +37,7 @@ pub fn transition<Ts: TensorNN>(num_input_features: i64, num_output_features: i6
     Mod::new(res)
 }
 
-#[derive(Debug, CallableModule)]
+#[derive(Debug, Module)]
 #[module(tensor_type = "Ts")]
 pub struct DenseLayer<Ts: TensorNN> {
     modules: ModuleDict<Ts>,
@@ -131,8 +131,8 @@ pub fn denselayer<Ts: TensorNN>(
         drop_rate,
     ))
 }
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-#[module(tensor_type="Ts")]
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
 pub struct DenseBlock<Ts: TensorNN> {
     #[builder]
     pub num_layers: i64,
@@ -188,8 +188,8 @@ impl<Ts: TensorNN> DenseBlock<Ts> {
         }
     }
 }
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-#[module(tensor_type="Ts")]
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
 pub struct DenseNet<Ts: TensorNN> {
     pub features: NamedSequential<Ts>,
     pub classifier: Mod<Linear<Ts>, Ts>,
