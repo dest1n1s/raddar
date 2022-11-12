@@ -1,10 +1,12 @@
-use raddar_derive::{CallableModule, NonParameterModule, ArchitectureBuilder};
-use tch::Tensor;
+use raddar_derive::Module;
+
+use crate::core::TensorNN;
 
 use super::Module;
 
 /// A max pooling layer in 1 dimension.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct MaxPooling1D {
     #[builder]
     pub kernel_size: [i64; 1],
@@ -34,8 +36,8 @@ impl MaxPooling1D {
     }
 }
 
-impl Module for MaxPooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool1d(
             &self.kernel_size,
             &self.stride,
@@ -47,7 +49,8 @@ impl Module for MaxPooling1D {
 }
 
 /// A max pooling layer in 2 dimensions.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct MaxPooling2D {
     #[builder]
     pub kernel_size: [i64; 2],
@@ -77,8 +80,8 @@ impl MaxPooling2D {
     }
 }
 
-impl Module for MaxPooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool2d(
             &self.kernel_size,
             &self.stride,
@@ -90,7 +93,8 @@ impl Module for MaxPooling2D {
 }
 
 /// A max pooling layer in 3 dimensions.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct MaxPooling3D {
     #[builder]
     pub kernel_size: [i64; 3],
@@ -120,8 +124,8 @@ impl MaxPooling3D {
     }
 }
 
-impl Module for MaxPooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for MaxPooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.max_pool3d(
             &self.kernel_size,
             &self.stride,
@@ -133,7 +137,8 @@ impl Module for MaxPooling3D {
 }
 
 /// An average pooling layer in 1 dimension.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AveragePooling1D {
     #[builder(default = "[3]")]
     pub kernel_size: [i64; 1],
@@ -163,8 +168,8 @@ impl AveragePooling1D {
     }
 }
 
-impl Module for AveragePooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool1d(
             &self.kernel_size,
             &self.stride,
@@ -176,7 +181,8 @@ impl Module for AveragePooling1D {
 }
 
 /// An average pooling layer in 2 dimensions.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 
 pub struct AveragePooling2D {
     #[builder(default = "[3, 3]")]
@@ -211,8 +217,8 @@ impl AveragePooling2D {
     }
 }
 
-impl Module for AveragePooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool2d(
             &self.kernel_size,
             &self.stride,
@@ -225,7 +231,8 @@ impl Module for AveragePooling2D {
 }
 
 /// An average pooling layer in 3 dimensions.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AveragePooling3D {
     #[builder(default = "[3, 3, 3]")]
     pub kernel_size: [i64; 3],
@@ -259,8 +266,8 @@ impl AveragePooling3D {
     }
 }
 
-impl Module for AveragePooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AveragePooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.avg_pool3d(
             &self.kernel_size,
             &self.stride,
@@ -273,7 +280,8 @@ impl Module for AveragePooling3D {
 }
 
 /// An adaptive max pooling layer in 1 dimension, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveMaxPooling1D {
     #[builder(default = "[1]")]
     pub output_size: [i64; 1],
@@ -287,14 +295,15 @@ impl AdaptiveMaxPooling1D {
     }
 }
 
-impl Module for AdaptiveMaxPooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool1d(&self.output_size).0
     }
 }
 
 /// An adaptive max pooling layer in 2 dimensions, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveMaxPooling2D {
     #[builder(default = "[1, 1]")]
     pub output_size: [i64; 2],
@@ -308,14 +317,15 @@ impl AdaptiveMaxPooling2D {
     }
 }
 
-impl Module for AdaptiveMaxPooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool2d(&self.output_size).0
     }
 }
 
 /// An adaptive max pooling layer in 3 dimensions, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveMaxPooling3D {
     #[builder(default = "[1, 1, 1]")]
     pub output_size: [i64; 3],
@@ -329,14 +339,15 @@ impl AdaptiveMaxPooling3D {
     }
 }
 
-impl Module for AdaptiveMaxPooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveMaxPooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_max_pool3d(&self.output_size).0
     }
 }
 
 /// An adaptive average pooling layer in 1 dimension, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveAveragePooling1D {
     #[builder(default = "[1]")]
     pub output_size: [i64; 1],
@@ -350,14 +361,15 @@ impl AdaptiveAveragePooling1D {
     }
 }
 
-impl Module for AdaptiveAveragePooling1D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling1D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool1d(&self.output_size)
     }
 }
 
 /// An adaptive average pooling layer in 2 dimensions, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveAveragePooling2D {
     #[builder(default = "[1, 1]")]
     pub output_size: [i64; 2],
@@ -371,14 +383,15 @@ impl AdaptiveAveragePooling2D {
     }
 }
 
-impl Module for AdaptiveAveragePooling2D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling2D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool2d(&self.output_size)
     }
 }
 
 /// An adaptive average pooling layer in 3 dimensions, which outputs a fixed size vector.
-#[derive(Debug, CallableModule, NonParameterModule, ArchitectureBuilder)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct AdaptiveAveragePooling3D {
     #[builder(default = "[1, 1, 1]")]
     pub output_size: [i64; 3],
@@ -392,8 +405,8 @@ impl AdaptiveAveragePooling3D {
     }
 }
 
-impl Module for AdaptiveAveragePooling3D {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for AdaptiveAveragePooling3D {
+    fn forward(&self, input: &Ts) -> Ts {
         input.adaptive_avg_pool3d(&self.output_size)
     }
 }

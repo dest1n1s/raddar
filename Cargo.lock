@@ -888,6 +888,7 @@ dependencies = [
 name = "raddar_derive"
 version = "0.1.0"
 dependencies = [
+ "derive_builder",
  "proc-macro2",
  "quote",
  "syn",

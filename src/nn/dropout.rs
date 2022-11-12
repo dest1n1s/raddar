@@ -1,9 +1,12 @@
+use raddar_derive::Module;
+
+use crate::core::TensorNN;
+
 use super::Module;
-use raddar_derive::{ArchitectureBuilder, CallableModule, NonParameterModule};
-use tch::Tensor;
 
 /// A dropout layer.
-#[derive(ArchitectureBuilder, Debug, CallableModule, NonParameterModule)]
+#[derive(Debug, Module)]
+#[module(paramless, builder)]
 pub struct Dropout {
     #[builder(default = "0.5")]
     p: f64,
@@ -11,8 +14,8 @@ pub struct Dropout {
     train: bool,
 }
 
-impl Module for Dropout {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for Dropout {
+    fn forward(&self, input: &Ts) -> Ts {
         input.dropout(self.p, self.train)
     }
 }

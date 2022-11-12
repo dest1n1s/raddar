@@ -1,15 +1,16 @@
+use raddar_derive::Module;
+
 use super::{module::Module, StateDict, Trainable};
-use crate::core::{Cellable, TensorCell};
-use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::{Device, Kind, Tensor};
+use crate::core::{Cellable, TensorCell, TensorNN};
 
 /// A layer normalization layer.
 ///
 /// See [Layer Normalization](https://arxiv.org/abs/1607.06450).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct LayerNorm {
-    pub ln_weight: Option<TensorCell>,
-    pub ln_bias: Option<TensorCell>,
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
+pub struct LayerNorm<Ts: TensorNN> {
+    pub ln_weight: Option<TensorCell<Ts>>,
+    pub ln_bias: Option<TensorCell<Ts>>,
     #[builder]
     pub shape: Vec<i64>,
     #[builder(default = "1e-5")]
@@ -20,8 +21,8 @@ pub struct LayerNorm {
     pub elementwise_affine: bool,
 }
 
-impl Trainable for LayerNorm {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for LayerNorm<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         if self.elementwise_affine {
             result.insert(
@@ -34,8 +35,8 @@ impl Trainable for LayerNorm {
     }
 }
 
-impl Module for LayerNorm {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for LayerNorm<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let ln_weight = self.ln_weight.as_ref().map(|weight| weight.lock());
         let ln_weight = ln_weight.as_deref();
         let ln_bias = self.ln_bias.as_ref().map(|bias| bias.lock());
@@ -50,16 +51,16 @@ impl Module for LayerNorm {
     }
 }
 
-impl LayerNorm {
-    pub fn new(config: LayerNormConfig) -> LayerNorm {
+impl<Ts: TensorNN> LayerNorm<Ts> {
+    pub fn new(config: LayerNormConfig<Ts>) -> LayerNorm<Ts> {
         let size = &*config.shape;
         let ln_weight = if config.elementwise_affine {
-            Some(Tensor::ones(size, (Kind::Double, Device::Cpu)).cell())
+            Some(Ts::ones(size, Ts::Env::default()).cell())
         } else {
             None
         };
         let ln_bias = if config.elementwise_affine {
-            Some(Tensor::zeros(size, (Kind::Double, Device::Cpu)).cell())
+            Some(Ts::zeros(size, Ts::Env::default()).cell())
         } else {
             None
         };

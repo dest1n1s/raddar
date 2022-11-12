@@ -1,9 +1,8 @@
 use std::vec;
 
-use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::Tensor;
+use raddar_derive::Module;
 
-use crate::seq;
+use crate::{seq, core::TensorNN};
 
 use super::{
     AdaptiveAveragePooling2D, AdaptiveAveragePooling2DBuilder, BatchNorm2dBuilder, Conv2dBuilder,
@@ -25,11 +24,12 @@ pub enum VggType {
 /// VGG model
 ///
 /// The VGG model is a convolutional neural network that is 16 or 19 layers deep. See [Very Deep Convolutional Networks for Large-Scale Image Recognition](https://arxiv.org/abs/1409.1556) for more details.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct Vgg {
-    pub features: Mod<Sequential>,
-    pub avgpool: Mod<AdaptiveAveragePooling2D>,
-    pub classifier: Mod<Sequential>,
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
+pub struct Vgg<Ts: TensorNN> {
+    pub features: Mod<Sequential<Ts>, Ts>,
+    pub avgpool: Mod<AdaptiveAveragePooling2D, Ts>,
+    pub classifier: Mod<Sequential<Ts>, Ts>,
 
     #[builder(default = "1000")]
     pub num_classes: i64,
@@ -40,7 +40,7 @@ pub struct Vgg {
     pub vgg_type: VggType,
 }
 
-fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Mod<Sequential> {
+fn make_layer<Ts: TensorNN>(layer_type: Vec<i64>, batchnorm: bool) -> Mod<Sequential<Ts>, Ts> {
     let mut in_channel = 3;
     let mut features = Sequential::default();
     for i in &layer_type {
@@ -73,8 +73,8 @@ fn make_layer(layer_type: Vec<i64>, batchnorm: bool) -> Mod<Sequential> {
     Mod::new(features)
 }
 
-impl Trainable for Vgg {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for Vgg<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         let mut result = TrainableDict::new();
         result.insert("features".to_owned(), self.features.clone());
         result.insert("classifier".to_owned(), self.classifier.clone());
@@ -82,8 +82,8 @@ impl Trainable for Vgg {
     }
 }
 
-impl Module for Vgg {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for Vgg<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let mut output = (self.features)(input);
         output = (self.avgpool)(&output);
         output = output.flatten(1, 3);
@@ -92,8 +92,8 @@ impl Module for Vgg {
     }
 }
 
-impl Vgg {
-    pub fn new(config: VggConfig) -> Vgg {
+impl<Ts: TensorNN> Vgg<Ts> {
+    pub fn new(config: VggConfig<Ts>) -> Vgg<Ts> {
         let (layer_type, batchnorm) = match config.vgg_type {
             VggType::Vgg11 => (
                 vec![64, 0, 128, 0, 256, 256, 0, 512, 512, 0, 512, 512, 0],
@@ -175,7 +175,7 @@ impl Vgg {
     }
 }
 
-pub fn vgg(vgg_type: VggType, num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<Vgg> {
+pub fn vgg<Ts: TensorNN>(vgg_type: VggType, num_classes: i64, dropout: f64, _pretrained: bool) -> Mod<Vgg<Ts>, Ts> {
     VggBuilder::default()
         .num_classes(num_classes)
         .dropout(dropout)

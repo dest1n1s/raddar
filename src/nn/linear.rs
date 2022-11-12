@@ -1,15 +1,15 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::{no_grad, Device, Kind, Tensor};
+use raddar_derive::Module;
 
-use crate::core::{Cellable, TensorCell};
+use crate::core::{Cellable, TensorCell, TensorNN};
 
-use super::{module::Module, Trainable, StateDict};
+use super::{module::Module, StateDict, Trainable};
 
 // A simple fully-connected layer.
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct Linear {
-    pub linear_weight: TensorCell,
-    pub linear_bias: Option<TensorCell>,
+#[derive(Debug, Module)]
+#[module(tensor_type="Ts", builder)]
+pub struct Linear<Ts: TensorNN> {
+    pub linear_weight: TensorCell<Ts>,
+    pub linear_bias: Option<TensorCell<Ts>>,
     #[builder]
     pub input_dim: i64,
     #[builder]
@@ -18,8 +18,8 @@ pub struct Linear {
     pub bias: bool,
 }
 
-impl Trainable for Linear {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for Linear<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("weight".to_owned(), self.linear_weight.clone());
         if let Some(bias) = &self.linear_bias {
@@ -29,33 +29,30 @@ impl Trainable for Linear {
     }
 }
 
-impl Module for Linear {
-    fn forward(&self, input: &Tensor) -> Tensor {
-        let weight = &self.linear_weight.lock();
+impl<Ts: TensorNN> Module<Ts> for Linear<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
+        let weight = self.linear_weight.lock();
         if let Some(bias) = &self.linear_bias {
             let bias = bias.lock();
-            input.matmul(&weight) + &*bias
+            input.matmul(&*weight) + &*bias
         } else {
-            input.matmul(&weight)
+            input.matmul(&*weight)
         }
     }
 }
 
-impl Linear {
-    pub fn new(config: LinearConfig) -> Linear {
+impl<Ts: TensorNN> Linear<Ts> {
+    pub fn new(config: LinearConfig<Ts>) -> Linear<Ts> {
         let input_dim = config.input_dim;
         let output_dim = config.output_dim;
         let bias = config.bias;
-        let mut weight = Tensor::empty(&[input_dim, output_dim], (Kind::Double, Device::Cpu))
+        let mut weight = Ts::empty(&[input_dim, output_dim], Ts::Env::default())
             .set_requires_grad(true);
 
-        let mut linear_bias =
-            Tensor::empty(&[output_dim], (Kind::Double, Device::Cpu)).set_requires_grad(true);
+        let mut linear_bias = Ts::empty(&[output_dim], Ts::Env::default()).set_requires_grad(true);
 
-        no_grad(|| {
-            weight.init(tch::nn::Init::KaimingUniform);
-            linear_bias.init(tch::nn::Init::KaimingUniform);
-        });
+        weight.no_grad_mut().kaiming_uniform_();
+        linear_bias.no_grad_mut().kaiming_uniform_();
         Linear {
             linear_weight: weight.cell(),
             linear_bias: if bias { Some(linear_bias.cell()) } else { None },

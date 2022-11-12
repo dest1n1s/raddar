@@ -1,73 +1,74 @@
-use crate::nn::Module;
-use raddar_derive::CallableModule;
+use crate::{nn::Module, core::TensorNN};
+use raddar_derive::Module;
 use std::ops::{Deref, DerefMut};
-use tch::Tensor;
 
 use super::{Mod, Trainable, TrainableDict};
 
 /// A module composed by a sequential of modules.
-#[derive(Debug, CallableModule, Default)]
-pub struct Sequential(Vec<Mod<dyn Module>>);
+#[derive(Debug, Default, Module)]
+#[module(tensor_type="Ts")]
+pub struct Sequential<Ts: TensorNN>(Vec<Mod<dyn Module<Ts>, Ts>>);
 
-#[derive(Debug, CallableModule, Default)]
-pub struct NamedSequential(Vec<(String, Mod<dyn Module>)>);
+#[derive(Debug, Default, Module)]
+#[module(tensor_type="Ts")]
+pub struct NamedSequential<Ts: TensorNN>(Vec<(String, Mod<dyn Module<Ts>, Ts>)>);
 
-impl Deref for Sequential {
-    type Target = Vec<Mod<dyn Module>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Sequential {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl DerefMut for NamedSequential {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Deref for NamedSequential {
-    type Target = Vec<(String, Mod<dyn Module>)>;
+impl<Ts: TensorNN> Deref for Sequential<Ts> {
+    type Target = Vec<Mod<dyn Module<Ts>, Ts>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<Vec<Mod<dyn Module>>> for Sequential {
-    fn from(seq: Vec<Mod<dyn Module>>) -> Self {
+impl<Ts: TensorNN> DerefMut for Sequential<Ts> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<Ts: TensorNN> DerefMut for NamedSequential<Ts> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<Ts: TensorNN> Deref for NamedSequential<Ts> {
+    type Target = Vec<(String, Mod<dyn Module<Ts>, Ts>)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<Ts: TensorNN> From<Vec<Mod<dyn Module<Ts>, Ts>>> for Sequential<Ts> {
+    fn from(seq: Vec<Mod<dyn Module<Ts>, Ts>>) -> Self {
         Sequential(seq)
     }
 }
 
-impl FromIterator<Mod<dyn Module>> for Sequential {
-    fn from_iter<I: IntoIterator<Item = Mod<dyn Module>>>(iter: I) -> Self {
+impl<Ts: TensorNN> FromIterator<Mod<dyn Module<Ts>, Ts>> for Sequential<Ts> {
+    fn from_iter<I: IntoIterator<Item = Mod<dyn Module<Ts>, Ts>>>(iter: I) -> Self {
         Sequential(iter.into_iter().collect())
     }
 }
 
-impl From<Vec<(String, Mod<dyn Module>)>> for NamedSequential {
-    fn from(seq: Vec<(String, Mod<dyn Module>)>) -> Self {
+impl<Ts: TensorNN> From<Vec<(String, Mod<dyn Module<Ts>, Ts>)>> for NamedSequential<Ts> {
+    fn from(seq: Vec<(String, Mod<dyn Module<Ts>, Ts>)>) -> Self {
         NamedSequential(seq)
     }
 }
 
-impl FromIterator<(String, Mod<dyn Module>)> for NamedSequential {
-    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module>)>>(
+impl<Ts: TensorNN> FromIterator<(String, Mod<dyn Module<Ts>, Ts>)> for NamedSequential<Ts> {
+    fn from_iter<I: IntoIterator<Item = (String, Mod<dyn Module<Ts>, Ts>)>>(
         iter: I,
     ) -> Self {
         NamedSequential(iter.into_iter().collect())
     }
 }
 
-impl Trainable for Sequential {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for Sequential<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         let mut children = TrainableDict::new();
         for (i, module) in self.iter().enumerate() {
             children.insert(i.to_string(), module.clone());
@@ -76,8 +77,8 @@ impl Trainable for Sequential {
     }
 }
 
-impl Module for Sequential {
-    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
+impl<Ts: TensorNN> Module<Ts> for Sequential<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let mut x = input + 0;
         for module in self.iter() {
             x = module(&x)
@@ -86,8 +87,8 @@ impl Module for Sequential {
     }
 }
 
-impl Trainable for NamedSequential {
-    fn child_modules(&self) -> TrainableDict {
+impl<Ts: TensorNN> Trainable<Ts> for NamedSequential<Ts> {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         let mut children = TrainableDict::new();
         for (name, module) in self.iter() {
             children.insert(name.clone(), module.clone());
@@ -96,8 +97,8 @@ impl Trainable for NamedSequential {
     }
 }
 
-impl Module for NamedSequential {
-    fn forward(&self, input: &tch::Tensor) -> tch::Tensor {
+impl<Ts: TensorNN> Module<Ts> for NamedSequential<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         let mut x = input + 0;
         for (_, module) in self.iter() {
             x = module(&x)
@@ -110,7 +111,7 @@ impl Module for NamedSequential {
 macro_rules! seq {
     ($($module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new($crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module<tch::Tensor, tch::Tensor>>,)*]))
+            $crate::nn::Mod::new($crate::nn::sequential::Sequential::from(vec![$($module as $crate::nn::Mod<dyn $crate::nn::Module<_>, _>,)*]))
         }
     };
 }
@@ -119,9 +120,9 @@ macro_rules! seq {
 macro_rules! named_seq {
     ($($name:expr => $module:expr),* $(,)?) => {
         {
-            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module>),)*]
+            $crate::nn::Mod::new(vec![$(($name.to_string(), $module as $crate::nn::Mod<dyn $crate::nn::Module<_>, _>),)*]
                     .into_iter()
-                    .collect::<$crate::nn::sequential::NamedSequential>())
+                    .collect::<$crate::nn::sequential::NamedSequential<_>>())
         }
     };
 }

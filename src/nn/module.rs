@@ -8,10 +8,9 @@ use std::{
 use anyhow::Ok;
 use linked_hash_map::LinkedHashMap;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use tch::{no_grad, Device, Tensor};
 
 use crate::{
-    core::{Cellable, TensorCell},
+    core::{Cellable, TensorCell, TensorNN},
     util::DropGuard,
 };
 
@@ -20,15 +19,15 @@ use crate::{
 /// A potentially substitute for `LinkedHashMap` is [IndexMap](https://docs.rs/indexmap/1.7.0/indexmap/map/struct.IndexMap.html). In comparision, `LinkedHashMap` can provide a more strict guarantee on the order of the tensors. For example, the order is preserved even when the tensors are removed from the [StateDict].
 /// 
 /// However, `LinkedHashMap` may cause a performance issue in iteration. This is because `LinkedHashMap` uses a doubly linked list to maintain the insertion order.
-pub type StateDict = LinkedHashMap<String, TensorCell>;
+pub type StateDict<Ts: TensorNN> = LinkedHashMap<String, TensorCell<Ts>>;
 
 /// A `TrainableDict` is a collection of named [Trainable]s. For the same reason as `StateDict`, it uses [LinkedHashMap] to preserve the insertion order of the `Trainable`s. See [StateDict] for more details.
-pub type TrainableDict = LinkedHashMap<String, Mod<dyn Trainable>>;
+pub type TrainableDict<Ts: TensorNN> = LinkedHashMap<String, Mod<dyn Trainable<Ts>, Ts>>;
 
 /// A `ModuleDict` is a collection of named [Module]s. For the same reason as `StateDict`, it uses [LinkedHashMap] to preserve the insertion order of the `Module`s. See [StateDict] for more details.
 /// 
 /// It is recommended to use `ModuleDict` in the implemention of a `Module` to store child `Module`s with a repetitive pattern when you don't want an extra layer of abstraction.
-pub type ModuleDict = LinkedHashMap<String, Mod<dyn Module>>;
+pub type ModuleDict<Ts: TensorNN> = LinkedHashMap<String, Mod<dyn Module<Ts>, Ts>>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ModuleMode {
@@ -36,25 +35,25 @@ pub enum ModuleMode {
     Eval,
 }
 /// A trait for anything that has trainable parameters.
-pub trait Trainable: std::fmt::Debug {
+pub trait Trainable<Ts: TensorNN>: std::fmt::Debug {
     /// Defines the trainable parameters of the module. This does not include the parameters in child modules.
     ///
     /// By default, this returns an empty map. If your module has trainable parameters, you should override this method.
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict<Ts> {
         LinkedHashMap::new()
     }
 
     /// Defines the static tensors of the module. This does not include the static tensors in child modules.
     ///
     /// By default, this returns an empty map. If your module has static tensors, you should override this method.
-    fn static_tensors(&self) -> StateDict {
+    fn static_tensors(&self) -> StateDict<Ts> {
         LinkedHashMap::new()
     }
 
     /// Defines the child modules of the module.
     ///
     /// By default, this returns an empty map. If your module has child modules, you should override this method.
-    fn child_modules(&self) -> TrainableDict {
+    fn child_modules(&self) -> TrainableDict<Ts> {
         LinkedHashMap::new()
     }
 
@@ -66,16 +65,16 @@ pub trait Trainable: std::fmt::Debug {
     /// Load the parameters from another `StateDict`.
     ///
     /// This method will load all parameters with the same name from the `StateDict` into the module.
-    fn load(&self, parameters: StateDict) {
+    fn load(&self, parameters: StateDict<Ts>) {
         for (name, other_parameter) in parameters {
             if let Some(parameter) = self.parameters().get(&name) {
-                *parameter.lock() = other_parameter.lock().shallow_clone();
+                *parameter.lock() = other_parameter.lock().copy();
             }
         }
     }
 
     /// Returns all trainable parameters that is not freezed.
-    fn training_parameters(&self) -> Vec<TensorCell> {
+    fn training_parameters(&self) -> Vec<TensorCell<Ts>> {
         self.parameters()
             .into_iter()
             .map(|(_, parameter)| parameter)
@@ -87,9 +86,8 @@ pub trait Trainable: std::fmt::Debug {
     fn freeze(&self) {
         for tensor in self.parameters().values() {
             let mut tensor = tensor.lock();
-            no_grad(|| {
-                *tensor = tensor.set_requires_grad(false);
-            });
+            let mut tensor = tensor.no_grad_mut();
+            *tensor = tensor.set_requires_grad(false);
         }
     }
 
@@ -97,9 +95,8 @@ pub trait Trainable: std::fmt::Debug {
     fn unfreeze(&self) {
         for tensor in self.parameters().values() {
             let mut tensor = tensor.lock();
-            no_grad(|| {
-                *tensor = tensor.set_requires_grad(true);
-            });
+            let mut tensor = tensor.no_grad_mut();
+            *tensor = tensor.set_requires_grad(true);
         }
     }
 
@@ -108,15 +105,6 @@ pub trait Trainable: std::fmt::Debug {
         self.parameters().values().for_each(|param| {
             let mut param = param.lock();
             param.zero_grad();
-        });
-    }
-
-    /// Initialize the trainable parameters of the module, with a certain distribution from `tch::nn::Init`.
-    fn init(&self, init: tch::nn::Init) {
-        no_grad(|| {
-            for parameter in self.parameters().values() {
-                parameter.lock().init(init);
-            }
         });
     }
 }
@@ -129,21 +117,21 @@ pub trait Trainable: std::fmt::Debug {
 ///
 /// For example, if you call `freeze` on a [Mod], the trainable parameters of the underlying module and its child modules will be freezed. However, if you call `freeze` on the underlying module, only the trainable parameters of the underlying module will be freezed.
 #[derive(Debug)]
-pub struct Mod<T: Trainable + ?Sized> {
-    pub arc: Arc<ModData<T>>,
+pub struct Mod<T: Trainable<Ts> + ?Sized, Ts: TensorNN> {
+    pub arc: Arc<ModData<T, Ts>>,
 }
 
 /// The data of a [Mod], which stores some states and metadata of the module.
 #[derive(Debug)]
-pub struct ModData<T: Trainable + ?Sized> {
-    pub parent: RwLock<Option<Weak<ModData<dyn Trainable>>>>,
-    pub children: RwLock<LinkedHashMap<String, Mod<dyn Trainable>>>,
-    pub device: RwLock<Device>,
+pub struct ModData<T: Trainable<Ts> + ?Sized, Ts: TensorNN> {
+    pub parent: RwLock<Option<Weak<ModData<dyn Trainable<Ts>, Ts>>>>,
+    pub children: RwLock<LinkedHashMap<String, Mod<dyn Trainable<Ts>, Ts>>>,
+    pub device: RwLock<Ts::Device>,
     pub mode: RwLock<ModuleMode>,
     pub module: RwLock<T>,
 }
 
-impl<T: Trainable + ?Sized> Clone for Mod<T> {
+impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Clone for Mod<T, Ts> {
     fn clone(&self) -> Self {
         Self {
             arc: Arc::clone(&self.arc),
@@ -151,29 +139,30 @@ impl<T: Trainable + ?Sized> Clone for Mod<T> {
     }
 }
 
-impl<T: Trainable + ?Sized> Deref for Mod<T> {
-    type Target = ModData<T>;
+impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Deref for Mod<T, Ts> {
+    type Target = ModData<T, Ts>;
 
     fn deref(&self) -> &Self::Target {
         &self.arc
     }
 }
 
-impl<T, U> CoerceUnsized<Mod<U>> for Mod<T>
+impl<T, U, Ts> CoerceUnsized<Mod<U, Ts>> for Mod<T, Ts>
 where
-    T: Unsize<U> + Trainable + ?Sized,
-    U: Trainable + ?Sized,
+    T: Unsize<U> + Trainable<Ts> + ?Sized,
+    U: Trainable<Ts> + ?Sized,
+    Ts: TensorNN,
 {
 }
 
-impl<T: Trainable + 'static> Mod<T> {
+impl<T: Trainable<Ts> + 'static, Ts: TensorNN> Mod<T, Ts> {
     /// Create a [Mod] wrapped module, and update the parent of child modules.
-    pub fn new(module: T) -> Mod<T> {
+    pub fn new(module: T) -> Mod<T, Ts> {
         let this = Mod {
             arc: Arc::new(ModData {
                 parent: RwLock::new(None),
                 children: RwLock::new(module.child_modules()),
-                device: RwLock::new(Device::Cpu),
+                device: RwLock::new(Ts::Device::default()),
                 mode: RwLock::new(ModuleMode::Train),
                 module: RwLock::new(module),
             }),
@@ -218,14 +207,14 @@ impl<T: Trainable + 'static> Mod<T> {
     }
 }
 
-impl<T: Trainable + ?Sized> Mod<T> {
+impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Mod<T, Ts> {
     /// Get a reference to the underlying module.
     pub fn module(&self) -> RwLockReadGuard<T> {
         self.module.read()
     }
 
     /// Move the parameters of the module to a certain device, and return a new [Mod].
-    pub fn to(self, device: Device) -> Self
+    pub fn to(self, device: Ts::Device) -> Self
     where
         Self: Sized,
     {
@@ -234,10 +223,8 @@ impl<T: Trainable + ?Sized> Mod<T> {
             .chain(self.static_tensors().values())
             .for_each(|param| {
                 let mut param = param.lock();
-                let requires_grad = param.requires_grad();
-                no_grad(|| {
-                    *param = param.to(device).set_requires_grad(requires_grad);
-                })
+                let mut param = param.no_grad_mut();
+                *param = param.to_device(device);
             });
 
         self._set_device(device);
@@ -245,23 +232,21 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Move the parameters of the module to a certain device.
-    pub fn to_(&self, device: Device) {
+    pub fn to_(&self, device: Ts::Device) {
         self.parameters()
             .values()
             .chain(self.static_tensors().values())
             .for_each(|param| {
                 let mut param = param.lock();
-                let requires_grad = param.requires_grad();
-                no_grad(|| {
-                    *param = param.to(device).set_requires_grad(requires_grad);
-                })
+                let mut param = param.no_grad_mut();
+                *param = param.to_device(device);
             });
 
         self._set_device(device);
     }
 
     /// Update the device state of the module and its child modules, without practically moving the parameters.
-    fn _set_device(&self, device: Device) {
+    fn _set_device(&self, device: Ts::Device) {
         *self.device.write() = device;
         self.children
             .write()
@@ -270,7 +255,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Get the device of the module.
-    pub fn device(&self) -> Device {
+    pub fn device(&self) -> Ts::Device {
         self.device.read().clone()
     }
 
@@ -306,7 +291,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Get the parent of the module.
-    pub fn parent(&self) -> Option<Mod<dyn Trainable>> {
+    pub fn parent(&self) -> Option<Mod<dyn Trainable<Ts>, Ts>> {
         self.parent
             .read()
             .as_ref()
@@ -315,7 +300,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 
     /// Get the children of the module.
-    pub fn children(&self) -> LinkedHashMap<String, Mod<dyn Trainable>> {
+    pub fn children(&self) -> LinkedHashMap<String, Mod<dyn Trainable<Ts>, Ts>> {
         self.children.read().clone()
     }
 
@@ -348,7 +333,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     /// ```
     pub fn load_npz<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         self.load(
-            Tensor::read_npz(path)?
+            Ts::read_npz(path)?
                 .into_iter()
                 .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
@@ -359,7 +344,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     /// Load parameters from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`. This method won't load static tensors.
     pub fn load_ot<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         Ok(self.load(
-            Tensor::load_multi(path)?
+            Ts::read_ot(path)?
                 .into_iter()
                 .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
@@ -367,7 +352,7 @@ impl<T: Trainable + ?Sized> Mod<T> {
     }
 }
 
-impl<T: Trainable + ?Sized> Trainable for Mod<T> {
+impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Trainable<Ts> for Mod<T, Ts> {
     /// Returns all trainable parameters in the module, including the parameters in child modules. The parameters are stored in a `LinkedHashMap` with their path as keys.
     ///
     /// For example, a model architecture like this:
@@ -395,7 +380,7 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     ///     "layer2.bias": TensorCell,
     /// }
     /// ```
-    fn parameters(&self) -> StateDict {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut parameters = self.module().parameters();
         for (name, child) in self.children.read().iter() {
             for (child_name, child_parameter) in child.parameters() {
@@ -406,7 +391,7 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     }
 
     /// Returns all static tensors in the module, including the static tensors in child modules. The static tensors are stored in a `LinkedHashMap` with their path as keys.
-    fn static_tensors(&self) -> StateDict {
+    fn static_tensors(&self) -> StateDict<Ts> {
         let mut static_tensors = self.module().static_tensors();
         for (name, child) in self.children.read().iter() {
             for (child_name, child_static_tensor) in child.static_tensors() {
@@ -417,31 +402,31 @@ impl<T: Trainable + ?Sized> Trainable for Mod<T> {
     }
 }
 
-impl<T: Trainable + ?Sized> From<Arc<ModData<T>>> for Mod<T> {
-    fn from(data: Arc<ModData<T>>) -> Self {
+impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> From<Arc<ModData<T, Ts>>> for Mod<T, Ts> {
+    fn from(data: Arc<ModData<T, Ts>>) -> Self {
         Self { arc: data }
     }
 }
 
 /// A module is a neural network layer, which can be seen as a function from `Tensor` to `Tensor`, with some trainable parameters.
-pub trait Module<InputType = Tensor, OutputType = Tensor>: Trainable {
+pub trait Module<Ts: TensorNN, InputType = Ts, OutputType = Ts>: Trainable<Ts> {
     /// The forward function for Module.
     fn forward(&self, input: &InputType) -> OutputType;
 }
 
-impl<T, U> Fn<(&T,)> for Mod<dyn Module<T, U>> {
+impl<T, U, Ts: TensorNN> Fn<(&T,)> for Mod<dyn Module<Ts, T, U>, Ts> {
     extern "rust-call" fn call(&self, input: (&T,)) -> U {
         self.module().forward(input.0)
     }
 }
 
-impl<T, U> FnMut<(&T,)> for Mod<dyn Module<T, U>> {
+impl<T, U, Ts: TensorNN> FnMut<(&T,)> for Mod<dyn Module<Ts, T, U>, Ts> {
     extern "rust-call" fn call_mut(&mut self, input: (&T,)) -> U {
         self.module().forward(input.0)
     }
 }
 
-impl<T, U> FnOnce<(&T,)> for Mod<dyn Module<T, U>> {
+impl<T, U, Ts: TensorNN> FnOnce<(&T,)> for Mod<dyn Module<Ts, T, U>, Ts> {
     type Output = U;
 
     extern "rust-call" fn call_once(self, input: (&T,)) -> U {
@@ -449,7 +434,7 @@ impl<T, U> FnOnce<(&T,)> for Mod<dyn Module<T, U>> {
     }
 }
 
-/// A module without trainable parameters.
-pub trait NonParameterModule: Module {}
+// /// A module without trainable parameters.
+// pub trait NonParameterModule<Ts: TensorNN>: Module<Ts> {}
 
-impl<T: NonParameterModule> Trainable for T {}
+// impl<T: NonParameterModule<Ts>, Ts: TensorNN> Trainable<Ts> for T {}

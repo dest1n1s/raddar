@@ -1,14 +1,14 @@
-use raddar_derive::{ArchitectureBuilder, CallableModule};
-use tch::{Device, Kind, Tensor};
+use raddar_derive::Module;
 
 use super::{module::Module, StateDict, Trainable};
-use crate::core::{Cellable, TensorCell};
+use crate::core::{Cellable, TensorCell, TensorNN};
 
 /// A batch normalization layer in 1 dimension.
 ///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct BatchNorm1d {
+#[derive(Debug, Module)]
+#[module(tensor_type = "Ts", builder)]
+pub struct BatchNorm1d<Ts: TensorNN> {
     #[builder]
     pub num_features: i64,
     #[builder(default = "1e-5")]
@@ -21,14 +21,14 @@ pub struct BatchNorm1d {
     pub affine: bool,
     #[builder(default = "true")]
     pub training: bool,
-    pub bn_weight: Option<TensorCell>,
-    pub bn_bias: Option<TensorCell>,
-    pub running_mean: TensorCell,
-    pub running_var: TensorCell,
+    pub bn_weight: Option<TensorCell<Ts>>,
+    pub bn_bias: Option<TensorCell<Ts>>,
+    pub running_mean: TensorCell<Ts>,
+    pub running_var: TensorCell<Ts>,
 }
 
-impl Trainable for BatchNorm1d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for BatchNorm1d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         if self.affine {
             result.insert(
@@ -39,7 +39,7 @@ impl Trainable for BatchNorm1d {
         }
         result
     }
-    fn static_tensors(&self) -> StateDict {
+    fn static_tensors(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("running_mean".to_owned(), self.running_mean.clone());
         result.insert("running_var".to_owned(), self.running_var.clone());
@@ -47,8 +47,8 @@ impl Trainable for BatchNorm1d {
     }
 }
 
-impl Module for BatchNorm1d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for BatchNorm1d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         assert!(input.dim() == 2 || input.dim() == 3);
         let running_mean = self.running_mean.lock();
         let running_var = self.running_var.lock();
@@ -59,8 +59,8 @@ impl Module for BatchNorm1d {
         input.batch_norm(
             bn_weight,
             bn_bias,
-            Some(&running_mean),
-            Some(&running_var),
+            Some(&*running_mean),
+            Some(&*running_var),
             self.training,
             self.momentum,
             self.eps,
@@ -72,11 +72,11 @@ impl Module for BatchNorm1d {
 /// A batch normalization layer in 2 dimensions.
 ///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
-impl BatchNorm1d {
-    pub fn new(config: BatchNorm1dConfig) -> BatchNorm1d {
+impl<Ts: TensorNN> BatchNorm1d<Ts> {
+    pub fn new(config: BatchNorm1dConfig<Ts>) -> BatchNorm1d<Ts> {
         let bn_weight = if config.affine {
             Some(
-                Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::ones(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
@@ -85,15 +85,15 @@ impl BatchNorm1d {
         };
         let bn_bias = if config.affine {
             Some(
-                Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::zeros(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
         } else {
             None
         };
-        let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
-        let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
+        let running_mean = Ts::zeros(&[config.num_features], Ts::Env::default());
+        let running_var = Ts::ones(&[config.num_features], Ts::Env::default());
         BatchNorm1d {
             num_features: config.num_features,
             eps: config.eps,
@@ -109,8 +109,9 @@ impl BatchNorm1d {
     }
 }
 
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct BatchNorm2d {
+#[derive(Debug, Module)]
+#[module(tensor_type = "Ts", builder)]
+pub struct BatchNorm2d<Ts: TensorNN> {
     #[builder]
     pub num_features: i64,
     #[builder(default = "1e-5")]
@@ -123,14 +124,14 @@ pub struct BatchNorm2d {
     pub affine: bool,
     #[builder(default = "true")]
     pub training: bool,
-    pub bn_weight: Option<TensorCell>,
-    pub bn_bias: Option<TensorCell>,
-    pub running_mean: TensorCell,
-    pub running_var: TensorCell,
+    pub bn_weight: Option<TensorCell<Ts>>,
+    pub bn_bias: Option<TensorCell<Ts>>,
+    pub running_mean: TensorCell<Ts>,
+    pub running_var: TensorCell<Ts>,
 }
 
-impl Trainable for BatchNorm2d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for BatchNorm2d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         if self.affine {
             result.insert(
@@ -141,7 +142,7 @@ impl Trainable for BatchNorm2d {
         }
         result
     }
-    fn static_tensors(&self) -> StateDict {
+    fn static_tensors(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("running_mean".to_owned(), self.running_mean.clone());
         result.insert("running_var".to_owned(), self.running_var.clone());
@@ -149,8 +150,8 @@ impl Trainable for BatchNorm2d {
     }
 }
 
-impl Module for BatchNorm2d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for BatchNorm2d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         assert!(input.dim() == 4);
         let running_mean = self.running_mean.lock();
         let running_var = self.running_var.lock();
@@ -161,8 +162,8 @@ impl Module for BatchNorm2d {
         input.batch_norm(
             bn_weight,
             bn_bias,
-            Some(&running_mean),
-            Some(&running_var),
+            Some(&*running_mean),
+            Some(&*running_var),
             self.training,
             self.momentum,
             self.eps,
@@ -171,11 +172,11 @@ impl Module for BatchNorm2d {
     }
 }
 
-impl BatchNorm2d {
-    pub fn new(config: BatchNorm2dConfig) -> BatchNorm2d {
+impl<Ts: TensorNN> BatchNorm2d<Ts> {
+    pub fn new(config: BatchNorm2dConfig<Ts>) -> BatchNorm2d<Ts> {
         let bn_weight = if config.affine {
             Some(
-                Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::ones(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
@@ -184,15 +185,15 @@ impl BatchNorm2d {
         };
         let bn_bias = if config.affine {
             Some(
-                Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::zeros(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
         } else {
             None
         };
-        let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
-        let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
+        let running_mean = Ts::zeros(&[config.num_features], Ts::Env::default());
+        let running_var = Ts::ones(&[config.num_features], Ts::Env::default());
         BatchNorm2d {
             num_features: config.num_features,
             eps: config.eps,
@@ -211,8 +212,9 @@ impl BatchNorm2d {
 /// A batch normalization layer in 3 dimensions.
 ///
 /// See [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167).
-#[derive(Debug, CallableModule, ArchitectureBuilder)]
-pub struct BatchNorm3d {
+#[derive(Debug, Module)]
+#[module(tensor_type = "Ts", builder)]
+pub struct BatchNorm3d<Ts: TensorNN> {
     #[builder]
     pub num_features: i64,
     #[builder(default = "1e-5")]
@@ -225,14 +227,14 @@ pub struct BatchNorm3d {
     pub affine: bool,
     #[builder(default = "true")]
     pub training: bool,
-    pub bn_weight: Option<TensorCell>,
-    pub bn_bias: Option<TensorCell>,
-    pub running_mean: TensorCell,
-    pub running_var: TensorCell,
+    pub bn_weight: Option<TensorCell<Ts>>,
+    pub bn_bias: Option<TensorCell<Ts>>,
+    pub running_mean: TensorCell<Ts>,
+    pub running_var: TensorCell<Ts>,
 }
 
-impl Trainable for BatchNorm3d {
-    fn parameters(&self) -> StateDict {
+impl<Ts: TensorNN> Trainable<Ts> for BatchNorm3d<Ts> {
+    fn parameters(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         if self.affine {
             result.insert(
@@ -243,7 +245,7 @@ impl Trainable for BatchNorm3d {
         }
         result
     }
-    fn static_tensors(&self) -> StateDict {
+    fn static_tensors(&self) -> StateDict<Ts> {
         let mut result = StateDict::new();
         result.insert("running_mean".to_owned(), self.running_mean.clone());
         result.insert("running_var".to_owned(), self.running_var.clone());
@@ -251,8 +253,8 @@ impl Trainable for BatchNorm3d {
     }
 }
 
-impl Module for BatchNorm3d {
-    fn forward(&self, input: &Tensor) -> Tensor {
+impl<Ts: TensorNN> Module<Ts> for BatchNorm3d<Ts> {
+    fn forward(&self, input: &Ts) -> Ts {
         assert!(input.dim() == 5);
         let running_mean = self.running_mean.lock();
         let running_var = self.running_var.lock();
@@ -263,8 +265,8 @@ impl Module for BatchNorm3d {
         input.batch_norm(
             bn_weight,
             bn_bias,
-            Some(&running_mean),
-            Some(&running_var),
+            Some(&*running_mean),
+            Some(&*running_var),
             self.training,
             self.momentum,
             self.eps,
@@ -273,11 +275,11 @@ impl Module for BatchNorm3d {
     }
 }
 
-impl BatchNorm3d {
-    pub fn new(config: BatchNorm3dConfig) -> BatchNorm3d {
+impl<Ts: TensorNN> BatchNorm3d<Ts> {
+    pub fn new(config: BatchNorm3dConfig<Ts>) -> BatchNorm3d<Ts> {
         let bn_weight = if config.affine {
             Some(
-                Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::ones(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
@@ -286,15 +288,15 @@ impl BatchNorm3d {
         };
         let bn_bias = if config.affine {
             Some(
-                Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu))
+                Ts::zeros(&[config.num_features], Ts::Env::default())
                     .set_requires_grad(true)
                     .cell(),
             )
         } else {
             None
         };
-        let running_mean = Tensor::zeros(&[config.num_features], (Kind::Double, Device::Cpu));
-        let running_var = Tensor::ones(&[config.num_features], (Kind::Double, Device::Cpu));
+        let running_mean = Ts::zeros(&[config.num_features], Ts::Env::default());
+        let running_var = Ts::ones(&[config.num_features], Ts::Env::default());
         BatchNorm3d {
             num_features: config.num_features,
             eps: config.eps,
