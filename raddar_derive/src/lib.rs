@@ -1,74 +1,85 @@
 extern crate proc_macro;
 
+use derive_builder::Builder;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{self, parse::Parser, Ident};
+use syn::{self, parse::Parser, Ident, Meta, LitStr};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Builder)]
+#[builder_setter_attr(prefix = "set_")]
 struct ModuleAttr {
+    #[builder(default = "None", setter(strip_option))]
     pub tensor_type: Option<Ident>,
+
+    #[builder(default = "true")]
     pub callable: bool,    
+
+    #[builder(default = "false")]
     pub paramless: bool,
+
+    #[builder(default = "false")]
     pub builder: bool,
 }
 
-impl Default for ModuleAttr {
-    fn default() -> Self {
-        ModuleAttr {
-            tensor_type: None,
-            callable: true,
-            paramless: false,
-            builder: false,
-        }
-    }
+fn check_and_get_bool_attr(meta: &Meta, name: &str) -> Option<bool> {
+    match meta {
+        Meta::NameValue(nv) => {
+            if nv.path.is_ident(name) {
+                if let syn::Lit::Bool(b) = &nv.lit {
+                    return Some(b.value);
+                }
+            }
+        },
+        Meta::Path(p) => {
+            if p.is_ident(name) {
+                return Some(true);
+            }
+        },
+        _ => {}
+    };
+    None
+}
+
+fn check_and_get_str_attr(meta: &Meta, name: &str) -> Option<LitStr> {
+    match meta {
+        Meta::NameValue(nv) => {
+            if nv.path.is_ident(name) {
+                if let syn::Lit::Str(s) = &nv.lit {
+                    return Some(s.to_owned());
+                }
+            }
+        },
+        _ => {}
+    };
+    None
 }
 
 fn extract_module_attr(attrs: &[syn::Attribute]) -> ModuleAttr {
-    let mut module_attr = ModuleAttr::default();
+    let mut module_attr_builder = ModuleAttrBuilder::default();
     for attr in attrs {
         if let syn::Meta::List(list) = attr.parse_meta().unwrap() {
             if list.path.is_ident("module") {
                 for nested in list.nested {
                     if let syn::NestedMeta::Meta(meta) = nested {
-                        match meta {
-                            syn::Meta::NameValue(name_value) => {
-                                if name_value.path.is_ident("tensor_type") {
-                                    if let syn::Lit::Str(lit_str) = name_value.lit {
-                                        module_attr.tensor_type = Some(Ident::new(&lit_str.value(), lit_str.span()));
-                                    }
-                                } else if name_value.path.is_ident("callable") {
-                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
-                                        module_attr.callable = lit_bool.value;
-                                    }
-                                } else if name_value.path.is_ident("paramless") {
-                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
-                                        module_attr.paramless = lit_bool.value;
-                                    }
-                                } else if name_value.path.is_ident("builder") {
-                                    if let syn::Lit::Bool(lit_bool) = name_value.lit {
-                                        module_attr.builder = lit_bool.value;
-                                    }
-                                }
-                            }
-                            syn::Meta::Path(path) => {
-                                if path.is_ident("callable") {
-                                    module_attr.callable = true;
-                                }
-                                if path.is_ident("paramless") {
-                                    module_attr.paramless = true;
-                                }
-                                if path.is_ident("builder") {
-                                    module_attr.builder = true;
-                                }
-                            }
-                            _ => {}
+                        // check_and_get_bool_attr(&meta, "callable").and_then(module_attr_builder.callable);
+                        if let Some(b) = check_and_get_bool_attr(&meta, "callable") {
+                            module_attr_builder.callable(b);
+                        }
+                        if let Some(b) = check_and_get_bool_attr(&meta, "paramless") {
+                            module_attr_builder.paramless(b);
+                        }
+                        if let Some(b) = check_and_get_bool_attr(&meta, "builder") {
+                            module_attr_builder.builder(b);
+                        }
+                        if let Some(ident) = check_and_get_str_attr(&meta, "tensor_type") {
+                            module_attr_builder.tensor_type(ident.parse().unwrap());
                         }
                     } 
                 }
             }
         }
     }
-    module_attr
+    module_attr_builder.build().unwrap()
 }
 
 #[proc_macro_derive(
@@ -105,7 +116,8 @@ fn callable_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> TokenStream {
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let tensor_type = extract_module_attr(&ast.attrs).tensor_type;
+    let tensor_type = attr.tensor_type.to_owned();
+
     let (impl_generics, tensor_type) = if let Some(tensor_type) = tensor_type {
         (quote! { #impl_generics }, quote! { #tensor_type })
     } else {
@@ -170,7 +182,7 @@ fn paramless_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> TokenStream {
     let generics = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let tensor_type = extract_module_attr(&ast.attrs).tensor_type;
+    let tensor_type = attr.tensor_type.to_owned();
 
     let gen = if let Some(tensor_type) = tensor_type {
         quote! {
@@ -195,9 +207,9 @@ fn architecture_builder_derive(ast: &syn::DeriveInput, attr: &ModuleAttr) -> Tok
         _ => panic!("ArchitectureBuilder can only be derived for structs"),
     };
 
-    let tensor_type = &attr.tensor_type;
+    let tensor_type = attr.tensor_type.to_owned();
 
-    let builder_fields = match data_struct.fields.clone() {
+    let builder_fields = match data_struct.fields.to_owned() {
         syn::Fields::Named(syn::FieldsNamed { named, .. }) => {
             let mut named = named
                 .into_iter()
