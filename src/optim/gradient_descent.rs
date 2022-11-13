@@ -1,5 +1,3 @@
-use tch::no_grad;
-
 use crate::{core::{TensorCell, TensorNN}, optim::optimizer::OptimizerAlgorithm};
 
 pub struct GradientDescent {
@@ -11,7 +9,10 @@ impl<Ts: TensorNN> OptimizerAlgorithm<Ts> for GradientDescent {
         for parameter in trainable_parameters {
             let mut parameter = parameter.lock();
             let grad = parameter.grad();
-            no_grad(|| *parameter -= self.learning_rate * grad);
+
+            // no grad
+            let mut parameter = parameter.no_grad_mut();
+            *parameter -= grad * self.learning_rate;
         }
     }
     fn init(&mut self, _trainable_parameters: &Vec<TensorCell<Ts>>) {}

@@ -5,7 +5,6 @@ use crate::{
     optim::optimizer::OptimizerAlgorithm,
 };
 use raddar_derive::PartialBuilder;
-use tch::no_grad;
 
 #[derive(PartialBuilder)]
 pub struct RMSProp<Ts: TensorNN> {
@@ -29,14 +28,15 @@ impl<Ts: TensorNN> OptimizerAlgorithm<Ts> for RMSProp<Ts> {
         for (i, parameter) in trainable_parameters.iter().enumerate() {
             let mut parameter = parameter.lock();
             let mut grad = parameter.grad();
-            no_grad(|| {
-                let r1 = &mut self.r1.as_mut().unwrap()[i];
-                let r2 = &mut self.r2.as_mut().unwrap()[i];
-                grad = grad + &*parameter * self.weight_decay;
-                *r1 = (&*r1) * self.alpha + (1. - self.alpha) * grad.square();
-                *r2 = self.momentum * (&*r2) + &grad / (r1.sqrt() + self.eps);
-                *parameter -= &*r2 * self.learning_rate;
-            });
+
+            // no grad
+            let mut parameter = parameter.no_grad_mut();
+            let r1 = &mut self.r1.as_mut().unwrap()[i];
+            let r2 = &mut self.r2.as_mut().unwrap()[i];
+            grad = grad + &*parameter * self.weight_decay;
+            *r1 = (&*r1) * self.alpha + (1. - self.alpha) * grad.square();
+            *r2 = self.momentum * (&*r2) + &grad / (r1.sqrt() + self.eps);
+            *parameter -= &*r2 * self.learning_rate;
         }
     }
     fn init(&mut self, trainable_parameters: &Vec<TensorCell<Ts>>) {

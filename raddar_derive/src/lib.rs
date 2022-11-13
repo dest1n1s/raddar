@@ -101,8 +101,6 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
     output.extend(paramless_derive(&ast, &module_attr));
     output.extend(architecture_builder_derive(&ast, &module_attr));
 
-
-
     output
 }
 
