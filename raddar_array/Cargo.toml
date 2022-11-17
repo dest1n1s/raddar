@@ -1,0 +1,17 @@
+[package]
+name = "raddar_array"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num = "0.4.0"
+parking_lot = "0.12"
+ndarray = { version = "0.15.6", optional = true }
+tch = { path = "../tch-rs", optional = true }
+
+[features]
+default = ["std", "ndarray-backend"]
+
+std = ["ndarray?/std"]
+ndarray-backend = ["dep:ndarray"]
+tch-backend = ["dep:tch"]
