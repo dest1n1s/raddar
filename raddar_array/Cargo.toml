@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 num = "0.4.0"
-parking_lot = "0.12"
+owning_ref = "0.4.1"
 ndarray = { version = "0.15.6", optional = true }
 tch = { path = "../tch-rs", optional = true }
 

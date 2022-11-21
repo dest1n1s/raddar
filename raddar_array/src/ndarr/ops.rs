@@ -2,18 +2,22 @@ use std::sync::{Arc, Mutex};
 
 use crate::tensor::{ops::Operation, TensorMethods};
 
-use super::{IntoOp, KindedArrayD, NdArrayTensor, NdArrayTensorInternal};
+use super::{IntoOp, KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 
 fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
     let mut tensor = tensor.lock().unwrap();
 
-    let shape = tensor.data.size();
-    let dtype = tensor.data.kind();
+    let shape = tensor.as_view().size();
+    let dtype = tensor.as_view().kind();
 
     if tensor.grad.is_none() {
         tensor.grad = Some(KindedArrayD::zeros(&shape, dtype));
     }
-    tensor.grad.as_mut().unwrap().add_(&grad.i().data);
+    tensor
+        .grad
+        .as_mut()
+        .unwrap()
+        .add_(&*grad.i().data.read().unwrap());
 }
 
 macro_rules! go_backward {
@@ -72,7 +76,7 @@ macro_rules! unary_op {
                 let mut tensor = NdArrayTensor::from($forward_calculation);
                 tensor.i().is_leaf = false;
                 use crate::tensor::AutoGradTensorMethods;
-                if $input_name.requires_grad()  {
+                if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
                         output: tensor.i_copy(),
@@ -92,27 +96,21 @@ macro_rules! unary_op {
         }
     };
 }
-unary_op!(
-    NegOp,
-    input,
-    grad,
-    -&input.i().data,
-    -&grad
-);
+unary_op!(NegOp, input, grad, -&*input.i().as_view(), -&grad);
 
-unary_op!(
-    TransposeOp,
-    input,
-    grad,
-    input.i().data.t(),
-    grad.t()
-);
+// unary_op!(
+//     TransposeOp,
+//     input,
+//     grad,
+//     input.i().data.read().t(),
+//     grad.t()
+// );
 
 binary_op!(
     AddOp,
     inputs,
     grad,
-    &inputs.0.i().data + &inputs.1.i().data,
+    &*inputs.0.i().as_view() + &*inputs.1.i().as_view(),
     grad.clone(),
     grad
 );
@@ -121,11 +119,10 @@ binary_op!(
     SubOp,
     inputs,
     grad,
-    &inputs.0.i().data - &inputs.1.i().data,
+    &*inputs.0.i().as_view() - &*inputs.1.i().as_view(),
     grad.clone(),
     -&grad
 );
-
 
 pub(crate) struct GradAccumulateOp {
     tensor: Arc<Mutex<NdArrayTensorInternal>>,

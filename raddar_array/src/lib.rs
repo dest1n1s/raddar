@@ -9,7 +9,7 @@ pub type ArrayTensor = ndarr::NdArrayTensor;
 mod tests {
     use crate::{
         ndarr::NdArrayTensor,
-        tensor::{TensorKind, TensorMethods, AutoGradTensorMethods},
+        tensor::{AutoGradTensorMethods, TensorKind, TensorMethods},
     };
 
     #[test]
@@ -29,5 +29,16 @@ mod tests {
         // and the gradient of `ts2` should be all 0.0.
         ts.grad().debug_print();
         ts2.grad().debug_print();
+    }
+
+    #[test]
+    fn simple_test() {
+        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        ts.debug_print();
+        ts.plus_one();
+        ts.debug_print();
+        ts += 1;
+        ts *= 2i8;
+        ts.debug_print();
     }
 }
