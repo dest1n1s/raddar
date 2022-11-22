@@ -1,4 +1,5 @@
 #![feature(trait_alias)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 #[cfg(feature = "ndarray-backend")]
 pub mod ndarr;
 
@@ -35,7 +36,6 @@ mod tests {
     fn simple_test() {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
         ts.debug_print();
-        ts.plus_one();
         ts.debug_print();
         ts += 1;
         ts *= 2i8;

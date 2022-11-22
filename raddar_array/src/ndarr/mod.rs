@@ -1,6 +1,6 @@
 use std::{
     ops::{AddAssign, DivAssign, MulAssign, SubAssign, Add},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard}, borrow::Borrow,
 };
 
 use self::ops::{GradAccumulateOp, AddOp, SubOp, NegOp};
@@ -737,22 +737,25 @@ impl_from_arrayd_view_into_tensor!(
 // Below are the bottom implementations of the tensor arithmetic methods. 
 // Upper structs' arithmetic methods should invoke these as needed.
 // =================================================================================================
-pub(crate) trait ViewMutMethods {
+pub(crate) trait SuperViewMethods {
     type OwnedType;
     type ViewType<'a>;
+}
+
+pub(crate) trait ViewMutMethods: SuperViewMethods {
     fn upgrade(&self) -> Self::OwnedType;
 
-    fn add_(&mut self, other: &Self::ViewType<'_>);
-    fn sub_(&mut self, other: &Self::ViewType<'_>);
-    fn mul_(&mut self, other: &Self::ViewType<'_>);
-    fn div_(&mut self, other: &Self::ViewType<'_>);
+    fn add_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>);
+    fn sub_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>);
+    fn mul_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>);
+    fn div_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>);
 
     fn add_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
 
-    fn downgrade(&self) -> Self::ViewType<'_>;
+    fn downgrade<'a>(&'a self) -> Self::ViewType<'a>;
 }
 
 pub(crate) trait ViewMethods {
@@ -764,10 +767,10 @@ pub(crate) trait ViewMethods {
     fn upgrade(&self) -> Self::OwnedType;
 
     fn neg(&self) -> Self::OwnedType;
-    fn add(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn sub(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn mul(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn div(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
+    fn add(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType;
+    fn sub(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType;
+    fn mul(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType;
+    fn div(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType;
 
     fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
     fn sub_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
@@ -902,35 +905,37 @@ macro_rules! impl_arith_for_all {
 
 impl_arith_for_all!(KindedArrayD, KindedArrayViewD, KindedArrayViewMutD);
 
-impl ViewMutMethods for KindedArrayViewMutD<'_>{
+impl SuperViewMethods for KindedArrayViewMutD<'_> {
     type OwnedType = KindedArrayD;
 
     type ViewType<'a> = KindedArrayViewD<'a>;
+}
 
+impl<'b> ViewMutMethods for KindedArrayViewMutD<'b>{
     fn upgrade(&self) -> Self::OwnedType {
         todo!()
     }
 
-    fn add_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn add_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 += array2;
         })
     }
 
-    fn sub_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn sub_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 -= array2;
         })
     }
 
-    fn mul_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn mul_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 *= array2;
         })
     }
 
-    fn div_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn div_(&mut self, other: impl for<'a> Borrow<Self::ViewType<'a>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 /= array2;
         })
     }
@@ -976,26 +981,26 @@ impl ViewMethods for KindedArrayViewD<'_> {
         obtain_kind_array_view!(self, array, { KindedArrayD::from(array.mapv(|x| -x)) })
     }
 
-    fn add(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn add(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 + array2)
         })
     }
 
-    fn sub(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn sub(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 - array2)
         })
     }
 
-    fn mul(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn mul(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 * array2)
         })
     }
 
-    fn div(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn div(&self, other: impl for<'a> Borrow<Self::ViewType<'a>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 / array2)
         })
     }
