@@ -14,27 +14,38 @@ use owning_ref::OwningHandle;
 
 pub mod ops;
 
+/// A tensor exported to users. It holds a reference to the actual data.
 pub struct NdArrayTensor {
     internal: Option<Arc<Mutex<NdArrayTensorInternal>>>,
 }
+
+/// ViewType is used to indicate whether the tensor is a view of some tensor.
 #[derive(Clone)]
 pub(crate) enum ViewType {
+    /// The tensor should be viewed as a whole of another tensor.
     All,
+    /// The tensor should be viewed as some view of another tensor.
+    /// `AsView` provides the way to get the view from the original tensor.
     Other(Arc<dyn AsView>),
 }
 
+/// AsView is used to get a view of a tensor.
 pub(crate) trait AsView {
     fn view<'a>(&self, tensor: &KindedArrayD) -> KindedArrayViewD<'a>;
     fn view_mut<'a>(&self, tensor: &mut KindedArrayD) -> KindedArrayViewMutD<'a>;
+    /// Turn this view approach into an operation that can be backwarded.
     fn op(&self) -> Arc<dyn Operation>;
 }
 
 pub(crate) struct NdArrayTensorInternal {
+    /// The view type of this tensor.
     view: ViewType,
+    /// The reference to the actual data.
     data: Arc<RwLock<KindedArrayD>>,
     is_leaf: bool,
     requires_grad: bool,
     grad: Option<KindedArrayD>,
+    /// The operation that generates this tensor.
     op: Option<Arc<dyn Operation>>,
 }
 
@@ -43,17 +54,22 @@ pub(crate) trait IntoOp {
 }
 
 impl<'a> IntoOp for MutexGuard<'a, NdArrayTensorInternal> {
+    /// Unlock the mutex guard and return the operation.
     fn op(self) -> Option<Arc<dyn Operation>> {
         self.op.clone()
     }
 }
-// Since we have protected the data with a mutex, we can safely implement Send and Sync
+
+// Since we have protected the data with a mutex, we can safely implement Send and Sync.
 unsafe impl Send for NdArrayTensorInternal {}
 unsafe impl Sync for NdArrayTensorInternal {}
 
+/// Declare some common methods for KindedArrayD, KindedArrayViewD and KindedArrayViewMutD.
 macro_rules! declare_kinded_array_variant {
     ($array_type: ident, $enum: ident, $kind_fn: ident, $new_kinded_array: ident,
         $obtain_kind_array: ident, $obtain_2_kind_arrays: ident) => {
+
+            /// Get the kind of the array.
             fn $kind_fn(kinded_array: &$enum) -> TensorKind {
                 match kinded_array {
                     $enum::F32(_) => TensorKind::F32,
@@ -63,7 +79,8 @@ macro_rules! declare_kinded_array_variant {
                     $enum::I64(_) => TensorKind::I64,
                 }
             }
-
+            
+            /// Create a new kinded array.
             macro_rules! $new_kinded_array {
                 ($data:expr, $kind:expr) => {
                     match $kind {
@@ -77,7 +94,7 @@ macro_rules! declare_kinded_array_variant {
                 };
             }
 
-            /// Get the real ArrayD `$array_name` from a KindedArrayD `$kind_array`, and
+            /// Get the real array `$array_name` from our array type `$kind_array`, and
             /// set the type `$kind_type_name` to the type of the array.
             /// Then run the code in `$execution`.
             macro_rules! $obtain_kind_array {
@@ -110,10 +127,11 @@ macro_rules! declare_kinded_array_variant {
                 };
             }
 
-            /// Get the real ArrayD `$array_name1` and `$array_name2` from two KindedArrayD,
+            /// Get the real array `$array_name1` and `$array_name2` from two elements of our array type,
             /// and set the type `OriginalKindType` to the type of the `$array_name1`,
-            /// also cast the type of the `$array_name2` to `OriginalKindType` if necessary.
+            /// and then cast the type of the `$array_name2` to `OriginalKindType` if necessary.
             /// Then run the code in `$execution`.
+            /// Note: the `$array_name2` will be either of the same type as `$array_name1`, or an `ArrayD` if it has been casted.
             macro_rules! $obtain_2_kind_arrays {
                 ($kind_array1:expr, $array_name1:ident, $kind_array2:expr, $array_name2:ident, $execution:block) => {
                     match ($kind_array1, $kind_array2) {
@@ -209,6 +227,11 @@ declare_kinded_array_variant!(
     obtain_2_kind_array_view_muts
 );
 
+/// Get the real array `$array_name1` and `$array_name2` from two elements of our array type, `KindedArrayViewMutD` & `KindedArrayViewD`,
+/// and set the type `OriginalKindType` to the type of the `$array_name1`,
+/// and then cast the type of the `$array_name2` to `OriginalKindType` if necessary.
+/// Then run the code in `$execution`.
+/// Note: the `$array_name2` will be either of the same type as `$array_name1`, or an `ArrayD` if it has been casted.
 macro_rules! obtain_2_kind_array_view_mut_with_immut {
     ($kind_array1:expr, $array_name1:ident, $kind_array2:expr, $array_name2:ident, $execution:block) => {
         match ($kind_array1, $kind_array2) {
@@ -244,6 +267,7 @@ macro_rules! obtain_2_kind_array_view_mut_with_immut {
         }
     };
 }
+
 impl NdArrayTensor {
     fn none() -> Self {
         Self { internal: None }
@@ -259,29 +283,26 @@ impl NdArrayTensor {
         }
     }
 
-    pub(crate) fn plus_one(&self) {
-        match self.internal {
-            Some(ref kinded_array) => {
-                let lock = kinded_array.lock().unwrap();
-                obtain_kind_array_view_mut!(&mut *lock.as_view_mut(), array, OriginalKindType, {
-                    array.mapv_inplace(|x| x + cast::<i32,OriginalKindType>(1).unwrap());
-                });
-            }
-            None => {}
-        }
-    }
-
     /// Get the internal data of the tensor.
     fn i(&self) -> MutexGuard<'_, NdArrayTensorInternal> {
         self.internal.as_ref().unwrap().lock().unwrap()
     }
 
+    /// Get a copy of the reference of the internal data of the tensor.
+    /// 
+    /// Note: this is a shallow copy, so the data is not copied.
     fn i_copy(&self) -> Arc<Mutex<NdArrayTensorInternal>> {
         self.internal.as_ref().unwrap().clone()
     }
 }
 
 impl Clone for NdArrayTensor {
+    /// Shallow copy the tensor as a new tensor.
+    /// 
+    /// Note: The new tensor will be a leaf node and not require gradient by default. 
+    /// But it shares the same tensor data with the original tensor. And the view of the new tensor will be 
+    /// 
+    /// fixme: this `Clone` implementation is unsound and should be rewritten in the future.
     fn clone(&self) -> Self {
         match self.internal {
             Some(ref tensor_internal) => {
@@ -316,6 +337,8 @@ impl NdArrayTensorInternal {
         let data = self.data.read().unwrap();
         match self.view {
             ViewType::All => OwningHandle::new_with_fn(data, |data| {
+                // fixme: converting an immutable pointer to a mutable pointer is not safe.
+                // Will `OwningHandle` provide a `new_mut_with_fn` in the future?
                 obtain_kind_array!(unsafe { &mut *(data as *mut _) }, array, {
                     Box::new(KindedArrayViewMutD::from(array.view_mut()))
                 })
@@ -327,7 +350,9 @@ impl NdArrayTensorInternal {
     }
 }
 
-
+// =================================================================================================
+// Implementations for `NdArrayTensor` and `KindedArrayD`.
+// =================================================================================================
 
 impl TensorMethods for NdArrayTensor {
     fn zeros(shape: &[usize], dtype: TensorKind) -> Self {
@@ -543,6 +568,9 @@ impl TensorMethods for KindedArrayD {
 
 arith_impl!(KindedArrayD);
 
+// =================================================================================================
+// Autograd methods
+// =================================================================================================
 impl AutoGradTensorMethods for NdArrayTensor {
     fn backward(&mut self) {
         if let Some(op) = self.i().op() {
@@ -576,6 +604,9 @@ impl AutoGradTensorMethods for NdArrayTensor {
 
 arith_impl!(NdArrayTensor);
 
+// =================================================================================================
+// Implementations of quick ways to create `NdArrayTensor`, `KindedArrayD`, `KindedArrayViewD` and `KindedArrayViewMutD`.
+// =================================================================================================
 impl From<KindedArrayD> for NdArrayTensor {
     fn from(array: KindedArrayD) -> Self {
         Self::from(Arc::new(RwLock::new(array)))
@@ -700,6 +731,12 @@ impl_from_arrayd_view_into_tensor!(
     KindedArrayViewMutD::I64(array)
 );
 
+// =================================================================================================
+// View and ViewMut's Methods and Implementations
+// 
+// Below are the bottom implementations of the tensor arithmetic methods. 
+// Upper structs' arithmetic methods should invoke these as needed.
+// =================================================================================================
 pub(crate) trait ViewMutMethods {
     type OwnedType;
     type ViewType<'a>;
