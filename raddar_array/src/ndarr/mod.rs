@@ -1,17 +1,24 @@
 use std::{
-    ops::{AddAssign, DivAssign, MulAssign, SubAssign, Add},
+    borrow::Borrow,
     sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
-use self::ops::{GradAccumulateOp, AddOp, SubOp, NegOp};
+use self::{
+    array_ops::SliceOp,
+    ops::{AddOp, GradAccumulateOp, NegOp, SubOp},
+};
 use crate::{
     arith_impl,
-    tensor::{ops::Operation, AutoGradTensorMethods, TensorKind, TensorMethods},
+    tensor::{
+        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, TensorKind,
+        TensorMethods,
+    },
 };
-use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, IxDyn};
+use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, IxDyn, SliceInfoElem};
 use num::{cast, NumCast};
 use owning_ref::OwningHandle;
 
+pub mod array_ops;
 pub mod ops;
 
 /// A tensor exported to users. It holds a reference to the actual data.
@@ -21,20 +28,20 @@ pub struct NdArrayTensor {
 
 /// ViewType is used to indicate whether the tensor is a view of some tensor.
 #[derive(Clone)]
-pub(crate) enum ViewType {
-    /// The tensor should be viewed as a whole of another tensor.
-    All,
-    /// The tensor should be viewed as some view of another tensor.
-    /// `AsView` provides the way to get the view from the original tensor.
-    Other(Arc<dyn AsView>),
-}
+pub(crate) struct ViewType(Vec<Arc<dyn AsView>>);
 
 /// AsView is used to get a view of a tensor.
 pub(crate) trait AsView {
-    fn view<'a>(&self, tensor: &KindedArrayD) -> KindedArrayViewD<'a>;
-    fn view_mut<'a>(&self, tensor: &mut KindedArrayD) -> KindedArrayViewMutD<'a>;
+    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a>;
+    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a>;
     /// Turn this view approach into an operation that can be backwarded.
-    fn op(&self) -> Arc<dyn Operation>;
+    fn op(&self, input: &NdArrayTensor, output: &NdArrayTensor) -> Arc<dyn Operation>;
+}
+
+/// A type that impls `BorrowView` can be borrowed as a view of some tensor.
+pub(crate) trait BorrowView {
+    fn view(&self) -> KindedArrayViewD<'_>;
+    fn view_mut(&mut self) -> KindedArrayViewMutD<'_>;
 }
 
 pub(crate) struct NdArrayTensorInternal {
@@ -79,7 +86,7 @@ macro_rules! declare_kinded_array_variant {
                     $enum::I64(_) => TensorKind::I64,
                 }
             }
-            
+
             /// Create a new kinded array.
             macro_rules! $new_kinded_array {
                 ($data:expr, $kind:expr) => {
@@ -289,7 +296,7 @@ impl NdArrayTensor {
     }
 
     /// Get a copy of the reference of the internal data of the tensor.
-    /// 
+    ///
     /// Note: this is a shallow copy, so the data is not copied.
     fn i_copy(&self) -> Arc<Mutex<NdArrayTensorInternal>> {
         self.internal.as_ref().unwrap().clone()
@@ -298,10 +305,7 @@ impl NdArrayTensor {
 
 impl Clone for NdArrayTensor {
     /// Shallow copy the tensor as a new tensor.
-    /// 
-    /// Note: The new tensor will be a leaf node and not require gradient by default. 
-    /// But it shares the same tensor data with the original tensor. And the view of the new tensor will be 
-    /// 
+    ///
     /// fixme: this `Clone` implementation is unsound and should be rewritten in the future.
     fn clone(&self) -> Self {
         match self.internal {
@@ -317,36 +321,30 @@ impl Clone for NdArrayTensor {
 impl NdArrayTensorInternal {
     pub(crate) fn as_view<'a>(
         &'a self,
-    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD>> {
+    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
         let data = self.data.read().unwrap();
-        match self.view {
-            ViewType::All => OwningHandle::new_with_fn(data, |data| {
-                obtain_kind_array!(unsafe { &*data }, array, {
-                    Box::new(KindedArrayViewD::from(array.view()))
-                })
-            }),
-            ViewType::Other(ref as_view) => {
-                OwningHandle::new_with_fn(data, |data| Box::new(as_view.view(unsafe { &*data })))
+        OwningHandle::new_with_fn(data, |data| {
+            let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
+            let mut view = tensor.view();
+            for viewer in self.view.0.iter() {
+                view = viewer.view(view);
             }
-        }
+            Box::new(view)
+        })
     }
 
     pub(crate) fn as_view_mut<'a>(
         &'a self,
-    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD>> {
+    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
         let data = self.data.read().unwrap();
-        match self.view {
-            ViewType::All => OwningHandle::new_with_fn(data, |data| {
-                // fixme: converting an immutable pointer to a mutable pointer is not safe.
-                // Will `OwningHandle` provide a `new_mut_with_fn` in the future?
-                obtain_kind_array!(unsafe { &mut *(data as *mut _) }, array, {
-                    Box::new(KindedArrayViewMutD::from(array.view_mut()))
-                })
-            }),
-            ViewType::Other(ref as_view) => OwningHandle::new_with_fn(data, |data| {
-                Box::new(as_view.view_mut(unsafe { &mut *(data as *mut _) }))
-            }),
-        }
+        OwningHandle::new_with_fn(data, |data| {
+            let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
+            let mut view = tensor.view_mut();
+            for viewer in self.view.0.iter() {
+                view = viewer.view_mut(view);
+            }
+            Box::new(view)
+        })
     }
 }
 
@@ -444,6 +442,22 @@ impl TensorMethods for NdArrayTensor {
     }
 }
 
+impl ArrayMethods for NdArrayTensor {
+    fn slice(&self, index: IndexInfo) -> Self {
+        SliceOp::forward(self, index)
+    }
+}
+
+impl BorrowView for KindedArrayD {
+    fn view(&self) -> KindedArrayViewD<'_> {
+        obtain_kind_array!(self, array, { KindedArrayViewD::from(array.view()) })
+    }
+
+    fn view_mut(&mut self) -> KindedArrayViewMutD<'_> {
+        obtain_kind_array!(self, array, { KindedArrayViewMutD::from(array.view_mut()) })
+    }
+}
+
 impl TensorMethods for KindedArrayD {
     fn zeros(shape: &[usize], dtype: TensorKind) -> Self {
         new_kinded_array!(ArrayD::zeros(IxDyn(&shape)), dtype)
@@ -466,103 +480,79 @@ impl TensorMethods for KindedArrayD {
     }
 
     fn neg(&self) -> Self {
-        obtain_kind_array!(self, array, { KindedArrayD::from(-array) })
+        -&self.view()
     }
 
     fn add(&self, other: &Self) -> Self {
-        obtain_2_kind_arrays!(self, array1, other, array2, {
-            KindedArrayD::from(array1 + array2)
-        })
+        &self.view() + &other.view()
     }
 
     fn sub(&self, other: &Self) -> Self {
-        obtain_2_kind_arrays!(self, array1, other, array2, {
-            KindedArrayD::from(array1 - array2)
-        })
+        &self.view() - &other.view()
     }
 
     fn mul(&self, other: &Self) -> Self {
-        obtain_2_kind_arrays!(self, array1, other, array2, {
-            KindedArrayD::from(array1 * array2)
-        })
+        &self.view() * &other.view()
     }
 
     fn div(&self, other: &Self) -> Self {
-        obtain_2_kind_arrays!(self, array1, other, array2, {
-            KindedArrayD::from(array1 / array2)
-        })
+        &self.view() / &other.view()
     }
 
     fn add_(&mut self, other: &Self) {
-        obtain_2_kind_arrays!(self, array1, &other, array2, {
-            *array1 += array2;
-        });
+        let mut self_view = self.view_mut();
+        self_view += &other.view();
     }
 
     fn sub_(&mut self, other: &Self) {
-        obtain_2_kind_arrays!(self, array1, &other, array2, {
-            *array1 -= array2;
-        });
+        let mut self_view = self.view_mut();
+        self_view -= &other.view();
     }
 
     fn mul_(&mut self, other: &Self) {
-        obtain_2_kind_arrays!(self, array1, &other, array2, {
-            *array1 *= array2;
-        });
+        let mut self_view = self.view_mut();
+        self_view *= &other.view();
     }
 
     fn div_(&mut self, other: &Self) {
-        obtain_2_kind_arrays!(self, array1, &other, array2, {
-            *array1 /= array2;
-        });
+        let mut self_view = self.view_mut();
+        self_view /= &other.view();
     }
 
     fn add_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
-        obtain_kind_array!(self, array, {
-            KindedArrayD::from(array + cast::<T, KindType>(other).unwrap())
-        })
+        &self.view() + other
     }
 
     fn sub_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
-        obtain_kind_array!(self, array, {
-            KindedArrayD::from(array - cast::<T, KindType>(other).unwrap())
-        })
+        &self.view() - other
     }
 
     fn mul_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
-        obtain_kind_array!(self, array, {
-            KindedArrayD::from(array * cast::<T, KindType>(other).unwrap())
-        })
+        &self.view() * other
     }
 
     fn div_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
-        obtain_kind_array!(self, array, {
-            KindedArrayD::from(array / cast::<T, KindType>(other).unwrap())
-        })
+        &self.view() / other
     }
 
     fn add_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
-        obtain_kind_array!(self, array, {
-            *array += cast::<T, KindType>(other).unwrap();
-        });
+        let mut self_view = self.view_mut();
+        self_view += other;
     }
 
     fn sub_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
-        obtain_kind_array!(self, array, {
-            *array -= cast::<T, KindType>(other).unwrap();
-        });
+        let mut self_view = self.view_mut();
+        self_view -= other;
     }
 
     fn mul_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
-        obtain_kind_array!(self, array, {
-            *array *= cast::<T, KindType>(other).unwrap();
-        });
+        let mut self_view = self.view_mut();
+        self_view *= other;
     }
 
     fn div_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
-        obtain_kind_array!(self, array, {
-            *array /= cast::<T, KindType>(other).unwrap();
-        });
+        let mut self_view = self.view_mut();
+        self_view /= other;
     }
 }
 
@@ -622,7 +612,7 @@ impl From<Arc<RwLock<KindedArrayD>>> for NdArrayTensor {
                 grad: None,
                 requires_grad: false,
                 is_leaf: true,
-                view: ViewType::All,
+                view: ViewType(vec![]),
             }))),
         }
     }
@@ -733,41 +723,49 @@ impl_from_arrayd_view_into_tensor!(
 
 // =================================================================================================
 // View and ViewMut's Methods and Implementations
-// 
-// Below are the bottom implementations of the tensor arithmetic methods. 
+//
+// Below are the bottom implementations of the tensor arithmetic methods.
 // Upper structs' arithmetic methods should invoke these as needed.
 // =================================================================================================
-pub(crate) trait ViewMutMethods {
+pub(crate) trait SuperViewMethods {
     type OwnedType;
     type ViewType<'a>;
+    type ViewMutType<'a>;
+}
+
+pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn upgrade(&self) -> Self::OwnedType;
 
-    fn add_(&mut self, other: &Self::ViewType<'_>);
-    fn sub_(&mut self, other: &Self::ViewType<'_>);
-    fn mul_(&mut self, other: &Self::ViewType<'_>);
-    fn div_(&mut self, other: &Self::ViewType<'_>);
+    fn slice_mut<'a>(&'a mut self, info: IndexInfo) -> Self::ViewMutType<'a>;
+    fn into_slice_mut(self, info: IndexInfo) -> Self::ViewMutType<'this>;
+
+    fn add_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
+    fn sub_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
+    fn mul_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
+    fn div_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
 
     fn add_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
 
-    fn downgrade(&self) -> Self::ViewType<'_>;
+    fn downgrade<'a>(&'a self) -> Self::ViewType<'a>;
 }
 
-pub(crate) trait ViewMethods {
-    type OwnedType;
-    type ViewType<'a>;
-
+pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn kind(&self) -> TensorKind;
     fn size(&self) -> Vec<usize>;
     fn upgrade(&self) -> Self::OwnedType;
 
+    fn slice<'a>(&'a self, info: IndexInfo) -> Self::ViewType<'a>;
+    fn into_slice(self, info: IndexInfo) -> Self::ViewType<'this>;
+
     fn neg(&self) -> Self::OwnedType;
-    fn add(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn sub(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn mul(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
-    fn div(&self, other: &Self::ViewType<'_>) -> Self::OwnedType;
+    fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
+    fn add(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
+    fn sub(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
+    fn mul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
+    fn div(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
 
     fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
     fn sub_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
@@ -902,35 +900,53 @@ macro_rules! impl_arith_for_all {
 
 impl_arith_for_all!(KindedArrayD, KindedArrayViewD, KindedArrayViewMutD);
 
-impl ViewMutMethods for KindedArrayViewMutD<'_>{
+impl SuperViewMethods for KindedArrayViewMutD<'_> {
     type OwnedType = KindedArrayD;
 
     type ViewType<'a> = KindedArrayViewD<'a>;
 
+    type ViewMutType<'a> = KindedArrayViewMutD<'a>;
+}
+
+impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
     fn upgrade(&self) -> Self::OwnedType {
-        todo!()
+        obtain_kind_array_view_mut!(self, array, { KindedArrayD::from(array.to_owned()) })
     }
 
-    fn add_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn slice_mut<'a>(&'a mut self, info: IndexInfo) -> Self::ViewMutType<'a> {
+        obtain_kind_array_view_mut!(self, array, {
+            let info: Vec<SliceInfoElem> = info.into();
+            KindedArrayViewMutD::from(array.slice_mut(info.as_slice()))
+        })
+    }
+
+    fn into_slice_mut(self, info: IndexInfo) -> Self::ViewMutType<'this> {
+        obtain_kind_array_view_mut!(self, array, {
+            let info: Vec<SliceInfoElem> = info.into();
+            KindedArrayViewMutD::from(array.slice_move(info.as_slice()))
+        })
+    }
+
+    fn add_(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 += array2;
         })
     }
 
-    fn sub_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn sub_(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 -= array2;
         })
     }
 
-    fn mul_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn mul_(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 *= array2;
         })
     }
 
-    fn div_(&mut self, other: &Self::ViewType<'_>) {
-        obtain_2_kind_array_view_mut_with_immut!(self, array1, other, array2, {
+    fn div_(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 /= array2;
         })
     }
@@ -964,10 +980,15 @@ impl ViewMutMethods for KindedArrayViewMutD<'_>{
     }
 }
 
-impl ViewMethods for KindedArrayViewD<'_> {
+impl SuperViewMethods for KindedArrayViewD<'_> {
     type OwnedType = KindedArrayD;
+
     type ViewType<'a> = KindedArrayViewD<'a>;
 
+    type ViewMutType<'a> = KindedArrayViewMutD<'a>;
+}
+
+impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     fn upgrade(&self) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, { KindedArrayD::from(array.to_owned()) })
     }
@@ -976,30 +997,47 @@ impl ViewMethods for KindedArrayViewD<'_> {
         obtain_kind_array_view!(self, array, { KindedArrayD::from(array.mapv(|x| -x)) })
     }
 
-    fn add(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn slice<'a>(&'a self, info: IndexInfo) -> Self::ViewType<'a> {
+        obtain_kind_array_view!(self, array, {
+            let info: Vec<SliceInfoElem> = info.into();
+            KindedArrayViewD::from(array.slice(info.as_slice()))
+        })
+    }
+
+    fn into_slice(self, info: IndexInfo) -> Self::ViewType<'this> {
+        obtain_kind_array_view!(self, array, {
+            let info: Vec<SliceInfoElem> = info.into();
+            KindedArrayViewD::from(array.slice_move(info.as_slice()))
+        })
+    }
+
+    fn add(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 + array2)
         })
     }
 
-    fn sub(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn sub(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 - array2)
         })
     }
 
-    fn mul(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn mul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 * array2)
         })
     }
 
-    fn div(&self, other: &KindedArrayViewD<'_>) -> Self::OwnedType {
-        obtain_2_kind_array_views!(self, array1, other, array2, {
+    fn div(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 / array2)
         })
     }
 
+    fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
+        todo!()
+    }
     fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, {
             KindedArrayD::from(array.mapv(|x| x + cast::<T, KindType>(other).unwrap()))
@@ -1031,5 +1069,4 @@ impl ViewMethods for KindedArrayViewD<'_> {
     fn size(&self) -> Vec<usize> {
         obtain_kind_array_view!(self, array, { array.shape().to_vec() })
     }
-
 }

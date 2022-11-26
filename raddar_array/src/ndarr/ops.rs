@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::tensor::{ops::Operation, TensorMethods};
 
-use super::{IntoOp, KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
+use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 
-fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
+pub(crate) fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
     let mut tensor = tensor.lock().unwrap();
 
     let shape = tensor.as_view().size();
@@ -20,10 +20,11 @@ fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
         .add_(&*grad.i().data.read().unwrap());
 }
 
+#[macro_export]
 macro_rules! go_backward {
     ($tensor_data:expr, $backward_grad:expr) => {
         let tmp_tensor_in_go_backward = $tensor_data.lock().unwrap();
-        if let Some(op) = tmp_tensor_in_go_backward.op() {
+        if let Some(op) = $crate::ndarr::IntoOp::op(tmp_tensor_in_go_backward) {
             op.backward($backward_grad);
         }
     };

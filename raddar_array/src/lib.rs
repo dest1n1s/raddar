@@ -1,4 +1,5 @@
 #![feature(trait_alias)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 #[cfg(feature = "ndarray-backend")]
 pub mod ndarr;
 
@@ -9,7 +10,10 @@ pub type ArrayTensor = ndarr::NdArrayTensor;
 mod tests {
     use crate::{
         ndarr::NdArrayTensor,
-        tensor::{AutoGradTensorMethods, TensorKind, TensorMethods},
+        tensor::{
+            index::{IndexInfo, IndexInfoItem},
+            ArrayMethods, AutoGradTensorMethods, TensorKind, TensorMethods,
+        },
     };
 
     #[test]
@@ -17,6 +21,7 @@ mod tests {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
         ts *= 2.0f64;
         let mut ts2 = NdArrayTensor::zeros(&[2, 2], TensorKind::F32);
+        ts2 += 1;
         ts2 *= 2.0f64;
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -34,11 +39,19 @@ mod tests {
     #[test]
     fn simple_test() {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
-        ts.debug_print();
-        ts.plus_one();
-        ts.debug_print();
-        ts += 1;
-        ts *= 2i8;
+        ts *= 2.0f64;
+        let mut ts2 = NdArrayTensor::zeros(&[2], TensorKind::F32);
+        ts2 += 1;
+        ts2 *= 2.0f64;
+        ts.set_requires_grad(true);
+        let ts_1 = ts.slice(IndexInfo {
+            infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, 2, 1)],
+        });
+        let mut ts3 = &ts_1 + &ts2;
+
+        ts3.backward();
+
+        ts.grad().debug_print();
         ts.debug_print();
     }
 }

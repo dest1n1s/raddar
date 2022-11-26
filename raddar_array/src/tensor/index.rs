@@ -1,9 +1,11 @@
+#[derive(Clone)]
 pub struct IndexInfo {
     pub infos: Vec<IndexInfoItem>,
 }
 
+#[derive(Clone)]
 pub enum IndexInfoItem {
-    Single(usize),
-    Range(usize, usize, usize),
-    Slice(Vec<usize>),
+    Single(isize),
+    Range(isize, isize, isize),
+    NewAxis,
 }
