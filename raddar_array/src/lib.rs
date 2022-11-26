@@ -10,7 +10,10 @@ pub type ArrayTensor = ndarr::NdArrayTensor;
 mod tests {
     use crate::{
         ndarr::NdArrayTensor,
-        tensor::{AutoGradTensorMethods, TensorKind, TensorMethods},
+        tensor::{
+            index::{IndexInfo, IndexInfoItem},
+            ArrayMethods, AutoGradTensorMethods, TensorKind, TensorMethods,
+        },
     };
 
     #[test]
@@ -35,10 +38,14 @@ mod tests {
     #[test]
     fn simple_test() {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
-        ts.debug_print();
-        ts.debug_print();
         ts += 1;
         ts *= 2i8;
-        ts.debug_print();
+        let ts2 = ts.slice(IndexInfo {
+            infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, 2, 1)],
+        });
+        let ts4 = ts2.slice(IndexInfo {
+            infos: vec![IndexInfoItem::Single(0)],
+        });
+        ts4.debug_print();
     }
 }

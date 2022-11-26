@@ -2,6 +2,8 @@
 
 use num::cast::NumCast;
 
+use self::index::IndexInfo;
+
 pub mod index;
 pub mod ops;
 
@@ -43,6 +45,10 @@ pub trait TensorMethods: Sized {
     fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
+}
+
+pub trait ArrayMethods: Sized{
+    fn slice(&self, index: IndexInfo) -> Self;
 }
 
 pub trait AutoGradTensorMethods: TensorMethods {
