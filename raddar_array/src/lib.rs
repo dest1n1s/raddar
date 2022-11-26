@@ -21,6 +21,7 @@ mod tests {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
         ts *= 2.0f64;
         let mut ts2 = NdArrayTensor::zeros(&[2, 2], TensorKind::F32);
+        ts2 += 1;
         ts2 *= 2.0f64;
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -38,14 +39,19 @@ mod tests {
     #[test]
     fn simple_test() {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
-        ts += 1;
-        ts *= 2i8;
-        let ts2 = ts.slice(IndexInfo {
+        ts *= 2.0f64;
+        let mut ts2 = NdArrayTensor::zeros(&[2], TensorKind::F32);
+        ts2 += 1;
+        ts2 *= 2.0f64;
+        ts.set_requires_grad(true);
+        let ts_1 = ts.slice(IndexInfo {
             infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, 2, 1)],
         });
-        let ts4 = ts2.slice(IndexInfo {
-            infos: vec![IndexInfoItem::Single(0)],
-        });
-        ts4.debug_print();
+        let mut ts3 = &ts_1 + &ts2;
+
+        ts3.backward();
+
+        ts.grad().debug_print();
+        ts.debug_print();
     }
 }

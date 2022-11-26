@@ -4,7 +4,7 @@ use std::{
 };
 
 use self::{
-    array_ops::SliceView,
+    array_ops::SliceOp,
     ops::{AddOp, GradAccumulateOp, NegOp, SubOp},
 };
 use crate::{
@@ -35,7 +35,7 @@ pub(crate) trait AsView {
     fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a>;
     fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a>;
     /// Turn this view approach into an operation that can be backwarded.
-    fn op(&self) -> Arc<dyn Operation>;
+    fn op(&self, input: &NdArrayTensor, output: &NdArrayTensor) -> Arc<dyn Operation>;
 }
 
 /// A type that impls `BorrowView` can be borrowed as a view of some tensor.
@@ -444,15 +444,7 @@ impl TensorMethods for NdArrayTensor {
 
 impl ArrayMethods for NdArrayTensor {
     fn slice(&self, index: IndexInfo) -> Self {
-        let cloned = self.clone();
-        // todo: wrap the old view if it is not `ViewType::All`.
-        cloned.i().view = self.i().view.clone();
-        cloned.i().view.0.push(Arc::new(SliceView::new(index)));
-        cloned.i().is_leaf = self.i().is_leaf;
-        cloned.i().requires_grad = self.i().requires_grad;
-        cloned.i().grad = None;
-        cloned.i().op = None;
-        cloned
+        SliceOp::forward(self, index)
     }
 }
 
