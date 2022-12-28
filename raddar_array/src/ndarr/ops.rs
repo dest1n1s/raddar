@@ -30,6 +30,25 @@ macro_rules! go_backward {
     };
 }
 
+macro_rules! borrow_two_tensor_internals {
+    ($a:expr, $b:expr, $tuple_name: ident, $execution: block) => {{
+        let first = $a.lock().unwrap();
+
+        let result = if std::sync::Arc::ptr_eq(&$a, &$b) {
+            let $tuple_name = (&first, &first);
+            $execution
+        } else {
+            let second = $b.lock().unwrap();
+            let $tuple_name = (&first, &second);
+            let result = $execution;
+            drop(second);
+            result
+        };
+        drop(first);
+
+        result
+    }};
+}
 macro_rules! binary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
@@ -40,13 +59,20 @@ macro_rules! binary_op {
 
         impl $op_name {
             pub fn forward($input_name: (&NdArrayTensor, &NdArrayTensor)) -> NdArrayTensor {
-                let mut tensor = NdArrayTensor::from($forward_calculation);
+                // CAUTION: decide whether the tuple is the same or not first, 
+                // if the tuple is the same, we should prevent locking the tensor twice.
+                let (a, b) = ($input_name.0.i_copy(), $input_name.1.i_copy());
+
+                let mut tensor = borrow_two_tensor_internals!(a, b, $input_name, {
+                    NdArrayTensor::from($forward_calculation)
+                });
+
                 tensor.i().is_leaf = false;
                 use crate::tensor::AutoGradTensorMethods;
                 if $input_name.0.requires_grad() || $input_name.1.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
-                        a: $input_name.0.i_copy(),
-                        b: $input_name.1.i_copy(),
+                        a,
+                        b,
                         output: tensor.i_copy(),
                     }));
                     tensor.set_requires_grad(true);
@@ -59,10 +85,14 @@ macro_rules! binary_op {
             fn backward(&self, $grad_name: NdArrayTensor) {
                 add_grad(self.output.clone(), $grad_name.clone());
 
-                let $input_name = (&self.a.lock().unwrap(), &self.b.lock().unwrap());
+                let (a, b) = borrow_two_tensor_internals!(self.a, self.b, $input_name, {
+                    let res_a = $backward_to_a;
+                    let res_b = $backward_to_b;
+                    (res_a, res_b)
+                });
 
-                go_backward!(self.a, $backward_to_a);
-                go_backward!(self.b, $backward_to_b);
+                go_backward!(self.a, a);
+                go_backward!(self.b, b);
             }
         }
     };
@@ -143,7 +173,7 @@ binary_op!(
     AddOp,
     inputs,
     grad,
-    &*inputs.0.i().as_view() + &*inputs.1.i().as_view(),
+    &*inputs.0.as_view() + &*inputs.1.as_view(),
     grad.clone(),
     grad
 );
@@ -152,7 +182,7 @@ binary_op!(
     SubOp,
     inputs,
     grad,
-    &*inputs.0.i().as_view() - &*inputs.1.i().as_view(),
+    &*inputs.0.as_view() - &*inputs.1.as_view(),
     grad.clone(),
     -&grad
 );
@@ -161,7 +191,7 @@ binary_op!(
     MulOp,
     inputs,
     grad,
-    &*inputs.0.i().as_view() * &*inputs.1.i().as_view(),
+    &*inputs.0.as_view() * &*inputs.1.as_view(),
     NdArrayTensor::from(&*grad.i().as_view() * &*inputs.1.as_view()),
     NdArrayTensor::from(&*grad.i().as_view() * &*inputs.0.as_view())
 );
@@ -170,11 +200,11 @@ binary_op!(
     DivOp,
     inputs,
     grad,
-    &*inputs.0.i().as_view() / &*inputs.1.i().as_view(),
+    &*inputs.0.as_view() / &*inputs.1.as_view(),
     NdArrayTensor::from(&*grad.i().as_view() / &*inputs.1.as_view()),
     NdArrayTensor::from(
-        &(&*grad.i().as_view() * &*inputs.0.as_view())
-            / &(&*inputs.1.as_view() * &*inputs.1.as_view())
+        -&(&(&*grad.i().as_view() * &*inputs.0.as_view())
+            / &(&*inputs.1.as_view() * &*inputs.1.as_view()))
     )
 );
 

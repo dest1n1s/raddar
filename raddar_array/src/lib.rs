@@ -68,10 +68,15 @@ mod tests {
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
 
-        let mut ts3 = &ts + &ts;
-
+        let mut ts3 = &ts + &ts2;
+       
         ts3 = &ts3 * 2;
+        ts3 = &ts3 * &ts2;
+        ts3 = &ts3 / &ts2;
+        ts3 = &ts3 / &ts3;
         ts3.backward();
+
+        ts3.debug_print();
 
         ts.grad().debug_print();
         ts2.grad().debug_print();
