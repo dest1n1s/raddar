@@ -5,7 +5,7 @@ use std::{
 
 use self::{
     array_ops::{PermuteOp, SliceOp, TransposeOp, BroadcastOp},
-    ops::{AddOp, GradAccumulateOp, NegOp, SubOp},
+    ops::{AddOp, GradAccumulateOp, NegOp, SubOp, AddScalarOp, SubScalarOp, MulScalarOp, DivScalarOp, MulOp, DivOp},
 };
 use crate::{
     arith_impl,
@@ -202,7 +202,7 @@ pub enum KindedArrayD {
     I64(ArrayD<i64>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum KindedArrayViewD<'a> {
     F32(ArrayViewD<'a, f32>),
@@ -403,11 +403,11 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn mul(&self, other: &Self) -> Self {
-        todo!()
+        MulOp::forward((self, other))
     }
 
     fn div(&self, other: &Self) -> Self {
-        todo!()
+        DivOp::forward((self, other))
     }
 
     fn add_(&mut self, other: &Self) {
@@ -426,35 +426,35 @@ impl TensorMethods for NdArrayTensor {
         *self.i().as_view_mut() /= &*other.i().as_view();
     }
 
-    fn add_scalar<T: num::cast::NumCast + Copy>(&self, other: T) -> Self {
-        todo!()
+    fn add_scalar<T: num::cast::NumCast + Copy + 'static>(&self, other: T) -> Self {
+        AddScalarOp::forward(self, other)
     }
 
-    fn sub_scalar<T: num::cast::NumCast + Copy>(&self, other: T) -> Self {
-        todo!()
+    fn sub_scalar<T: num::cast::NumCast + Copy + 'static>(&self, other: T) -> Self {
+        SubScalarOp::forward(self, other)
     }
 
-    fn mul_scalar<T: num::cast::NumCast + Copy>(&self, other: T) -> Self {
-        todo!()
+    fn mul_scalar<T: num::cast::NumCast + Copy + 'static>(&self, other: T) -> Self {
+        MulScalarOp::forward(self, other)
     }
 
-    fn div_scalar<T: num::cast::NumCast + Copy>(&self, other: T) -> Self {
-        todo!()
+    fn div_scalar<T: num::cast::NumCast + Copy + 'static>(&self, other: T) -> Self {
+        DivScalarOp::forward(self, other)
     }
 
-    fn add_scalar_<T: num::cast::NumCast + Copy>(&mut self, other: T) {
+    fn add_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() += other;
     }
 
-    fn sub_scalar_<T: num::cast::NumCast + Copy>(&mut self, other: T) {
+    fn sub_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() -= other;
     }
 
-    fn mul_scalar_<T: num::cast::NumCast + Copy>(&mut self, other: T) {
+    fn mul_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() *= other;
     }
 
-    fn div_scalar_<T: num::cast::NumCast + Copy>(&mut self, other: T) {
+    fn div_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() /= other;
     }
 }
@@ -544,38 +544,38 @@ impl TensorMethods for KindedArrayD {
         self_view /= &other.view();
     }
 
-    fn add_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
+    fn add_scalar<T: num::NumCast + Copy + 'static>(&self, other: T) -> Self {
         &self.view() + other
     }
 
-    fn sub_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
+    fn sub_scalar<T: num::NumCast + Copy + 'static>(&self, other: T) -> Self {
         &self.view() - other
     }
 
-    fn mul_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
+    fn mul_scalar<T: num::NumCast + Copy + 'static>(&self, other: T) -> Self {
         &self.view() * other
     }
 
-    fn div_scalar<T: num::NumCast + Copy>(&self, other: T) -> Self {
+    fn div_scalar<T: num::NumCast + Copy + 'static>(&self, other: T) -> Self {
         &self.view() / other
     }
 
-    fn add_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
+    fn add_scalar_<T: num::NumCast + Copy + 'static>(&mut self, other: T) {
         let mut self_view = self.view_mut();
         self_view += other;
     }
 
-    fn sub_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
+    fn sub_scalar_<T: num::NumCast + Copy + 'static>(&mut self, other: T) {
         let mut self_view = self.view_mut();
         self_view -= other;
     }
 
-    fn mul_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
+    fn mul_scalar_<T: num::NumCast + Copy + 'static>(&mut self, other: T) {
         let mut self_view = self.view_mut();
         self_view *= other;
     }
 
-    fn div_scalar_<T: num::NumCast + Copy>(&mut self, other: T) {
+    fn div_scalar_<T: num::NumCast + Copy + 'static>(&mut self, other: T) {
         let mut self_view = self.view_mut();
         self_view /= other;
     }
@@ -771,10 +771,10 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn mul_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
     fn div_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
 
-    fn add_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
+    fn add_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
 
     fn downgrade<'a>(&'a self) -> Self::ViewType<'a>;
 }
@@ -798,10 +798,10 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn mul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
     fn div(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
 
-    fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
-    fn sub_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
-    fn mul_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
-    fn div_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType;
+    fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
+    fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
+    fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
+    fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
 }
 
 macro_rules! impl_arith_for_all {
@@ -830,25 +830,25 @@ macro_rules! impl_arith_for_all {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::AddAssign<T> for $view_mut_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::AddAssign<T> for $view_mut_type<'_> {
             fn add_assign(&mut self, other: T) {
                 ViewMutMethods::add_scalar_(self, other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::SubAssign<T> for $view_mut_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::SubAssign<T> for $view_mut_type<'_> {
             fn sub_assign(&mut self, other: T) {
                 ViewMutMethods::sub_scalar_(self, other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::MulAssign<T> for $view_mut_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::MulAssign<T> for $view_mut_type<'_> {
             fn mul_assign(&mut self, other: T) {
                 ViewMutMethods::mul_scalar_(self, other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::DivAssign<T> for $view_mut_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::DivAssign<T> for $view_mut_type<'_> {
             fn div_assign(&mut self, other: T) {
                 ViewMutMethods::div_scalar_(self, other);
             }
@@ -895,7 +895,7 @@ macro_rules! impl_arith_for_all {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Add<T> for &$view_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Add<T> for &$view_type<'_> {
             type Output = $own_type;
 
             fn add(self, other: T) -> Self::Output {
@@ -903,7 +903,7 @@ macro_rules! impl_arith_for_all {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Sub<T> for &$view_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Sub<T> for &$view_type<'_> {
             type Output = $own_type;
 
             fn sub(self, other: T) -> Self::Output {
@@ -911,7 +911,7 @@ macro_rules! impl_arith_for_all {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Mul<T> for &$view_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Mul<T> for &$view_type<'_> {
             type Output = $own_type;
 
             fn mul(self, other: T) -> Self::Output {
@@ -919,7 +919,7 @@ macro_rules! impl_arith_for_all {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Div<T> for &$view_type<'_> {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Div<T> for &$view_type<'_> {
             type Output = $own_type;
 
             fn div(self, other: T) -> Self::Output {
@@ -992,25 +992,25 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
-    fn add_scalar_<T: NumCast + Copy>(&mut self, other: T) {
+    fn add_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T) {
         obtain_kind_array_view_mut!(self, array, {
             *array += cast::<T, KindType>(other).unwrap();
         })
     }
 
-    fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T) {
+    fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T) {
         obtain_kind_array_view_mut!(self, array, {
             *array -= cast::<T, KindType>(other).unwrap();
         })
     }
 
-    fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T) {
+    fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T) {
         obtain_kind_array_view_mut!(self, array, {
             *array *= cast::<T, KindType>(other).unwrap();
         })
     }
 
-    fn div_scalar_<T: NumCast + Copy>(&mut self, other: T) {
+    fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T) {
         obtain_kind_array_view_mut!(self, array, {
             *array /= cast::<T, KindType>(other).unwrap();
         })
@@ -1105,25 +1105,26 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
         todo!()
     }
-    fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType {
+
+    fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, {
             KindedArrayD::from(array.mapv(|x| x + cast::<T, KindType>(other).unwrap()))
         })
     }
 
-    fn sub_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType {
+    fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, {
             KindedArrayD::from(array.mapv(|x| x - cast::<T, KindType>(other).unwrap()))
         })
     }
 
-    fn mul_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType {
+    fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, {
             KindedArrayD::from(array.mapv(|x| x * cast::<T, KindType>(other).unwrap()))
         })
     }
 
-    fn div_scalar<T: NumCast + Copy>(&self, other: T) -> Self::OwnedType {
+    fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, {
             KindedArrayD::from(array.mapv(|x| x / cast::<T, KindType>(other).unwrap()))
         })

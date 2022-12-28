@@ -35,14 +35,14 @@ pub trait TensorMethods: Sized {
     fn mul_(&mut self, other: &Self);
     fn div_(&mut self, other: &Self);
 
-    fn add_scalar<T: NumCast + Copy>(&self, other: T) -> Self;
-    fn sub_scalar<T: NumCast + Copy>(&self, other: T) -> Self;
-    fn mul_scalar<T: NumCast + Copy>(&self, other: T) -> Self;
-    fn div_scalar<T: NumCast + Copy>(&self, other: T) -> Self;
-    fn add_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn sub_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn mul_scalar_<T: NumCast + Copy>(&mut self, other: T);
-    fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
+    fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
+    fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
+    fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
+    fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
+    fn add_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
 }
 
 pub trait ArrayMethods: Sized {
@@ -96,28 +96,28 @@ macro_rules! arith_impl {
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Add<T> for &$impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Add<T> for &$impl_type {
             type Output = $impl_type;
             fn add(self, other: T) -> Self::Output {
                 TensorMethods::add_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Sub<T> for &$impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Sub<T> for &$impl_type {
             type Output = $impl_type;
             fn sub(self, other: T) -> Self::Output {
                 TensorMethods::sub_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Mul<T> for &$impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Mul<T> for &$impl_type {
             type Output = $impl_type;
             fn mul(self, other: T) -> Self::Output {
                 TensorMethods::mul_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::Div<T> for &$impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::Div<T> for &$impl_type {
             type Output = $impl_type;
             fn div(self, other: T) -> Self::Output {
                 TensorMethods::div_scalar(self, other)
@@ -172,25 +172,25 @@ macro_rules! arith_impl {
             }
         }
         
-        impl<T: num::NumCast + Copy> std::ops::AddAssign<T> for $impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::AddAssign<T> for $impl_type {
             fn add_assign(&mut self, other: T) {
                 self.add_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::SubAssign<T> for $impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::SubAssign<T> for $impl_type {
             fn sub_assign(&mut self, other: T) {
                 self.sub_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::MulAssign<T> for $impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::MulAssign<T> for $impl_type {
             fn mul_assign(&mut self, other: T) {
                 self.mul_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy> std::ops::DivAssign<T> for $impl_type {
+        impl<T: num::NumCast + Copy + 'static> std::ops::DivAssign<T> for $impl_type {
             fn div_assign(&mut self, other: T) {
                 self.div_scalar_(other);
             }
