@@ -1,10 +1,10 @@
 use std::{
     borrow::Borrow,
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard}
 };
 
 use self::{
-    array_ops::SliceOp,
+    array_ops::{PermuteOp, SliceOp, TransposeOp, BroadcastOp},
     ops::{AddOp, GradAccumulateOp, NegOp, SubOp},
 };
 use crate::{
@@ -34,8 +34,6 @@ pub(crate) struct ViewType(Vec<Arc<dyn AsView>>);
 pub(crate) trait AsView {
     fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a>;
     fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a>;
-    /// Turn this view approach into an operation that can be backwarded.
-    fn op(&self, input: &NdArrayTensor, output: &NdArrayTensor) -> Arc<dyn Operation>;
 }
 
 /// A type that impls `BorrowView` can be borrowed as a view of some tensor.
@@ -54,6 +52,23 @@ pub(crate) struct NdArrayTensorInternal {
     grad: Option<KindedArrayD>,
     /// The operation that generates this tensor.
     op: Option<Arc<dyn Operation>>,
+}
+
+impl Clone for NdArrayTensorInternal {
+    /// Clone the internal tensor.
+    ///
+    /// Note: it is a cheap clone, since it only clones the reference to the data.
+    /// To prevent any expensive operation, the `grad` field is not cloned.
+    fn clone(&self) -> Self {
+        Self {
+            view: self.view.clone(),
+            data: self.data.clone(),
+            is_leaf: self.is_leaf,
+            requires_grad: self.requires_grad,
+            grad: None,
+            op: self.op.clone(),
+        }
+    }
 }
 
 pub(crate) trait IntoOp {
@@ -306,12 +321,14 @@ impl NdArrayTensor {
 impl Clone for NdArrayTensor {
     /// Shallow copy the tensor as a new tensor.
     ///
-    /// fixme: this `Clone` implementation is unsound and should be rewritten in the future.
+    /// Note: this is a shallow copy, so both the data and the gradient are not copied.
     fn clone(&self) -> Self {
         match self.internal {
             Some(ref tensor_internal) => {
                 let tensor_internal = tensor_internal.lock().unwrap();
-                Self::from(tensor_internal.data.clone())
+                Self {
+                    internal: Some(Arc::new(Mutex::new(tensor_internal.clone()))),
+                }
             }
             None => Self::none(),
         }
@@ -324,7 +341,7 @@ impl NdArrayTensorInternal {
     ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
         let data = self.data.read().unwrap();
         OwningHandle::new_with_fn(data, |data| {
-            let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
+            let tensor = unsafe { &*data };
             let mut view = tensor.view();
             for viewer in self.view.0.iter() {
                 view = viewer.view(view);
@@ -370,7 +387,7 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn t(&self) -> Self {
-        todo!()
+        TransposeOp::forward(self, -1, -2)
     }
 
     fn neg(&self) -> Self {
@@ -445,6 +462,14 @@ impl TensorMethods for NdArrayTensor {
 impl ArrayMethods for NdArrayTensor {
     fn slice(&self, index: IndexInfo) -> Self {
         SliceOp::forward(self, index)
+    }
+
+    fn permute(&self, permute: &[usize]) -> Self {
+        PermuteOp::forward(self, permute)
+    }
+
+    fn broadcast(&self, shape: &[usize]) -> Self {
+        BroadcastOp::forward(self, shape)
     }
 }
 
@@ -738,6 +763,8 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
 
     fn slice_mut<'a>(&'a mut self, info: IndexInfo) -> Self::ViewMutType<'a>;
     fn into_slice_mut(self, info: IndexInfo) -> Self::ViewMutType<'this>;
+    fn permute_mut<'a>(&'a mut self, axes: &[usize]) -> Self::ViewMutType<'a>;
+    fn into_permute_mut(self, axes: &[usize]) -> Self::ViewMutType<'this>;
 
     fn add_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
     fn sub_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
@@ -759,6 +786,10 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
 
     fn slice<'a>(&'a self, info: IndexInfo) -> Self::ViewType<'a>;
     fn into_slice(self, info: IndexInfo) -> Self::ViewType<'this>;
+    fn permute<'a>(&'a self, order: &[usize]) -> Self::ViewType<'a>;
+    fn into_permute(self, order: &[usize]) -> Self::ViewType<'this>;
+    fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a>;
+    fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this>;
 
     fn neg(&self) -> Self::OwnedType;
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
@@ -927,6 +958,16 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
+    fn permute_mut<'a>(&'a mut self, axes: &[usize]) -> Self::ViewMutType<'a> {
+        todo!()
+    }
+
+    fn into_permute_mut(self, axes: &[usize]) -> Self::ViewMutType<'this> {
+        obtain_kind_array_view_mut!(self, array, {
+            KindedArrayViewMutD::from(array.permuted_axes(axes))
+        })
+    }
+
     fn add_(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
         obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             *array1 += array2;
@@ -1008,6 +1049,32 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         obtain_kind_array_view!(self, array, {
             let info: Vec<SliceInfoElem> = info.into();
             KindedArrayViewD::from(array.slice_move(info.as_slice()))
+        })
+    }
+
+    fn permute<'a>(&'a self, order: &[usize]) -> Self::ViewType<'a> {
+        todo!()
+    }
+
+    fn into_permute(self, order: &[usize]) -> Self::ViewType<'this> {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.permuted_axes(order))
+        })
+    }
+
+    fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a>{
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.broadcast(shape).unwrap())
+        })
+    }
+
+    fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this>{
+        obtain_kind_array_view!(self, array, {
+            // TODO: This is a hack to get around the borrow checker,
+            // fooling it that we are not borrowing self.
+            let array = &array as *const ArrayViewD<'_, KindType>;
+            let array = unsafe { &*array };
+            KindedArrayViewD::from(array.broadcast(shape).unwrap())
         })
     }
 

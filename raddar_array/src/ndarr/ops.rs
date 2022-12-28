@@ -99,14 +99,6 @@ macro_rules! unary_op {
 }
 unary_op!(NegOp, input, grad, -&*input.i().as_view(), -&grad);
 
-// unary_op!(
-//     TransposeOp,
-//     input,
-//     grad,
-//     input.i().data.read().t(),
-//     grad.t()
-// );
-
 binary_op!(
     AddOp,
     inputs,

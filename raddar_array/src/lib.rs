@@ -44,6 +44,8 @@ mod tests {
         ts2 += 1;
         ts2 *= 2.0f64;
         ts.set_requires_grad(true);
+
+        let ts = ts.t().t();
         let ts_1 = ts.slice(IndexInfo {
             infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, 2, 1)],
         });
@@ -52,6 +54,7 @@ mod tests {
         ts3.backward();
 
         ts.grad().debug_print();
+        ts.grad().t().debug_print();
         ts.debug_print();
     }
 }

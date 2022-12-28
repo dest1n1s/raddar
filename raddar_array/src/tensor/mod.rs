@@ -1,5 +1,3 @@
-
-
 use num::cast::NumCast;
 
 use self::index::IndexInfo;
@@ -47,8 +45,10 @@ pub trait TensorMethods: Sized {
     fn div_scalar_<T: NumCast + Copy>(&mut self, other: T);
 }
 
-pub trait ArrayMethods: Sized{
+pub trait ArrayMethods: Sized {
     fn slice(&self, index: IndexInfo) -> Self;
+    fn permute(&self, permute: &[usize]) -> Self;
+    fn broadcast(&self, shape: &[usize]) -> Self;
 }
 
 pub trait AutoGradTensorMethods: TensorMethods {
@@ -201,7 +201,10 @@ macro_rules! arith_impl {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ndarr::NdArrayTensor, tensor::{TensorMethods, TensorKind}};
+    use crate::{
+        ndarr::NdArrayTensor,
+        tensor::{TensorKind, TensorMethods},
+    };
 
     #[test]
     fn it_works() {
