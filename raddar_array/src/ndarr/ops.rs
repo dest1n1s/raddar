@@ -4,6 +4,9 @@ use crate::tensor::{ops::Operation, TensorMethods};
 
 use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 
+/// A helper method to add `grad` to the `tensor`'s grad.
+///
+/// If the `tensor`'s grad is `None`, we will create a new grad with the same shape and dtype as the `tensor`.
 pub(crate) fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
     let mut tensor = tensor.lock().unwrap();
 
@@ -13,11 +16,7 @@ pub(crate) fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayT
     if tensor.grad.is_none() {
         tensor.grad = Some(KindedArrayD::zeros(&shape, dtype));
     }
-    tensor
-        .grad
-        .as_mut()
-        .unwrap()
-        .add_(&*grad.i().data.read().unwrap());
+    *tensor.grad.as_mut().unwrap() += &*grad.i().data.read().unwrap();
 }
 
 #[macro_export]
@@ -30,6 +29,13 @@ macro_rules! go_backward {
     };
 }
 
+/// A helper method to borrow two tensor's internals.
+/// 
+/// `$a` and `$b` are the two tensors to borrow, type `Arc<Mutex<NdArrayTensorInternal>>`.
+/// 
+/// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal>, &MutexGuard<NdArrayTensorInternal>)`.
+/// 
+/// `$execution` is the code block to execute.
 macro_rules! borrow_two_tensor_internals {
     ($a:expr, $b:expr, $tuple_name: ident, $execution: block) => {{
         let first = $a.lock().unwrap();
@@ -49,6 +55,7 @@ macro_rules! borrow_two_tensor_internals {
         result
     }};
 }
+
 macro_rules! binary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
@@ -59,7 +66,7 @@ macro_rules! binary_op {
 
         impl $op_name {
             pub fn forward($input_name: (&NdArrayTensor, &NdArrayTensor)) -> NdArrayTensor {
-                // CAUTION: decide whether the tuple is the same or not first, 
+                // CAUTION: decide whether the tuple is the same or not first,
                 // if the tuple is the same, we should prevent locking the tensor twice.
                 let (a, b) = ($input_name.0.i_copy(), $input_name.1.i_copy());
 
@@ -107,7 +114,11 @@ macro_rules! unary_op {
 
         impl $op_name {
             pub fn forward($input_name: &NdArrayTensor) -> NdArrayTensor {
-                let mut tensor = NdArrayTensor::from($forward_calculation);
+                let mut tensor = {
+                    let $input_name = &$input_name.i();
+                    let ret = NdArrayTensor::from($forward_calculation);
+                    ret
+                };
                 tensor.i().is_leaf = false;
                 use crate::tensor::AutoGradTensorMethods;
                 if $input_name.requires_grad() {
@@ -141,7 +152,11 @@ macro_rules! unary_op_with_scalar {
 
         impl<T: num::NumCast + Copy + 'static> $op_name<T> {
             pub fn forward($input_name: &NdArrayTensor, $param_name: T) -> NdArrayTensor {
-                let mut tensor = NdArrayTensor::from($forward_calculation);
+                let mut tensor = {
+                    let $input_name = &$input_name.i();
+                    let ret = NdArrayTensor::from($forward_calculation);
+                    ret
+                };
                 tensor.i().is_leaf = false;
                 use crate::tensor::AutoGradTensorMethods;
                 if $input_name.requires_grad() {
@@ -167,7 +182,8 @@ macro_rules! unary_op_with_scalar {
     };
 }
 
-unary_op!(NegOp, input, grad, -&*input.i().as_view(), -&grad);
+unary_op!(NegOp, input, grad, -&*input.as_view(), -&grad);
+
 
 binary_op!(
     AddOp,
@@ -213,7 +229,7 @@ unary_op_with_scalar!(
     scalar,
     input,
     grad,
-    &*input.i().as_view() + scalar,
+    &*input.as_view() + scalar,
     grad
 );
 
@@ -222,7 +238,7 @@ unary_op_with_scalar!(
     scalar,
     input,
     grad,
-    &*input.i().as_view() - scalar,
+    &*input.as_view() - scalar,
     grad
 );
 
@@ -231,7 +247,7 @@ unary_op_with_scalar!(
     scalar,
     input,
     grad,
-    &*input.i().as_view() * scalar,
+    &*input.as_view() * scalar,
     &grad * scalar
 );
 
@@ -240,7 +256,7 @@ unary_op_with_scalar!(
     scalar,
     input,
     grad,
-    &*input.i().as_view() / scalar,
+    &*input.as_view() / scalar,
     &grad / scalar
 );
 
@@ -253,6 +269,7 @@ impl GradAccumulateOp {
         Self { tensor }
     }
 }
+
 impl Operation for GradAccumulateOp {
     fn backward(&self, grad: NdArrayTensor) {
         add_grad(self.tensor.clone(), grad);

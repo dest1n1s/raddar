@@ -316,12 +316,25 @@ impl NdArrayTensor {
     fn i_copy(&self) -> Arc<Mutex<NdArrayTensorInternal>> {
         self.internal.as_ref().unwrap().clone()
     }
+
+    /// Do a very shallow copy of the tensor.
+    /// 
+    /// Only the reference of the internal data is copied, not the data itself.
+    /// 
+    /// Compared to `clone`, this function does not really clone anything, so it is much faster.
+    /// 
+    /// It is usually useful to get a tensor from its reference. You can view the returned tensor as the exact same tensor as `self`.
+    /// 
+    /// Note: they share the same internal data and lock, do not lock the same tensor twice!
+    fn name_clone(&self) -> Self {
+        Self { internal: self.internal.clone() }
+    }
 }
 
 impl Clone for NdArrayTensor {
     /// Shallow copy the tensor as a new tensor.
     ///
-    /// Note: this is a shallow copy, so both the data and the gradient are not copied.
+    /// Note: this is a shallow copy, so only the reference of the data is copied, not the data itself. The gradient is not copied, either.
     fn clone(&self) -> Self {
         match self.internal {
             Some(ref tensor_internal) => {
@@ -395,19 +408,23 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn add(&self, other: &Self) -> Self {
-        AddOp::forward((self, other))
+        let (self_, other_) = BroadcastOp::cobroadcast(self, other);
+        AddOp::forward((&self_, &other_))
     }
 
     fn sub(&self, other: &Self) -> Self {
-        SubOp::forward((self, other))
+        let (self_, other_) = BroadcastOp::cobroadcast(self, other);
+        SubOp::forward((&self_, &other_))
     }
 
     fn mul(&self, other: &Self) -> Self {
-        MulOp::forward((self, other))
+        let (self_, other_) = BroadcastOp::cobroadcast(self, other);
+        MulOp::forward((&self_, &other_))
     }
 
     fn div(&self, other: &Self) -> Self {
-        DivOp::forward((self, other))
+        let (self_, other_) = BroadcastOp::cobroadcast(self, other);
+        DivOp::forward((&self_, &other_))
     }
 
     fn add_(&mut self, other: &Self) {

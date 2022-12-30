@@ -235,6 +235,55 @@ impl BroadcastOp {
         }
         cloned
     }
+
+    /// Broadcasts two tensors to the same size if possible.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two tensors cannot be broadcasted to the same size.
+    pub(crate) fn cobroadcast(
+        input: &NdArrayTensor,
+        other: &NdArrayTensor,
+    ) -> (NdArrayTensor, NdArrayTensor) {
+        let mut this_size = input.size();
+        let mut other_size = other.size();
+
+        this_size.reverse();
+        other_size.reverse();
+
+        let mut broadcast = Vec::new();
+
+        let longest_len = std::cmp::max(this_size.len(), other_size.len());
+        for i in 0..longest_len {
+            let this_dim = this_size.get(i).cloned().unwrap_or(1);
+            let other_dim = other_size.get(i).cloned().unwrap_or(1);
+            if this_dim == 1 {
+                broadcast.push(other_dim);
+            } else if other_dim == 1 {
+                broadcast.push(this_dim);
+            } else if this_dim == other_dim {
+                broadcast.push(this_dim);
+            } else {
+                panic!("Cannot broadcast tensors of size {:?} and {:?}", input.size(), other.size());
+            }
+        }
+
+        broadcast.reverse();
+
+        let this = if broadcast == input.size() {
+            input.name_clone()
+        } else {
+            Self::forward(input, &broadcast)
+        };
+
+        let other = if broadcast == other.size() {
+            other.name_clone()
+        } else {
+            Self::forward(other, &broadcast)
+        };
+
+        (this, other)
+    }
 }
 
 impl Operation for BroadcastOp {
@@ -252,5 +301,47 @@ impl Operation for BroadcastOp {
         sub_grad += grad;
 
         go_backward!(self.input, backward_grad);
+    }
+}
+
+pub(crate) struct IdentityView;
+
+impl AsView for IdentityView {
+    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+        tensor
+    }
+
+    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+        tensor
+    }
+}
+
+pub(crate) struct IdentityOp {
+    input: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Arc<Mutex<NdArrayTensorInternal>>,
+}
+
+impl IdentityOp {
+    pub(crate) fn forward(input: &NdArrayTensor) -> NdArrayTensor {
+        let cloned = input.clone();
+        cloned
+            .i()
+            .view
+            .0
+            .push(Arc::new(IdentityView));
+        if cloned.i().requires_grad {
+            cloned.i().op = Some(Arc::new(IdentityOp {
+                input: input.i_copy(),
+                output: cloned.i_copy(),
+            }));
+        }
+        cloned
+    }
+}
+
+impl Operation for IdentityOp {
+    fn backward(&self, grad: NdArrayTensor) {
+        add_grad(self.output.clone(), grad.clone());
+        go_backward!(self.input, grad);
     }
 }
