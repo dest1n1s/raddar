@@ -25,6 +25,32 @@ pub mod array_ops;
 pub mod ops;
 
 /// A tensor exported to users. It holds a reference to the actual data.
+/// 
+/// ```text
+///      ┌───────────────┐
+/// ┌───►│ NdArrayTensor │
+/// │    │               │       ┌───────────────────────┐
+/// │    │  internal─────┼──────►│ NdArrayTensorInternal │
+/// │    │               │       │                       │         ┌─────────────────────────────────┐
+/// │    └───────────────┘       │  data─────────────────┼────────►│ KindedArrayD                    │
+/// │                            │                       │         │                                 │
+/// └────────────────────────────┼──grad (could be None) │         │  (Holding the real tensor data) │
+///                              │                       │         └─────────────────────────────────┘
+///                              └───────────────────────┘
+/// ```
+/// 
+/// ## What happens if I call `&t1 + &t2`, where `t1` and `t2` are two tensors?
+/// 
+/// 1. `t1.add(&t2)` is called, where `add` is a method of `TensorMethods` on `NdArrayTensor`;
+/// 2. `NdArrayTensor::add` calls `BroadcastOp::cobroadcast`, which returns two new `NdArrayTensor`s in the same shape (let us skip the details of broadcasting for now);
+/// 3. `NdArrayTensor::add` calls `AddOp::forward` then;
+/// 4. `AddOp::forward` calls `&*t1.i().as_view() + &*t2.i().as_view()`. Here `t1.i()` and `t2.i()` are `NdArrayTensorInternal`s, and `as_view()` returns a view of the tensor. The view is a `KindedArrayViewD`, which is a wrapper of `ArrayViewD`. 
+///    We need such an abstraction because we need to support different views, such as `TransposeView`, `SliceView`, etc. You should note that **t1.i().data does not contain the information of how we should view the tensor,** the transformation is
+///    done by `as_view()`, which applies the transformations in `t1.i().view` to the tensor and obtain a correct view;
+/// 5. `t1_view.add(&t2_view)` is called, where `add` is a method of `ViewMethods` on `KindedArrayViewD`;
+/// 6. `KindedArrayViewD::add` extracts the underlying `ArrayViewD` from `t1_view` and `t2_view`, and calls `add` on `ArrayViewD` (**the actual addition is done here**) to get the result of the addition, an `ArrayD`. It then wraps the result into a `KindedArrayD` and returns;
+/// 7. `AddOp::forward` now has the result of the addition in a `KindedArrayD`, which is a wrapper of `ArrayD`. It then wraps the result and an AddOp into a `NdArrayTensorInternal`, and returns a `NdArrayTensor` with this internal;
+/// 8. The `NdArrayTensor` is returned to the user from `NdArrayTensor::add`.
 pub struct NdArrayTensor {
     internal: Option<Arc<Mutex<NdArrayTensorInternal>>>,
 }
