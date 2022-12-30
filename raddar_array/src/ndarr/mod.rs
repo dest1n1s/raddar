@@ -1131,7 +1131,7 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
 
     fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this> {
         obtain_kind_array_view_mut!(self, array, {
-            KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
+            KindedArrayViewMutD::from(array.remove_axis(Axis(axis)))
         })
     }
 
