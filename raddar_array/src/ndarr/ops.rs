@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{tensor::{ops::Operation, TensorMethods, ArrayMethods}, ndarr::BorrowView};
+use crate::{tensor::{ops::Operation, TensorMethods, ArrayMethods}};
 
 use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 
@@ -225,7 +225,6 @@ macro_rules! unary_op_with_non_generic_param {
 
 unary_op!(NegOp, input, grad, -&*input.as_view(), -&grad);
 
-
 binary_op!(
     AddOp,
     inputs,
@@ -315,22 +314,38 @@ unary_op_with_non_generic_param!(
         // unlock the input as early as possible to avoid deadlock
         drop(input);
 
-        // get the grad
-        // fixme: this is a hack, we need to find a better way to unsqueeze the grad
-        let grad = grad.i().data.read().unwrap().clone();
-        let mut grad_view = grad.view();
+        let mut grad = grad;
         // if keep_dim is false, we need to unsqueeze the grad to the original shape
         if !axes_and_keep_dim.1 {
             for &axis in &axes_and_keep_dim.0{
-                grad_view = grad_view.unsqueeze(axis);
+                grad.unsqueeze_(axis);
             }
         }
         
         // broadcast the grad to the original shape
-        grad_view.into_broadcast(&shape).upgrade().into()
+        grad.broadcast(&shape)
     }
 );
 
+unary_op_with_non_generic_param!(
+    SqueezeOp,
+    dim,
+    usize,
+    input,
+    grad,
+    input.as_view().clone().into_squeeze(dim).upgrade(),
+    grad.unsqueeze(*dim)
+);
+
+unary_op_with_non_generic_param!(
+    UnsqueezeOp,
+    dim,
+    usize,
+    input,
+    grad,
+    input.as_view().clone().into_unsqueeze(dim).upgrade(),
+    grad.squeeze(*dim)
+);
 pub(crate) struct GradAccumulateOp {
     tensor: Arc<Mutex<NdArrayTensorInternal>>,
 }

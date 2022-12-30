@@ -1,13 +1,15 @@
+#![allow(dead_code)]
+#![allow(unused_macros)]
 use std::{
     borrow::Borrow,
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard}, ops::{Deref, DerefMut},
 };
 
 use self::{
-    array_ops::{BroadcastOp, PermuteOp, SliceOp, TransposeOp},
+    array_ops::{BroadcastOp, PermuteOp, SliceOp, TransposeOp, UnsqueezeView, SqueezeView},
     ops::{
         AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp, SubOp,
-        SubScalarOp, SumOp,
+        SubScalarOp, SumOp, SqueezeOp, UnsqueezeOp,
     },
 };
 use crate::{
@@ -25,7 +27,7 @@ pub mod array_ops;
 pub mod ops;
 
 /// A tensor exported to users. It holds a reference to the actual data.
-/// 
+///
 /// ```text
 ///      ┌───────────────┐
 /// ┌───►│ NdArrayTensor │
@@ -38,13 +40,13 @@ pub mod ops;
 ///                              │                       │         └─────────────────────────────────┘
 ///                              └───────────────────────┘
 /// ```
-/// 
+///
 /// ## What happens if I call `&t1 + &t2`, where `t1` and `t2` are two tensors?
-/// 
+///
 /// 1. `t1.add(&t2)` is called, where `add` is a method of `TensorMethods` on `NdArrayTensor`;
 /// 2. `NdArrayTensor::add` calls `BroadcastOp::cobroadcast`, which returns two new `NdArrayTensor`s in the same shape (let us skip the details of broadcasting for now);
 /// 3. `NdArrayTensor::add` calls `AddOp::forward` then;
-/// 4. `AddOp::forward` calls `&*t1.i().as_view() + &*t2.i().as_view()`. Here `t1.i()` and `t2.i()` are `NdArrayTensorInternal`s, and `as_view()` returns a view of the tensor. The view is a `KindedArrayViewD`, which is a wrapper of `ArrayViewD`. 
+/// 4. `AddOp::forward` calls `&*t1.i().as_view() + &*t2.i().as_view()`. Here `t1.i()` and `t2.i()` are `NdArrayTensorInternal`s, and `as_view()` returns a view of the tensor. The view is a `KindedArrayViewD`, which is a wrapper of `ArrayViewD`.
 ///    We need such an abstraction because we need to support different views, such as `TransposeView`, `SliceView`, etc. You should note that **t1.i().data does not contain the information of how we should view the tensor,** the transformation is
 ///    done by `as_view()`, which applies the transformations in `t1.i().view` to the tensor and obtain a correct view;
 /// 5. `t1_view.add(&t2_view)` is called, where `add` is a method of `ViewMethods` on `KindedArrayViewD`;
@@ -58,6 +60,16 @@ pub struct NdArrayTensor {
 /// ViewType is used to indicate whether the tensor is a view of some tensor.
 #[derive(Clone)]
 pub(crate) struct ViewType(Vec<Arc<dyn AsView>>);
+
+impl Deref for ViewType {
+    type Target = Vec<Arc<dyn AsView>>;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl DerefMut for ViewType {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
 
 /// AsView is used to get a view of a tensor.
 pub(crate) trait AsView {
@@ -347,16 +359,18 @@ impl NdArrayTensor {
     }
 
     /// Do a very shallow copy of the tensor.
-    /// 
+    ///
     /// Only the reference of the internal data is copied, not the data itself.
-    /// 
+    ///
     /// Compared to `clone`, this function does not really clone anything, so it is much faster.
-    /// 
+    ///
     /// It is usually useful to get a tensor from its reference. You can view the returned tensor as the exact same tensor as `self`.
-    /// 
+    ///
     /// Note: they share the same internal data and lock, do not lock the same tensor twice!
     fn name_clone(&self) -> Self {
-        Self { internal: self.internal.clone() }
+        Self {
+            internal: self.internal.clone(),
+        }
     }
 }
 
@@ -385,7 +399,7 @@ impl NdArrayTensorInternal {
         OwningHandle::new_with_fn(data, |data| {
             let tensor = unsafe { &*data };
             let mut view = tensor.view();
-            for viewer in self.view.0.iter() {
+            for viewer in self.view.iter() {
                 view = viewer.view(view);
             }
             Box::new(view)
@@ -399,7 +413,7 @@ impl NdArrayTensorInternal {
         OwningHandle::new_with_fn(data, |data| {
             let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
             let mut view = tensor.view_mut();
-            for viewer in self.view.0.iter() {
+            for viewer in self.view.iter() {
                 view = viewer.view_mut(view);
             }
             Box::new(view)
@@ -506,6 +520,22 @@ impl TensorMethods for NdArrayTensor {
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
         SumOp::forward(self, (dim.to_vec(), keep_dim))
+    }
+
+    fn unsqueeze(&self, dim: usize) -> Self {
+        UnsqueezeOp::forward(self, dim)
+    }
+
+    fn unsqueeze_(&mut self, dim: usize){
+        self.i().view.push(Arc::new(UnsqueezeView::new(dim)));
+    }
+
+    fn squeeze(&self, dim: usize) -> Self {
+        SqueezeOp::forward(self, dim)
+    }
+
+    fn squeeze_(&mut self, dim: usize) {
+        self.i().view.push(Arc::new(SqueezeView::new(dim)));
     }
 }
 
@@ -632,6 +662,22 @@ impl TensorMethods for KindedArrayD {
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
         self.view().sum_dim(dim, keep_dim)
+    }
+
+    fn unsqueeze(&self, dim: usize) -> Self {
+        self.view().into_unsqueeze(dim).upgrade()
+    }
+
+    fn squeeze(&self, dim: usize) -> Self {
+        self.view().into_squeeze(dim).upgrade()
+    }
+
+    fn unsqueeze_(&mut self, _: usize) {
+        unimplemented!()
+    }
+
+    fn squeeze_(&mut self, _: usize) {
+        unimplemented!()
     }
 }
 
@@ -830,6 +876,9 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
 
+    fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
+    fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
+
     fn downgrade<'a>(&'a self) -> Self::ViewType<'a>;
 }
 
@@ -858,6 +907,8 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
+    fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this>;
+    fn into_squeeze(self, dim: usize) -> Self::ViewType<'this>;
 }
 
 macro_rules! impl_arith_for_all {
@@ -1072,6 +1123,18 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
+    fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>{
+        obtain_kind_array_view_mut!(self, array, {
+            KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
+        })
+    }
+
+    fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this> {
+        obtain_kind_array_view_mut!(self, array, {
+            KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
+        })
+    }
+
     fn downgrade(&self) -> Self::ViewType<'_> {
         obtain_kind_array_view_mut!(self, array, { KindedArrayViewD::from(array.view()) })
     }
@@ -1118,13 +1181,13 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         })
     }
 
-    fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a>{
+    fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a> {
         obtain_kind_array_view!(self, array, {
             KindedArrayViewD::from(array.broadcast(shape).unwrap())
         })
     }
 
-    fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this>{
+    fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this> {
         obtain_kind_array_view!(self, array, {
             // TODO: This is a hack to get around the borrow checker,
             // fooling it that we are not borrowing self.
@@ -1216,6 +1279,18 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         }
         array
     }
+
+    fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this> {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.insert_axis(Axis(dim)))
+        })
+    }
+
+    fn into_squeeze(self, dim: usize) -> Self::ViewType<'this> {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.remove_axis(Axis(dim)))
+        })
+    }
 }
 
 impl<'a> KindedArrayViewD<'a> {
@@ -1226,12 +1301,6 @@ impl<'a> KindedArrayViewD<'a> {
                 array.insert_axis_inplace(Axis(dim));
             }
             KindedArrayD::from(array)
-        })
-    }
-
-    fn unsqueeze(self, dim: usize) -> KindedArrayViewD<'a> {
-        obtain_kind_array_view!(self, array, {
-            KindedArrayViewD::from(array.insert_axis(Axis(dim)))
         })
     }
 }

@@ -46,6 +46,10 @@ pub trait TensorMethods: Sized {
     
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;
+    fn unsqueeze(&self, dim: usize) -> Self;
+    fn unsqueeze_(&mut self, dim: usize);
+    fn squeeze(&self, dim: usize) -> Self;
+    fn squeeze_(&mut self, dim: usize);
 }
 
 pub trait ArrayMethods: Sized {

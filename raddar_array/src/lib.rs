@@ -121,4 +121,19 @@ mod tests {
         ts.grad().debug_print();
         ts2.grad().debug_print();
     }
+
+    #[test]
+    fn unsqueeze_test() {
+        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        ts *= 2.0f64;
+
+        ts.unsqueeze(0).debug_print();
+        ts.unsqueeze(1).debug_print();
+        ts.unsqueeze(2).debug_print();
+
+        ts.unsqueeze(0).unsqueeze(0).debug_print();
+
+        ts.unsqueeze_(0);
+        ts.debug_print();
+    }
 }

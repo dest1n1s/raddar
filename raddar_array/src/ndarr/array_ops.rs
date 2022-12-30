@@ -68,7 +68,6 @@ impl SliceOp {
         cloned
             .i()
             .view
-            .0
             .push(Arc::new(SliceView::new(index.clone())));
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(SliceOp {
@@ -130,7 +129,6 @@ impl PermuteOp {
         cloned
             .i()
             .view
-            .0
             .push(Arc::new(PermuteView::new(permute.to_vec())));
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(PermuteOp {
@@ -224,7 +222,6 @@ impl BroadcastOp {
         cloned
             .i()
             .view
-            .0
             .push(Arc::new(BroadcastView::new(broadcast.to_vec())));
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(BroadcastOp {
@@ -264,7 +261,11 @@ impl BroadcastOp {
             } else if this_dim == other_dim {
                 broadcast.push(this_dim);
             } else {
-                panic!("Cannot broadcast tensors of size {:?} and {:?}", input.size(), other.size());
+                panic!(
+                    "Cannot broadcast tensors of size {:?} and {:?}",
+                    input.size(),
+                    other.size()
+                );
             }
         }
 
@@ -304,6 +305,45 @@ impl Operation for BroadcastOp {
     }
 }
 
+pub(crate) struct UnsqueezeView {
+    dim: usize,
+}
+
+impl UnsqueezeView {
+    pub fn new(dim: usize) -> Self {
+        Self { dim }
+    }
+}
+
+impl AsView for UnsqueezeView {
+    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+        tensor.into_unsqueeze(self.dim)
+    }
+
+    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+        tensor.into_unsqueeze_mut(self.dim)
+    }
+}
+
+pub(crate) struct SqueezeView {
+    dim: usize,
+}
+
+impl SqueezeView {
+    pub fn new(dim: usize) -> Self {
+        Self { dim }
+    }
+}
+
+impl AsView for SqueezeView {
+    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+        tensor.into_squeeze(self.dim)
+    }
+
+    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+        tensor.into_squeeze_mut(self.dim)
+    }
+}
 pub(crate) struct IdentityView;
 
 impl AsView for IdentityView {
@@ -324,11 +364,7 @@ pub(crate) struct IdentityOp {
 impl IdentityOp {
     pub(crate) fn forward(input: &NdArrayTensor) -> NdArrayTensor {
         let cloned = input.clone();
-        cloned
-            .i()
-            .view
-            .0
-            .push(Arc::new(IdentityView));
+        cloned.i().view.push(Arc::new(IdentityView));
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(IdentityOp {
                 input: input.i_copy(),
