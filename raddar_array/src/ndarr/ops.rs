@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::tensor::{ops::Operation, TensorMethods};
+use crate::{tensor::{ops::Operation, TensorMethods, ArrayMethods}, ndarr::BorrowView};
 
 use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 
@@ -182,6 +182,47 @@ macro_rules! unary_op_with_scalar {
     };
 }
 
+macro_rules! unary_op_with_non_generic_param {
+    ($op_name: ident, $param_name: ident, $param_type: ty, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
+        pub(crate) struct $op_name {
+            a: Arc<Mutex<NdArrayTensorInternal>>,
+            output: Arc<Mutex<NdArrayTensorInternal>>,
+            $param_name: $param_type,
+        }
+
+        impl $op_name {
+            pub fn forward($input_name: &NdArrayTensor, $param_name: $param_type) -> NdArrayTensor {
+                let mut tensor = {
+                    let $input_name = &$input_name.i();
+                    let ret = NdArrayTensor::from($forward_calculation);
+                    ret
+                };
+                tensor.i().is_leaf = false;
+                use crate::tensor::AutoGradTensorMethods;
+                if $input_name.requires_grad() {
+                    tensor.i().op = Some(Arc::new($op_name {
+                        a: $input_name.i_copy(),
+                        output: tensor.i_copy(),
+                        $param_name,
+                    }));
+                    tensor.set_requires_grad(true);
+                }
+                tensor
+            }
+        }
+
+        impl Operation for $op_name {
+            fn backward(&self, $grad_name: NdArrayTensor) {
+                add_grad(self.output.clone(), $grad_name.clone());
+
+                let $param_name = &self.$param_name;
+                let $input_name = &self.a;
+                go_backward!(self.a, $backward_to);
+            }
+        }
+    };
+}
+
 unary_op!(NegOp, input, grad, -&*input.as_view(), -&grad);
 
 
@@ -258,6 +299,36 @@ unary_op_with_scalar!(
     grad,
     &*input.as_view() / scalar,
     &grad / scalar
+);
+
+unary_op_with_non_generic_param!(
+    SumOp,
+    axes_and_keep_dim,
+    (Vec<usize>, bool),
+    input,
+    grad,
+    input.as_view().sum_dim(&axes_and_keep_dim.0, axes_and_keep_dim.1),
+    {
+        // get the original shape of the input
+        let input = input.lock().unwrap();
+        let shape = input.as_view().size();
+        // unlock the input as early as possible to avoid deadlock
+        drop(input);
+
+        // get the grad
+        // fixme: this is a hack, we need to find a better way to unsqueeze the grad
+        let grad = grad.i().data.read().unwrap().clone();
+        let mut grad_view = grad.view();
+        // if keep_dim is false, we need to unsqueeze the grad to the original shape
+        if !axes_and_keep_dim.1 {
+            for &axis in &axes_and_keep_dim.0{
+                grad_view = grad_view.unsqueeze(axis);
+            }
+        }
+        
+        // broadcast the grad to the original shape
+        grad_view.into_broadcast(&shape).upgrade().into()
+    }
 );
 
 pub(crate) struct GradAccumulateOp {

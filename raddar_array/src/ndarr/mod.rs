@@ -1,11 +1,14 @@
 use std::{
     borrow::Borrow,
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard}
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
 use self::{
-    array_ops::{PermuteOp, SliceOp, TransposeOp, BroadcastOp},
-    ops::{AddOp, GradAccumulateOp, NegOp, SubOp, AddScalarOp, SubScalarOp, MulScalarOp, DivScalarOp, MulOp, DivOp},
+    array_ops::{BroadcastOp, PermuteOp, SliceOp, TransposeOp},
+    ops::{
+        AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp, SubOp,
+        SubScalarOp, SumOp,
+    },
 };
 use crate::{
     arith_impl,
@@ -14,7 +17,7 @@ use crate::{
         TensorMethods,
     },
 };
-use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, IxDyn, SliceInfoElem};
+use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, IxDyn, SliceInfoElem};
 use num::{cast, NumCast};
 use owning_ref::OwningHandle;
 
@@ -474,6 +477,10 @@ impl TensorMethods for NdArrayTensor {
     fn div_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() /= other;
     }
+
+    fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
+        SumOp::forward(self, (dim.to_vec(), keep_dim))
+    }
 }
 
 impl ArrayMethods for NdArrayTensor {
@@ -595,6 +602,10 @@ impl TensorMethods for KindedArrayD {
     fn div_scalar_<T: num::NumCast + Copy + 'static>(&mut self, other: T) {
         let mut self_view = self.view_mut();
         self_view /= other;
+    }
+
+    fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
+        self.view().sum_dim(dim, keep_dim)
     }
 }
 
@@ -819,6 +830,8 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
     fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
     fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType;
+
+    fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
 }
 
 macro_rules! impl_arith_for_all {
@@ -1153,5 +1166,46 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
 
     fn size(&self) -> Vec<usize> {
         obtain_kind_array_view!(self, array, { array.shape().to_vec() })
+    }
+
+    fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType {
+        assert!(dim.len() > 0, "dim must not be empty");
+        // sum from the first dimension to the last dimension
+
+        // order the dimensions in ascending order
+        let mut dim = dim.to_vec();
+        dim.sort_unstable();
+        let mut array = self.sum_one_dim(dim[0], keep_dim);
+        let mut removed_ndim = 1;
+        for i in 1..dim.len() {
+            array = array.view().sum_one_dim(
+                if keep_dim {
+                    dim[i]
+                } else {
+                    dim[i] - removed_ndim
+                },
+                keep_dim,
+            );
+            removed_ndim += 1;
+        }
+        array
+    }
+}
+
+impl<'a> KindedArrayViewD<'a> {
+    fn sum_one_dim(&self, dim: usize, keep_dim: bool) -> KindedArrayD {
+        obtain_kind_array_view!(self, array, {
+            let mut array = array.sum_axis(Axis(dim));
+            if keep_dim {
+                array.insert_axis_inplace(Axis(dim));
+            }
+            KindedArrayD::from(array)
+        })
+    }
+
+    fn unsqueeze(self, dim: usize) -> KindedArrayViewD<'a> {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.insert_axis(Axis(dim)))
+        })
     }
 }
