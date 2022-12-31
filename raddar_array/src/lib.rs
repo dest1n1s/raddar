@@ -136,4 +136,25 @@ mod tests {
         ts.unsqueeze_(0);
         ts.debug_print();
     }
+
+    #[test]
+    fn matmul_test(){
+        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        ts *= 2.0f64;
+        ts.debug_print();
+        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F32);
+
+        ts.set_requires_grad(true);
+        ts2.set_requires_grad(true);
+
+        let mut ts3 = ts.matmul(&ts2);
+        ts3 = &ts3 * 2;
+        
+        ts3.backward();
+
+        ts3.debug_print();
+
+        ts.grad().debug_print();
+        ts2.grad().debug_print();
+    }
 }

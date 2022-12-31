@@ -43,6 +43,11 @@ pub trait TensorMethods: Sized {
     fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
     fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+
+    fn matmul(&self, other: &Self) -> Self;
+    
+    /// Assignment operations
+    fn assign(&mut self, other: &Self);
     
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;

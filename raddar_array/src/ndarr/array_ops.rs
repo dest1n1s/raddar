@@ -36,6 +36,26 @@ impl From<IndexInfo> for Vec<SliceInfoElem> {
     }
 }
 
+impl From<SliceInfoElem> for IndexInfoItem {
+    fn from(item: SliceInfoElem) -> Self {
+        match item {
+            SliceInfoElem::Index(i) => IndexInfoItem::Single(i),
+            SliceInfoElem::Slice { start, end, step } => {
+                IndexInfoItem::Range(start, end.unwrap(), step)
+            }
+            SliceInfoElem::NewAxis => IndexInfoItem::NewAxis,
+        }
+    }
+}
+
+impl From<Vec<SliceInfoElem>> for IndexInfo {
+    fn from(info: Vec<SliceInfoElem>) -> Self {
+        Self {
+            infos: info.into_iter().map(|item| item.into()).collect(),
+        }
+    }
+}
+
 pub(crate) struct SliceView {
     slice: IndexInfo,
 }
@@ -82,7 +102,7 @@ impl SliceOp {
 
 impl Operation for SliceOp {
     fn backward(&self, grad: NdArrayTensor) {
-        add_grad(self.output.clone(), grad.clone());
+        add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
         let kind = tensor.as_view().kind();
@@ -143,7 +163,7 @@ impl PermuteOp {
 
 impl Operation for PermuteOp {
     fn backward(&self, grad: NdArrayTensor) {
-        add_grad(self.output.clone(), grad.clone());
+        add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
         let kind = tensor.as_view().kind();
@@ -233,17 +253,9 @@ impl BroadcastOp {
         cloned
     }
 
-    /// Broadcasts two tensors to the same size if possible.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the two tensors cannot be broadcasted to the same size.
-    pub(crate) fn cobroadcast(
-        input: &NdArrayTensor,
-        other: &NdArrayTensor,
-    ) -> (NdArrayTensor, NdArrayTensor) {
-        let mut this_size = input.size();
-        let mut other_size = other.size();
+    pub(crate) fn cobroadcast_shape(input: &[usize], other: &[usize]) -> Vec<usize> {
+        let mut this_size = input.to_vec();
+        let mut other_size = other.to_vec();
 
         this_size.reverse();
         other_size.reverse();
@@ -254,22 +266,33 @@ impl BroadcastOp {
         for i in 0..longest_len {
             let this_dim = this_size.get(i).cloned().unwrap_or(1);
             let other_dim = other_size.get(i).cloned().unwrap_or(1);
-            if this_dim == 1 {
+            if this_dim == other_dim {
+                broadcast.push(this_dim);
+            } else if this_dim == 1 {
                 broadcast.push(other_dim);
             } else if other_dim == 1 {
                 broadcast.push(this_dim);
-            } else if this_dim == other_dim {
-                broadcast.push(this_dim);
             } else {
                 panic!(
-                    "Cannot broadcast tensors of size {:?} and {:?}",
-                    input.size(),
-                    other.size()
+                    "Cannot broadcast tensors of shape {:?} and {:?}",
+                    input, other
                 );
             }
         }
 
         broadcast.reverse();
+        broadcast
+    }
+    /// Broadcasts two tensors to the same size if possible.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two tensors cannot be broadcasted to the same size.
+    pub(crate) fn cobroadcast(
+        input: &NdArrayTensor,
+        other: &NdArrayTensor,
+    ) -> (NdArrayTensor, NdArrayTensor) {
+        let broadcast = Self::cobroadcast_shape(&input.size(), &other.size());
 
         let this = if broadcast == input.size() {
             input.name_clone()
@@ -289,7 +312,7 @@ impl BroadcastOp {
 
 impl Operation for BroadcastOp {
     fn backward(&self, grad: NdArrayTensor) {
-        add_grad(self.output.clone(), grad.clone());
+        add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
         let kind = tensor.as_view().kind();
@@ -377,7 +400,7 @@ impl IdentityOp {
 
 impl Operation for IdentityOp {
     fn backward(&self, grad: NdArrayTensor) {
-        add_grad(self.output.clone(), grad.clone());
+        add_grad(self.output.clone(), grad.name_clone());
         go_backward!(self.input, grad);
     }
 }

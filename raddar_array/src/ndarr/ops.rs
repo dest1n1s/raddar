@@ -36,6 +36,7 @@ macro_rules! go_backward {
 /// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal>, &MutexGuard<NdArrayTensorInternal>)`.
 /// 
 /// `$execution` is the code block to execute.
+#[macro_export]
 macro_rules! borrow_two_tensor_internals {
     ($a:expr, $b:expr, $tuple_name: ident, $execution: block) => {{
         let first = $a.lock().unwrap();
@@ -56,6 +57,7 @@ macro_rules! borrow_two_tensor_internals {
     }};
 }
 
+#[macro_export]
 macro_rules! binary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
@@ -70,7 +72,7 @@ macro_rules! binary_op {
                 // if the tuple is the same, we should prevent locking the tensor twice.
                 let (a, b) = ($input_name.0.i_copy(), $input_name.1.i_copy());
 
-                let mut tensor = borrow_two_tensor_internals!(a, b, $input_name, {
+                let mut tensor = $crate::borrow_two_tensor_internals!(a, b, $input_name, {
                     NdArrayTensor::from($forward_calculation)
                 });
 
@@ -88,11 +90,11 @@ macro_rules! binary_op {
             }
         }
 
-        impl Operation for $op_name {
+        impl $crate::tensor::ops::Operation for $op_name {
             fn backward(&self, $grad_name: NdArrayTensor) {
-                add_grad(self.output.clone(), $grad_name.clone());
+                add_grad(self.output.clone(), $grad_name.name_clone());
 
-                let (a, b) = borrow_two_tensor_internals!(self.a, self.b, $input_name, {
+                let (a, b) = $crate::borrow_two_tensor_internals!(self.a, self.b, $input_name, {
                     let res_a = $backward_to_a;
                     let res_b = $backward_to_b;
                     (res_a, res_b)
@@ -134,7 +136,7 @@ macro_rules! unary_op {
 
         impl Operation for $op_name {
             fn backward(&self, $grad_name: NdArrayTensor) {
-                add_grad(self.output.clone(), $grad_name.clone());
+                add_grad(self.output.clone(), $grad_name.name_clone());
 
                 go_backward!(self.a, $backward_to);
             }
@@ -173,7 +175,7 @@ macro_rules! unary_op_with_scalar {
 
         impl<T: num::NumCast + Copy + 'static> Operation for $op_name<T> {
             fn backward(&self, $grad_name: NdArrayTensor) {
-                add_grad(self.output.clone(), $grad_name.clone());
+                add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let $param_name = self.$param_name;
                 go_backward!(self.a, $backward_to);
@@ -198,7 +200,7 @@ macro_rules! unary_op_with_non_generic_param {
                     ret
                 };
                 tensor.i().is_leaf = false;
-                use crate::tensor::AutoGradTensorMethods;
+                use $crate::tensor::AutoGradTensorMethods;
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
@@ -213,7 +215,7 @@ macro_rules! unary_op_with_non_generic_param {
 
         impl Operation for $op_name {
             fn backward(&self, $grad_name: NdArrayTensor) {
-                add_grad(self.output.clone(), $grad_name.clone());
+                add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let $param_name = &self.$param_name;
                 let $input_name = &self.a;

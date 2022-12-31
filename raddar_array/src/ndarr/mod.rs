@@ -10,7 +10,7 @@ use self::{
     ops::{
         AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp, SubOp,
         SubScalarOp, SumOp, SqueezeOp, UnsqueezeOp,
-    },
+    }, single_ops::matmul::MatmulOp,
 };
 use crate::{
     arith_impl,
@@ -19,12 +19,14 @@ use crate::{
         TensorMethods,
     },
 };
+use more_asserts::assert_gt;
 use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, IxDyn, SliceInfoElem};
 use num::{cast, NumCast};
 use owning_ref::OwningHandle;
 
 pub mod array_ops;
 pub mod ops;
+mod single_ops;
 
 /// A tensor exported to users. It holds a reference to the actual data.
 ///
@@ -471,6 +473,8 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn add_(&mut self, other: &Self) {
+        // fixme: it is dangerous to lock two tensors at the same time.
+        //        check if the two tensors are the same first.
         *self.i().as_view_mut() += &*other.i().as_view();
     }
 
@@ -516,6 +520,14 @@ impl TensorMethods for NdArrayTensor {
 
     fn div_scalar_<T: num::cast::NumCast + Copy + 'static>(&mut self, other: T) {
         *self.i().as_view_mut() /= other;
+    }
+
+    fn matmul(&self, other: &Self) -> Self{
+        MatmulOp::forward((self, other))
+    }
+
+    fn assign(&mut self, other: &Self){
+        self.i().as_view_mut().assign(&*other.i().as_view());
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
@@ -660,6 +672,14 @@ impl TensorMethods for KindedArrayD {
         self_view /= other;
     }
 
+    fn matmul(&self, other: &Self) -> Self {
+        self.view().matmul(other.view())
+    }
+
+    fn assign(&mut self, other: &Self){
+        self.view_mut().assign(&other.view());
+    }
+
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
         self.view().sum_dim(dim, keep_dim)
     }
@@ -679,6 +699,8 @@ impl TensorMethods for KindedArrayD {
     fn squeeze_(&mut self, _: usize) {
         unimplemented!()
     }
+
+    
 }
 
 arith_impl!(KindedArrayD);
@@ -696,6 +718,7 @@ impl AutoGradTensorMethods for NdArrayTensor {
     }
 
     fn grad(&self) -> Self {
+        // perf: avoid clone
         NdArrayTensor::from(self.i().grad.as_ref().unwrap().clone())
     }
 
@@ -876,6 +899,8 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
     fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
 
+    fn assign(&mut self, other: impl Borrow<Self::ViewType<'_>>);
+
     fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
     fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
 
@@ -893,6 +918,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn into_permute(self, order: &[usize]) -> Self::ViewType<'this>;
     fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a>;
     fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this>;
+    fn t<'a>(&'a self) -> Self::ViewType<'a>;
 
     fn neg(&self) -> Self::OwnedType;
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
@@ -1123,6 +1149,12 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
+    fn assign(&mut self, other: impl Borrow<Self::ViewType<'_>>){
+        obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
+            array1.assign(array2);
+        })
+    }
+
     fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>{
         obtain_kind_array_view_mut!(self, array, {
             KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
@@ -1197,6 +1229,12 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         })
     }
 
+    fn t<'a>(&'a self) -> Self::ViewType<'a>{
+        obtain_kind_array_view!(self, array, {
+            KindedArrayViewD::from(array.t())
+        })
+    }
+
     fn add(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
         obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             KindedArrayD::from(array1 + array2)
@@ -1222,7 +1260,9 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     }
 
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
-        todo!()
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
+            single_ops::matmul::matmul(array1.view(), array2.view(), self.kind())
+        })
     }
 
     fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self::OwnedType {
@@ -1258,7 +1298,7 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType {
-        assert!(dim.len() > 0, "dim must not be empty");
+        assert_gt!(dim.len(), 0, "dim must not be empty");
         // sum from the first dimension to the last dimension
 
         // order the dimensions in ascending order
