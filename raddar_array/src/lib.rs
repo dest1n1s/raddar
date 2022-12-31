@@ -161,4 +161,13 @@ mod tests {
         ts.grad().debug_print();
         ts2.grad().debug_print();
     }
+
+    #[test]
+    fn self_ref_test(){
+        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        ts *= 2.0f64;
+        ts.debug_print();
+        ts += &ts.name_clone();
+        ts.debug_print();
+    }
 }

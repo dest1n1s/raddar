@@ -15,7 +15,7 @@ use self::{
     single_ops::matmul::MatmulOp,
 };
 use crate::{
-    arith_impl,
+    arith_impl, borrow_two_tensor_internals,
     tensor::{
         index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, TensorKind,
         TensorMethods,
@@ -375,7 +375,7 @@ impl NdArrayTensor {
     /// It is usually useful to get a tensor from its reference. You can view the returned tensor as the exact same tensor as `self`.
     ///
     /// Note: they share the same internal data and lock, do not lock the same tensor twice!
-    fn name_clone(&self) -> Self {
+    pub(crate) fn name_clone(&self) -> Self {
         Self {
             internal: self.internal.clone(),
         }
@@ -483,21 +483,47 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn add_(&mut self, other: &Self) {
-        // fixme: it is dangerous to lock two tensors at the same time.
-        //        check if the two tensors are the same first.
-        *self.i().as_view_mut() += &*other.i().as_view();
+        borrow_two_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            other.internal.as_ref().unwrap(),
+            inputs,
+            {
+                *inputs.0.as_view_mut() += &*inputs.1.as_view();
+            }
+        )
     }
 
     fn sub_(&mut self, other: &Self) {
-        *self.i().as_view_mut() -= &*other.i().as_view();
+        borrow_two_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            other.internal.as_ref().unwrap(),
+            inputs,
+            {
+                *inputs.0.as_view_mut() -= &*inputs.1.as_view();
+            }
+        )
     }
 
     fn mul_(&mut self, other: &Self) {
-        *self.i().as_view_mut() *= &*other.i().as_view();
+        borrow_two_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            other.internal.as_ref().unwrap(),
+            inputs,
+            {
+                *inputs.0.as_view_mut() *= &*inputs.1.as_view();
+            }
+        )
     }
 
     fn div_(&mut self, other: &Self) {
-        *self.i().as_view_mut() /= &*other.i().as_view();
+        borrow_two_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            other.internal.as_ref().unwrap(),
+            inputs,
+            {
+                *inputs.0.as_view_mut() /= &*inputs.1.as_view();
+            }
+        )
     }
 
     fn add_scalar<T: num::cast::NumCast + Copy + 'static>(&self, other: T) -> Self {
@@ -537,7 +563,14 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn assign(&mut self, other: &Self) {
-        self.i().as_view_mut().assign(&*other.i().as_view());
+        borrow_two_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            other.internal.as_ref().unwrap(),
+            inputs,
+            {
+                inputs.0.as_view_mut().assign(&*inputs.1.as_view());
+            }
+        )
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {

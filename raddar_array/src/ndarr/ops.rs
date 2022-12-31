@@ -39,13 +39,15 @@ macro_rules! go_backward {
 #[macro_export]
 macro_rules! borrow_two_tensor_internals {
     ($a:expr, $b:expr, $tuple_name: ident, $execution: block) => {{
-        let first = $a.lock().unwrap();
+        let tmp_a_in_borrow_two_tensor_internals = &$a;
+        let tmp_b_in_borrow_two_tensor_internals = &$b;
+        let first = tmp_a_in_borrow_two_tensor_internals.lock().unwrap();
 
-        let result = if std::sync::Arc::ptr_eq(&$a, &$b) {
+        let result = if std::sync::Arc::ptr_eq(&tmp_a_in_borrow_two_tensor_internals, &tmp_b_in_borrow_two_tensor_internals) {
             let $tuple_name = (&first, &first);
             $execution
         } else {
-            let second = $b.lock().unwrap();
+            let second = tmp_b_in_borrow_two_tensor_internals.lock().unwrap();
             let $tuple_name = (&first, &second);
             let result = $execution;
             drop(second);
