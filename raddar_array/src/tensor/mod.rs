@@ -1,6 +1,6 @@
 use num::cast::NumCast;
 
-use self::index::IndexInfo;
+use self::index::{IndexInfo, IndexInfoItem};
 
 pub mod index;
 pub mod ops;
@@ -22,6 +22,7 @@ pub trait TensorMethods: Sized {
     /// Properties
     fn size(&self) -> Vec<usize>;
     fn kind(&self) -> TensorKind;
+    fn item<T: NumCast + Copy + 'static>(&self) -> T;
     /// Tensor operations
     fn t(&self) -> Self;
     /// Arithmetic operations
@@ -45,10 +46,10 @@ pub trait TensorMethods: Sized {
     fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
 
     fn matmul(&self, other: &Self) -> Self;
-    
+
     /// Assignment operations
     fn assign(&mut self, other: &Self);
-    
+
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;
     fn unsqueeze(&self, dim: usize) -> Self;
@@ -57,8 +58,19 @@ pub trait TensorMethods: Sized {
     fn squeeze_(&mut self, dim: usize);
 }
 
-pub trait ArrayMethods: Sized {
+pub trait ArrayMethods: TensorMethods + Sized {
     fn slice(&self, index: IndexInfo) -> Self;
+
+    /// get the element at `index`.
+    fn get(&self, index: isize) -> Self {
+        self.slice(
+            IndexInfo {
+                infos: vec![IndexInfoItem::Single(index)],
+            }
+            .rest_full_for(&self.size()),
+        )
+    }
+
     fn permute(&self, permute: &[usize]) -> Self;
     fn broadcast(&self, shape: &[usize]) -> Self;
 }
@@ -70,6 +82,7 @@ pub trait AutoGradTensorMethods: TensorMethods {
     fn requires_grad(&self) -> bool;
     fn set_requires_grad(&mut self, requires_grad: bool);
 }
+
 #[macro_export]
 macro_rules! arith_impl {
     ($impl_type:ty) => {

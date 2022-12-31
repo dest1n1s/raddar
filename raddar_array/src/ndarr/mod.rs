@@ -2,15 +2,17 @@
 #![allow(unused_macros)]
 use std::{
     borrow::Borrow,
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard}, ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
 use self::{
-    array_ops::{BroadcastOp, PermuteOp, SliceOp, TransposeOp, UnsqueezeView, SqueezeView},
+    array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
-        AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp, SubOp,
-        SubScalarOp, SumOp, SqueezeOp, UnsqueezeOp,
-    }, single_ops::matmul::MatmulOp,
+        AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp,
+        SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp,
+    },
+    single_ops::matmul::MatmulOp,
 };
 use crate::{
     arith_impl,
@@ -66,11 +68,15 @@ pub(crate) struct ViewType(Vec<Arc<dyn AsView>>);
 impl Deref for ViewType {
     type Target = Vec<Arc<dyn AsView>>;
 
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl DerefMut for ViewType {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 /// AsView is used to get a view of a tensor.
@@ -437,11 +443,15 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn size(&self) -> Vec<usize> {
-        self.i().data.read().unwrap().size()
+        self.i().as_view().size()
     }
 
     fn kind(&self) -> TensorKind {
         self.i().data.read().unwrap().kind()
+    }
+
+    fn item<T: NumCast + Copy + 'static>(&self) -> T {
+        self.i().as_view().item()
     }
 
     fn t(&self) -> Self {
@@ -522,11 +532,11 @@ impl TensorMethods for NdArrayTensor {
         *self.i().as_view_mut() /= other;
     }
 
-    fn matmul(&self, other: &Self) -> Self{
+    fn matmul(&self, other: &Self) -> Self {
         MatmulOp::forward((self, other))
     }
 
-    fn assign(&mut self, other: &Self){
+    fn assign(&mut self, other: &Self) {
         self.i().as_view_mut().assign(&*other.i().as_view());
     }
 
@@ -538,7 +548,7 @@ impl TensorMethods for NdArrayTensor {
         UnsqueezeOp::forward(self, dim)
     }
 
-    fn unsqueeze_(&mut self, dim: usize){
+    fn unsqueeze_(&mut self, dim: usize) {
         self.i().view.push(Arc::new(UnsqueezeView::new(dim)));
     }
 
@@ -590,6 +600,10 @@ impl TensorMethods for KindedArrayD {
 
     fn kind(&self) -> TensorKind {
         kind(self)
+    }
+
+    fn item<T: NumCast + Copy + 'static>(&self) -> T {
+        self.view().item()
     }
 
     fn t(&self) -> Self {
@@ -676,7 +690,7 @@ impl TensorMethods for KindedArrayD {
         self.view().matmul(other.view())
     }
 
-    fn assign(&mut self, other: &Self){
+    fn assign(&mut self, other: &Self) {
         self.view_mut().assign(&other.view());
     }
 
@@ -699,8 +713,6 @@ impl TensorMethods for KindedArrayD {
     fn squeeze_(&mut self, _: usize) {
         unimplemented!()
     }
-
-    
 }
 
 arith_impl!(KindedArrayD);
@@ -910,6 +922,7 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
 pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn kind(&self) -> TensorKind;
     fn size(&self) -> Vec<usize>;
+    fn item<T: NumCast + Copy + 'static>(&self) -> T;
     fn upgrade(&self) -> Self::OwnedType;
 
     fn slice<'a>(&'a self, info: IndexInfo) -> Self::ViewType<'a>;
@@ -1149,13 +1162,13 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
-    fn assign(&mut self, other: impl Borrow<Self::ViewType<'_>>){
+    fn assign(&mut self, other: impl Borrow<Self::ViewType<'_>>) {
         obtain_2_kind_array_view_mut_with_immut!(self, array1, other.borrow(), array2, {
             array1.assign(array2);
         })
     }
 
-    fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>{
+    fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this> {
         obtain_kind_array_view_mut!(self, array, {
             KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
         })
@@ -1187,6 +1200,13 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
 
     fn neg(&self) -> Self::OwnedType {
         obtain_kind_array_view!(self, array, { KindedArrayD::from(array.mapv(|x| -x)) })
+    }
+
+    fn item<T: NumCast + Copy + 'static>(&self) -> T {
+        obtain_kind_array_view!(self, array, {
+            assert_eq!(array.len(), 1);
+            cast::<KindType, T>(*array.first().unwrap()).unwrap()
+        })
     }
 
     fn slice<'a>(&'a self, info: IndexInfo) -> Self::ViewType<'a> {
@@ -1229,10 +1249,8 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         })
     }
 
-    fn t<'a>(&'a self) -> Self::ViewType<'a>{
-        obtain_kind_array_view!(self, array, {
-            KindedArrayViewD::from(array.t())
-        })
+    fn t<'a>(&'a self) -> Self::ViewType<'a> {
+        obtain_kind_array_view!(self, array, { KindedArrayViewD::from(array.t()) })
     }
 
     fn add(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
