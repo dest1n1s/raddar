@@ -1,6 +1,6 @@
-use crate::ArrayTensor;
+use crate::{ArrayTensor, ndarr::Element};
 
-pub trait Operation
+pub trait Operation<E: Element>
 {
-    fn backward(&self, grad: ArrayTensor);
+    fn backward(&self, grad: ArrayTensor<E>);
 }

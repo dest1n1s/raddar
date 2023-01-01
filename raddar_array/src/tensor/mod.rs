@@ -1,28 +1,17 @@
-use num::cast::NumCast;
+use crate::ndarr::Element;
 
 use self::index::{IndexInfo, IndexInfoItem};
 
 pub mod index;
 pub mod ops;
 
-#[non_exhaustive]
-#[derive(Clone, Copy)]
-pub enum TensorKind {
-    F32,
-    F64,
-    I16,
-    I32,
-    I64,
-    OTHER,
-}
-pub trait TensorMethods: Sized {
+pub trait TensorMethods<E: Element>: Sized {
     /// Constructors
-    fn zeros(shape: &[usize], dtype: TensorKind) -> Self;
-    fn ones(shape: &[usize], dtype: TensorKind) -> Self;
+    fn zeros(shape: &[usize]) -> Self;
+    fn ones(shape: &[usize]) -> Self;
     /// Properties
     fn size(&self) -> Vec<usize>;
-    fn kind(&self) -> TensorKind;
-    fn item<T: NumCast + Copy + 'static>(&self) -> T;
+    fn item(&self) -> E;
     /// Tensor operations
     fn t(&self) -> Self;
     /// Arithmetic operations
@@ -36,14 +25,14 @@ pub trait TensorMethods: Sized {
     fn mul_(&mut self, other: &Self);
     fn div_(&mut self, other: &Self);
 
-    fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn add_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn add_scalar(&self, other: E) -> Self;
+    fn sub_scalar(&self, other: E) -> Self;
+    fn mul_scalar(&self, other: E) -> Self;
+    fn div_scalar(&self, other: E) -> Self;
+    fn add_scalar_(&mut self, other: E);
+    fn sub_scalar_(&mut self, other: E);
+    fn mul_scalar_(&mut self, other: E);
+    fn div_scalar_(&mut self, other: E);
 
     fn matmul(&self, other: &Self) -> Self;
 
@@ -58,7 +47,7 @@ pub trait TensorMethods: Sized {
     fn squeeze_(&mut self, dim: usize);
 }
 
-pub trait ArrayMethods: TensorMethods + Sized {
+pub trait ArrayMethods<E: Element>: TensorMethods<E> + Sized {
     fn slice(&self, index: IndexInfo) -> Self;
 
     /// get the element at `index`.
@@ -75,7 +64,7 @@ pub trait ArrayMethods: TensorMethods + Sized {
     fn broadcast(&self, shape: &[usize]) -> Self;
 }
 
-pub trait AutoGradTensorMethods: TensorMethods {
+pub trait AutoGradTensorMethods<E: Element>: TensorMethods<E> {
     fn backward(&mut self);
     fn grad(&self) -> Self;
     fn zero_grad(&mut self);
@@ -85,138 +74,138 @@ pub trait AutoGradTensorMethods: TensorMethods {
 
 #[macro_export]
 macro_rules! arith_impl {
-    ($impl_type:ty) => {
-        impl std::ops::Neg for &$impl_type {
+    ($impl_type:ty, $generics:tt) => {
+        impl<$generics: Element> std::ops::Neg for &$impl_type {
             type Output = $impl_type;
             fn neg(self) -> Self::Output {
                 TensorMethods::neg(self)
             }
         }
 
-        impl std::ops::Add for &$impl_type {
+        impl<$generics: Element> std::ops::Add for &$impl_type {
             type Output = $impl_type;
             fn add(self, other: Self) -> Self::Output {
                 TensorMethods::add(self, other)
             }
         }
 
-        impl std::ops::Sub for &$impl_type {
+        impl<$generics: Element> std::ops::Sub for &$impl_type {
             type Output = $impl_type;
             fn sub(self, other: Self) -> Self::Output {
                 TensorMethods::sub(self, other)
             }
         }
 
-        impl std::ops::Mul for &$impl_type {
+        impl<$generics: Element> std::ops::Mul for &$impl_type {
             type Output = $impl_type;
             fn mul(self, other: Self) -> Self::Output {
                 TensorMethods::mul(self, other)
             }
         }
 
-        impl std::ops::Div for &$impl_type {
+        impl<$generics: Element> std::ops::Div for &$impl_type {
             type Output = $impl_type;
             fn div(self, other: Self) -> Self::Output {
                 TensorMethods::div(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Add<T> for &$impl_type {
+        impl<$generics: Element> std::ops::Add<E> for &$impl_type {
             type Output = $impl_type;
-            fn add(self, other: T) -> Self::Output {
+            fn add(self, other: E) -> Self::Output {
                 TensorMethods::add_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Sub<T> for &$impl_type {
+        impl<$generics: Element> std::ops::Sub<E> for &$impl_type {
             type Output = $impl_type;
-            fn sub(self, other: T) -> Self::Output {
+            fn sub(self, other: E) -> Self::Output {
                 TensorMethods::sub_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Mul<T> for &$impl_type {
+        impl<$generics: Element> std::ops::Mul<E> for &$impl_type {
             type Output = $impl_type;
-            fn mul(self, other: T) -> Self::Output {
+            fn mul(self, other: E) -> Self::Output {
                 TensorMethods::mul_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Div<T> for &$impl_type {
+        impl<$generics: Element> std::ops::Div<E> for &$impl_type {
             type Output = $impl_type;
-            fn div(self, other: T) -> Self::Output {
+            fn div(self, other: E) -> Self::Output {
                 TensorMethods::div_scalar(self, other)
             }
         }
 
-        impl std::ops::AddAssign for $impl_type {
+        impl<$generics: Element> std::ops::AddAssign for $impl_type {
             fn add_assign(&mut self, other: Self) {
                 self.add_(&other)
             }
         }
 
-        impl std::ops::SubAssign for $impl_type {
+        impl<$generics: Element> std::ops::SubAssign for $impl_type {
             fn sub_assign(&mut self, other: Self) {
                 self.sub_(&other)
             }
         }
 
-        impl std::ops::MulAssign for $impl_type {
+        impl<$generics: Element> std::ops::MulAssign for $impl_type {
             fn mul_assign(&mut self, other: Self) {
                 self.mul_(&other)
             }
         }
 
-        impl std::ops::DivAssign for $impl_type {
+        impl<$generics: Element> std::ops::DivAssign for $impl_type {
             fn div_assign(&mut self, other: Self) {
                 self.div_(&other)
             }
         }
 
-        impl std::ops::AddAssign<&$impl_type> for $impl_type {
+        impl<$generics: Element> std::ops::AddAssign<&$impl_type> for $impl_type {
             fn add_assign(&mut self, other: &$impl_type) {
                 self.add_(other)
             }
         }
 
-        impl std::ops::SubAssign<&$impl_type> for $impl_type {
+        impl<$generics: Element> std::ops::SubAssign<&$impl_type> for $impl_type {
             fn sub_assign(&mut self, other: &$impl_type) {
                 self.sub_(other)
             }
         }
 
-        impl std::ops::MulAssign<&$impl_type> for $impl_type {
+        impl<$generics: Element> std::ops::MulAssign<&$impl_type> for $impl_type {
             fn mul_assign(&mut self, other: &$impl_type) {
                 self.mul_(other)
             }
         }
 
-        impl std::ops::DivAssign<&$impl_type> for $impl_type {
+        impl<$generics: Element> std::ops::DivAssign<&$impl_type> for $impl_type {
             fn div_assign(&mut self, other: &$impl_type) {
                 self.div_(other)
             }
         }
         
-        impl<T: num::NumCast + Copy + 'static> std::ops::AddAssign<T> for $impl_type {
-            fn add_assign(&mut self, other: T) {
+        impl<$generics: Element> std::ops::AddAssign<E> for $impl_type {
+            fn add_assign(&mut self, other: E) {
                 self.add_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::SubAssign<T> for $impl_type {
-            fn sub_assign(&mut self, other: T) {
+        impl<$generics: Element> std::ops::SubAssign<E> for $impl_type {
+            fn sub_assign(&mut self, other: E) {
                 self.sub_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::MulAssign<T> for $impl_type {
-            fn mul_assign(&mut self, other: T) {
+        impl<$generics: Element> std::ops::MulAssign<E> for $impl_type {
+            fn mul_assign(&mut self, other: E) {
                 self.mul_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::DivAssign<T> for $impl_type {
-            fn div_assign(&mut self, other: T) {
+        impl<$generics: Element> std::ops::DivAssign<E> for $impl_type {
+            fn div_assign(&mut self, other: E) {
                 self.div_scalar_(other);
             }
         }
@@ -233,7 +222,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut ts = NdArrayTensor::zeros(&[1, 2, 3, 4, 5], TensorKind::F32);
+        let mut ts = NdArrayTensor::zeros(&[1, 2, 3, 4, 5]);
         ts += 1i8;
         ts *= 2.0f64;
         // Should be all 2

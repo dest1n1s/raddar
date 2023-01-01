@@ -3,21 +3,16 @@ use std::sync::{Arc, Mutex};
 use crate::{
     binary_op, go_backward,
     ndarr::{
-        array_ops::BroadcastOp, ops::add_grad, BorrowView, KindedArrayD, KindedArrayViewD,
-        NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods,
+        array_ops::BroadcastOp, ops::add_grad, Element, NdArrayTensor, NdArrayTensorInternal,
+        ViewMethods,
     },
-    tensor::{TensorKind, TensorMethods},
+    tensor::index::IndexInfo,
 };
 use more_asserts::assert_ge;
-use ndarray::{ArrayD, ArrayViewD, Ix1, Ix2, LinalgScalar, SliceInfoElem};
-use num::NumCast;
+use ndarray::{ArrayD, ArrayViewD, Ix1, Ix2, SliceInfoElem};
 use state_compose::StateCompose;
 
-fn bivector_mul<T: LinalgScalar + NumCast>(
-    a: ArrayViewD<'_, T>,
-    b: ArrayViewD<'_, T>,
-    kind: TensorKind,
-) -> KindedArrayD {
+fn bivector_mul<E: Element>(a: ArrayViewD<'_, E>, b: ArrayViewD<'_, E>) -> ArrayD<E> {
     assert_eq!(a.ndim(), 1);
     assert_eq!(b.ndim(), 1);
 
@@ -26,20 +21,17 @@ fn bivector_mul<T: LinalgScalar + NumCast>(
 
     let result = a.dot(&b);
 
-    let mut res = KindedArrayD::zeros(&[1], kind);
+    let mut res = ArrayD::<E>::zeros(vec![1]);
     res += result;
 
     res
 }
 
-fn bivector_mul_matrix<T: LinalgScalar + NumCast>(
-    bivec: ArrayViewD<'_, T>,
-    mat: ArrayViewD<'_, T>,
+fn bivector_mul_matrix<E: Element>(
+    bivec: ArrayViewD<'_, E>,
+    mat: ArrayViewD<'_, E>,
     bivec_first: bool,
-) -> KindedArrayD
-where
-    KindedArrayD: From<ArrayD<T>>,
-{
+) -> ArrayD<E> {
     assert_eq!(bivec.ndim(), 1);
     assert_eq!(mat.ndim(), 2);
 
@@ -52,13 +44,10 @@ where
         mat.dot(&bivec)
     };
 
-    KindedArrayD::from(result.into_dyn())
+    ArrayD::<E>::from(result.into_dyn())
 }
 
-fn matrix_mul<T: LinalgScalar + NumCast>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> KindedArrayD
-where
-    KindedArrayD: From<ArrayD<T>>,
-{
+fn matrix_mul<E: Element>(a: ArrayViewD<'_, E>, b: ArrayViewD<'_, E>) -> ArrayD<E> {
     assert_eq!(a.ndim(), 2);
     assert_eq!(b.ndim(), 2);
 
@@ -67,17 +56,10 @@ where
 
     let result = a.dot(&b);
 
-    KindedArrayD::from(result.into_dyn())
+    ArrayD::from(result.into_dyn())
 }
 
-fn broadcasted_matmul<T: LinalgScalar + NumCast>(
-    a: ArrayViewD<'_, T>,
-    b: ArrayViewD<'_, T>,
-    kind: TensorKind,
-) -> KindedArrayD
-where
-    KindedArrayD: From<ArrayD<T>>,
-{
+fn broadcasted_matmul<E: Element>(a: ArrayViewD<'_, E>, b: ArrayViewD<'_, E>) -> ArrayD<E> {
     assert_ge!(a.ndim(), 2);
     assert_ge!(b.ndim(), 2);
     assert!(
@@ -85,12 +67,12 @@ where
         "At least one of the arguments must have ndim > 2. Otherwise, use matrix_mul instead."
     );
 
-    let broadcasted_shape = BroadcastOp::cobroadcast_shape(a.shape(), b.shape());
+    let broadcasted_shape = BroadcastOp::<E>::cobroadcast_shape(a.shape(), b.shape());
 
     let a = a.broadcast(broadcasted_shape.clone()).unwrap();
     let b = b.broadcast(broadcasted_shape.clone()).unwrap();
 
-    let mut result = KindedArrayD::zeros(&broadcasted_shape, kind);
+    let mut result = ArrayD::zeros(&*broadcasted_shape);
 
     // a naive implementation would be to iterate over the last two dimensions of a and b and
     // multiply them. However, this is not efficient, because it does not take advantage of
@@ -123,36 +105,32 @@ where
 
         result
             .view_mut()
-            .slice_mut(slice.into())
+            .slice_mut(slice.as_slice())
             .assign(&result_slice.view());
     }
 
     result
 }
 
-pub(crate) fn matmul<T: LinalgScalar + NumCast>(
-    a: ArrayViewD<'_, T>,
-    b: ArrayViewD<'_, T>,
-    kind: TensorKind,
-) -> KindedArrayD
+pub(crate) fn matmul<E: Element>(a: ArrayViewD<'_, E>, b: ArrayViewD<'_, E>) -> ArrayD<E>
 where
-    KindedArrayD: From<ArrayD<T>>,
+    ArrayD<E>: From<ArrayD<E>>,
 {
     match (a.ndim(), b.ndim()) {
-        (1, 1) => bivector_mul(a, b, kind),
+        (1, 1) => bivector_mul(a, b),
         (1, 2) => bivector_mul_matrix(a, b, true),
         (2, 1) => bivector_mul_matrix(b, a, false),
         (2, 2) => matrix_mul(a, b),
-        _ => broadcasted_matmul(a, b, kind),
+        _ => broadcasted_matmul(a, b),
     }
 }
 
-fn backward(
-    grad: &KindedArrayViewD<'_>,
-    a: &KindedArrayViewD<'_>,
-    b: &KindedArrayViewD<'_>,
+fn backward<E: Element>(
+    grad: &ArrayViewD<'_, E>,
+    a: &ArrayViewD<'_, E>,
+    b: &ArrayViewD<'_, E>,
     for_a: bool,
-) -> NdArrayTensor {
+) -> NdArrayTensor<E> {
     let res = match (a.size().len(), b.size().len()) {
         (1, 1) => {
             if for_a {

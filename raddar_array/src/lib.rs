@@ -1,11 +1,13 @@
 #![feature(trait_alias)]
 #![feature(anonymous_lifetime_in_impl_trait)]
+
+use ndarr::Element;
 #[cfg(feature = "ndarray-backend")]
 pub mod ndarr;
 
 pub mod tensor;
 #[cfg(feature = "ndarray-backend")]
-pub type ArrayTensor = ndarr::NdArrayTensor;
+pub type ArrayTensor<E> = ndarr::NdArrayTensor<E>;
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -18,9 +20,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
-        let mut ts2 = NdArrayTensor::zeros(&[2, 2], TensorKind::F32);
+        let mut ts2: NdArrayTensor<f64> = NdArrayTensor::zeros(&[2, 2]);
         ts2 += 1;
         ts2 *= 2.0f64;
         ts.set_requires_grad(true);
@@ -38,9 +40,9 @@ mod tests {
 
     #[test]
     fn simple_test() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
-        let mut ts2 = NdArrayTensor::zeros(&[2], TensorKind::F32);
+        let mut ts2: NdArrayTensor<f64> = NdArrayTensor::zeros(&[2]);
         ts2 += 1;
         ts2 *= 2.0f64;
         ts2.broadcast(&[10, 2]).debug_print();
@@ -65,9 +67,9 @@ mod tests {
 
     #[test]
     fn mul_test() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
-        let mut ts2 = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts2: NdArrayTensor<f64> = NdArrayTensor::ones(&[2, 2]);
 
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -87,9 +89,9 @@ mod tests {
 
     #[test]
     fn cobroadcast_test() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
-        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts2 = NdArrayTensor::ones(&[2]);
 
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -107,9 +109,9 @@ mod tests {
 
     #[test]
     fn sum_test() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
-        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts2 = NdArrayTensor::ones(&[2]);
 
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -127,7 +129,7 @@ mod tests {
 
     #[test]
     fn unsqueeze_test() {
-        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2]);
         ts *= 2.0f64;
 
         ts.unsqueeze(0).debug_print();
@@ -142,10 +144,10 @@ mod tests {
 
     #[test]
     fn matmul_test() {
-        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2]);
         ts *= 2.0f64;
         ts.debug_print();
-        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts2 = NdArrayTensor::ones(&[2]);
 
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
@@ -164,7 +166,7 @@ mod tests {
 
     #[test]
     fn self_ref_test(){
-        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2]);
         ts *= 2.0f64;
         ts.debug_print();
         ts += &ts.name_clone();

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use ndarray::SliceInfoElem;
+use ndarray::{SliceInfoElem, ArrayViewD, ArrayViewMutD};
 
 use crate::{
     go_backward,
@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    ops::add_grad, AsView, KindedArrayViewD, KindedArrayViewMutD, NdArrayTensor,
-    NdArrayTensorInternal, ViewMethods, ViewMutMethods,
+    ops::add_grad, AsView, NdArrayTensor,
+    NdArrayTensorInternal, ViewMethods, ViewMutMethods, Element,
 };
 
 impl From<IndexInfoItem> for SliceInfoElem {
@@ -66,24 +66,24 @@ impl SliceView {
     }
 }
 
-impl AsView for SliceView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for SliceView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor.into_slice(self.slice.clone())
     }
 
-    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, tensor: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         tensor.into_slice_mut(self.slice.clone())
     }
 }
 
-pub(crate) struct SliceOp {
+pub(crate) struct SliceOp<E: Element> {
     slice: IndexInfo,
-    input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    input: Arc<Mutex<NdArrayTensorInternal<E>>>,
+    output: Arc<Mutex<NdArrayTensorInternal<E>>>,
 }
 
-impl SliceOp {
-    pub(crate) fn forward(input: &NdArrayTensor, index: IndexInfo) -> NdArrayTensor {
+impl<E: Element> SliceOp<E> {
+    pub(crate) fn forward(input: &NdArrayTensor<E>, index: IndexInfo) -> NdArrayTensor<E> {
         let cloned = input.clone();
         cloned
             .i()
@@ -100,16 +100,15 @@ impl SliceOp {
     }
 }
 
-impl Operation for SliceOp {
-    fn backward(&self, grad: NdArrayTensor) {
+impl<E: Element> Operation<E> for SliceOp<E> {
+    fn backward(&self, grad: NdArrayTensor<E>) {
         add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
-        let kind = tensor.as_view().kind();
         let size = tensor.as_view().size();
         drop(tensor);
 
-        let backward_grad = NdArrayTensor::zeros(&size, kind);
+        let backward_grad = NdArrayTensor::zeros(&size);
         let mut sub_grad = backward_grad.slice(self.slice.clone());
         sub_grad += grad;
 
@@ -127,24 +126,24 @@ impl PermuteView {
     }
 }
 
-impl AsView for PermuteView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for PermuteView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor.into_permute(&self.permute)
     }
 
-    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, tensor: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         tensor.into_permute_mut(&self.permute)
     }
 }
 
-pub(crate) struct PermuteOp {
+pub(crate) struct PermuteOp<E: Element> {
     permute: Vec<usize>,
-    input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    input: Arc<Mutex<NdArrayTensorInternal<E>>>,
+    output: Arc<Mutex<NdArrayTensorInternal<E>>>,
 }
 
-impl PermuteOp {
-    pub(crate) fn forward(input: &NdArrayTensor, permute: &[usize]) -> NdArrayTensor {
+impl<E: Element> PermuteOp<E> {
+    pub(crate) fn forward(input: &NdArrayTensor<E>, permute: &[usize]) -> NdArrayTensor<E> {
         let cloned = input.clone();
         cloned
             .i()
@@ -161,16 +160,15 @@ impl PermuteOp {
     }
 }
 
-impl Operation for PermuteOp {
-    fn backward(&self, grad: NdArrayTensor) {
+impl<E: Element> Operation<E> for PermuteOp<E> {
+    fn backward(&self, grad: NdArrayTensor<E>) {
         add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
-        let kind = tensor.as_view().kind();
         let size = tensor.as_view().size();
         drop(tensor);
 
-        let backward_grad = NdArrayTensor::zeros(&size, kind);
+        let backward_grad = NdArrayTensor::zeros(&size);
         let mut sub_grad = backward_grad.permute(&self.permute);
         sub_grad += grad;
 
@@ -181,7 +179,7 @@ impl Operation for PermuteOp {
 pub(crate) struct TransposeOp;
 
 impl TransposeOp {
-    pub(crate) fn forward(input: &NdArrayTensor, dim0: isize, dim1: isize) -> NdArrayTensor {
+    pub(crate) fn forward<E: Element>(input: &NdArrayTensor<E>, dim0: isize, dim1: isize) -> NdArrayTensor<E> {
         let ndim = input.size().len();
 
         let dim0 = if dim0 < 0 {
@@ -220,24 +218,24 @@ impl BroadcastView {
     }
 }
 
-impl AsView for BroadcastView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for BroadcastView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor.into_broadcast(&self.broadcast)
     }
 
-    fn view_mut<'a>(&self, _: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, _: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         panic!("Cannot broadcast into a mutable view")
     }
 }
 
-pub(crate) struct BroadcastOp {
+pub(crate) struct BroadcastOp<E: Element> {
     broadcast: Vec<usize>,
-    input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    input: Arc<Mutex<NdArrayTensorInternal<E>>>,
+    output: Arc<Mutex<NdArrayTensorInternal<E>>>,
 }
 
-impl BroadcastOp {
-    pub(crate) fn forward(input: &NdArrayTensor, broadcast: &[usize]) -> NdArrayTensor {
+impl<E: Element> BroadcastOp<E> {
+    pub(crate) fn forward(input: &NdArrayTensor<E>, broadcast: &[usize]) -> NdArrayTensor<E> {
         let cloned = input.clone();
         cloned
             .i()
@@ -289,9 +287,9 @@ impl BroadcastOp {
     ///
     /// Panics if the two tensors cannot be broadcasted to the same size.
     pub(crate) fn cobroadcast(
-        input: &NdArrayTensor,
-        other: &NdArrayTensor,
-    ) -> (NdArrayTensor, NdArrayTensor) {
+        input: &NdArrayTensor<E>,
+        other: &NdArrayTensor<E>,
+    ) -> (NdArrayTensor<E>, NdArrayTensor<E>) {
         let broadcast = Self::cobroadcast_shape(&input.size(), &other.size());
 
         let this = if broadcast == input.size() {
@@ -310,16 +308,15 @@ impl BroadcastOp {
     }
 }
 
-impl Operation for BroadcastOp {
-    fn backward(&self, grad: NdArrayTensor) {
+impl<E: Element> Operation<E> for BroadcastOp<E> {
+    fn backward(&self, grad: NdArrayTensor<E>) {
         add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
-        let kind = tensor.as_view().kind();
         let size = tensor.as_view().size();
         drop(tensor);
 
-        let backward_grad = NdArrayTensor::zeros(&size, kind);
+        let backward_grad = NdArrayTensor::zeros(&size);
         // todo: you cannot use broadcasted tensor as a mutable view!
         let mut sub_grad = backward_grad.broadcast(&self.broadcast);
         sub_grad += grad;
@@ -338,12 +335,12 @@ impl UnsqueezeView {
     }
 }
 
-impl AsView for UnsqueezeView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for UnsqueezeView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor.into_unsqueeze(self.dim)
     }
 
-    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, tensor: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         tensor.into_unsqueeze_mut(self.dim)
     }
 }
@@ -358,34 +355,34 @@ impl SqueezeView {
     }
 }
 
-impl AsView for SqueezeView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for SqueezeView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor.into_squeeze(self.dim)
     }
 
-    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, tensor: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         tensor.into_squeeze_mut(self.dim)
     }
 }
 pub(crate) struct IdentityView;
 
-impl AsView for IdentityView {
-    fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a> {
+impl<E: Element> AsView<E> for IdentityView {
+    fn view<'a>(&self, tensor: ArrayViewD<'a, E>) -> ArrayViewD<'a, E> {
         tensor
     }
 
-    fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a> {
+    fn view_mut<'a>(&self, tensor: ArrayViewMutD<'a, E>) -> ArrayViewMutD<'a, E> {
         tensor
     }
 }
 
-pub(crate) struct IdentityOp {
-    input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+pub(crate) struct IdentityOp<E: Element> {
+    input: Arc<Mutex<NdArrayTensorInternal<E>>>,
+    output: Arc<Mutex<NdArrayTensorInternal<E>>>,
 }
 
-impl IdentityOp {
-    pub(crate) fn forward(input: &NdArrayTensor) -> NdArrayTensor {
+impl<E: Element> IdentityOp<E> {
+    pub(crate) fn forward(input: &NdArrayTensor<E>) -> NdArrayTensor<E> {
         let cloned = input.clone();
         cloned.i().view.push(Arc::new(IdentityView));
         if cloned.i().requires_grad {
@@ -398,8 +395,8 @@ impl IdentityOp {
     }
 }
 
-impl Operation for IdentityOp {
-    fn backward(&self, grad: NdArrayTensor) {
+impl<E: Element> Operation<E> for IdentityOp<E> {
+    fn backward(&self, grad: NdArrayTensor<E>) {
         add_grad(self.output.clone(), grad.name_clone());
         go_backward!(self.input, grad);
     }

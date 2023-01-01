@@ -1,20 +1,21 @@
 use std::sync::{Arc, Mutex};
 
+use ndarray::ArrayD;
+
 use crate::{tensor::{ops::Operation, TensorMethods, ArrayMethods}};
 
-use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
+use super::{NdArrayTensor, NdArrayTensorInternal, ViewMethods, Element};
 
 /// A helper method to add `grad` to the `tensor`'s grad.
 ///
 /// If the `tensor`'s grad is `None`, we will create a new grad with the same shape and dtype as the `tensor`.
-pub(crate) fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
+pub(crate) fn add_grad<E: Element>(tensor: Arc<Mutex<NdArrayTensorInternal<E>>>, grad: NdArrayTensor<E>) {
     let mut tensor = tensor.lock().unwrap();
 
     let shape = tensor.as_view().size();
-    let dtype = tensor.as_view().kind();
 
     if tensor.grad.is_none() {
-        tensor.grad = Some(KindedArrayD::zeros(&shape, dtype));
+        tensor.grad = Some(ArrayD::<E>::zeros(shape));
     }
     *tensor.grad.as_mut().unwrap() += &*grad.i().data.read().unwrap();
 }
@@ -31,9 +32,9 @@ macro_rules! go_backward {
 
 /// A helper method to borrow two tensor's internals.
 /// 
-/// `$a` and `$b` are the two tensors to borrow, type `Arc<Mutex<NdArrayTensorInternal>>`.
+/// `$a` and `$b` are the two tensors to borrow, type `Arc<Mutex<NdArrayTensorInternal<E>>>`.
 /// 
-/// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal>, &MutexGuard<NdArrayTensorInternal>)`.
+/// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal<E>>, &MutexGuard<NdArrayTensorInternal<E>>)`.
 /// 
 /// `$execution` is the code block to execute.
 #[macro_export]
@@ -62,20 +63,20 @@ macro_rules! borrow_two_tensor_internals {
 #[macro_export]
 macro_rules! binary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
-        pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            b: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
+        pub(crate) struct $op_name<E: $crate::Element> {
+            a: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            b: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            output: Arc<Mutex<NdArrayTensorInternal<E>>>,
         }
 
-        impl $op_name {
-            pub fn forward($input_name: (&NdArrayTensor, &NdArrayTensor)) -> NdArrayTensor {
+        impl<E: $crate::Element> $op_name<E> {
+            pub fn forward($input_name: (&NdArrayTensor<E>, &NdArrayTensor<E>)) -> NdArrayTensor<E> {
                 // CAUTION: decide whether the tuple is the same or not first,
                 // if the tuple is the same, we should prevent locking the tensor twice.
                 let (a, b) = ($input_name.0.i_copy(), $input_name.1.i_copy());
 
                 let mut tensor = $crate::borrow_two_tensor_internals!(a, b, $input_name, {
-                    NdArrayTensor::from($forward_calculation)
+                    NdArrayTensor::<E>::from($forward_calculation)
                 });
 
                 tensor.i().is_leaf = false;
@@ -92,8 +93,8 @@ macro_rules! binary_op {
             }
         }
 
-        impl $crate::tensor::ops::Operation for $op_name {
-            fn backward(&self, $grad_name: NdArrayTensor) {
+        impl<E: $crate::Element> $crate::tensor::ops::Operation<E> for $op_name <E> {
+            fn backward(&self, $grad_name: NdArrayTensor<E>) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let (a, b) = $crate::borrow_two_tensor_internals!(self.a, self.b, $input_name, {
@@ -111,16 +112,16 @@ macro_rules! binary_op {
 
 macro_rules! unary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
-        pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
+        pub(crate) struct $op_name<E: $crate::Element> {
+            a: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            output: Arc<Mutex<NdArrayTensorInternal<E>>>,
         }
 
-        impl $op_name {
-            pub fn forward($input_name: &NdArrayTensor) -> NdArrayTensor {
+        impl<E: $crate::Element> $op_name<E> {
+            pub fn forward($input_name: &NdArrayTensor<E>) -> NdArrayTensor<E> {
                 let mut tensor = {
                     let $input_name = &$input_name.i();
-                    let ret = NdArrayTensor::from($forward_calculation);
+                    let ret = NdArrayTensor::<E>::from($forward_calculation);
                     ret
                 };
                 tensor.i().is_leaf = false;
@@ -136,8 +137,8 @@ macro_rules! unary_op {
             }
         }
 
-        impl Operation for $op_name {
-            fn backward(&self, $grad_name: NdArrayTensor) {
+        impl<E: $crate::Element> Operation<E> for $op_name<E> {
+            fn backward(&self, $grad_name: NdArrayTensor<E>) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 go_backward!(self.a, $backward_to);
@@ -148,17 +149,17 @@ macro_rules! unary_op {
 
 macro_rules! unary_op_with_scalar {
     ($op_name: ident, $param_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
-        pub(crate) struct $op_name<T: num::NumCast + Copy + 'static> {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
-            $param_name: T,
+        pub(crate) struct $op_name<E: Element> {
+            a: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            output: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            $param_name: E,
         }
 
-        impl<T: num::NumCast + Copy + 'static> $op_name<T> {
-            pub fn forward($input_name: &NdArrayTensor, $param_name: T) -> NdArrayTensor {
+        impl<E: Element> $op_name<E> {
+            pub fn forward($input_name: &NdArrayTensor<E>, $param_name: E) -> NdArrayTensor<E> {
                 let mut tensor = {
                     let $input_name = &$input_name.i();
-                    let ret = NdArrayTensor::from($forward_calculation);
+                    let ret = NdArrayTensor::<E>::from($forward_calculation);
                     ret
                 };
                 tensor.i().is_leaf = false;
@@ -175,8 +176,8 @@ macro_rules! unary_op_with_scalar {
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> Operation for $op_name<T> {
-            fn backward(&self, $grad_name: NdArrayTensor) {
+        impl<E: Element> Operation<E> for $op_name<E> {
+            fn backward(&self, $grad_name: NdArrayTensor<E>) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let $param_name = self.$param_name;
@@ -188,17 +189,17 @@ macro_rules! unary_op_with_scalar {
 
 macro_rules! unary_op_with_non_generic_param {
     ($op_name: ident, $param_name: ident, $param_type: ty, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
-        pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
+        pub(crate) struct $op_name <E: Element> {
+            a: Arc<Mutex<NdArrayTensorInternal<E>>>,
+            output: Arc<Mutex<NdArrayTensorInternal<E>>>,
             $param_name: $param_type,
         }
 
-        impl $op_name {
-            pub fn forward($input_name: &NdArrayTensor, $param_name: $param_type) -> NdArrayTensor {
+        impl<E: Element> $op_name<E> {
+            pub fn forward($input_name: &NdArrayTensor<E>, $param_name: $param_type) -> NdArrayTensor<E> {
                 let mut tensor = {
                     let $input_name = &$input_name.i();
-                    let ret = NdArrayTensor::from($forward_calculation);
+                    let ret = NdArrayTensor::<E>::from($forward_calculation);
                     ret
                 };
                 tensor.i().is_leaf = false;
@@ -215,8 +216,8 @@ macro_rules! unary_op_with_non_generic_param {
             }
         }
 
-        impl Operation for $op_name {
-            fn backward(&self, $grad_name: NdArrayTensor) {
+        impl<E: Element> Operation<E> for $op_name <E> {
+            fn backward(&self, $grad_name: NdArrayTensor<E>) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let $param_name = &self.$param_name;
@@ -252,8 +253,8 @@ binary_op!(
     inputs,
     grad,
     &*inputs.0.as_view() * &*inputs.1.as_view(),
-    NdArrayTensor::from(&*grad.i().as_view() * &*inputs.1.as_view()),
-    NdArrayTensor::from(&*grad.i().as_view() * &*inputs.0.as_view())
+    NdArrayTensor::<E>::from(&*grad.i().as_view() * &*inputs.1.as_view()),
+    NdArrayTensor::<E>::from(&*grad.i().as_view() * &*inputs.0.as_view())
 );
 
 binary_op!(
@@ -261,8 +262,8 @@ binary_op!(
     inputs,
     grad,
     &*inputs.0.as_view() / &*inputs.1.as_view(),
-    NdArrayTensor::from(&*grad.i().as_view() / &*inputs.1.as_view()),
-    NdArrayTensor::from(
+    NdArrayTensor::<E>::from(&*grad.i().as_view() / &*inputs.1.as_view()),
+    NdArrayTensor::<E>::from(
         -&(&(&*grad.i().as_view() * &*inputs.0.as_view())
             / &(&*inputs.1.as_view() * &*inputs.1.as_view()))
     )
@@ -350,18 +351,18 @@ unary_op_with_non_generic_param!(
     input.as_view().clone().into_unsqueeze(dim).upgrade(),
     grad.squeeze(*dim)
 );
-pub(crate) struct GradAccumulateOp {
-    tensor: Arc<Mutex<NdArrayTensorInternal>>,
+pub(crate) struct GradAccumulateOp<E: Element> {
+    tensor: Arc<Mutex<NdArrayTensorInternal<E>>>,
 }
 
-impl GradAccumulateOp {
-    pub(crate) fn new(tensor: Arc<Mutex<NdArrayTensorInternal>>) -> Self {
+impl<E: Element> GradAccumulateOp<E> {
+    pub(crate) fn new(tensor: Arc<Mutex<NdArrayTensorInternal<E>>>) -> Self {
         Self { tensor }
     }
 }
 
-impl Operation for GradAccumulateOp {
-    fn backward(&self, grad: NdArrayTensor) {
+impl<E: Element> Operation<E> for GradAccumulateOp<E> {
+    fn backward(&self, grad: NdArrayTensor<E>) {
         add_grad(self.tensor.clone(), grad);
     }
 }
