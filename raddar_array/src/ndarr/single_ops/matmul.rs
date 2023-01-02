@@ -77,16 +77,16 @@ where
 }
 
 /// Apply function `f` to each slice of `a` and `b` and return the result.
-/// 
+///
 /// The slice's length will be thought to be the same as `element_shape`'s.
-/// 
+///
 /// For example, if `a` and `b` are 3d tensors with shape `[2, 3, 4]` and `element_shape` is `[2, 2]`,
 /// `f` will be applied to each 2d slice of `a` and `b` with shape `[3, 4]` and expected to return a
-/// 2d tensor with shape `[2, 2]`; 
-/// 
-/// if `element_shape` is `[1]`, `f` will be applied to each 1d slice of `a` and `b` with shape `[4]` 
+/// 2d tensor with shape `[2, 2]`;
+///
+/// if `element_shape` is `[1]`, `f` will be applied to each 1d slice of `a` and `b` with shape `[4]`
 /// and expected to return a 1d tensor with shape `[1]`.
-/// 
+///
 /// The result of `f` will be concatenated along the batch dimensions and returned.
 pub(crate) fn batched_zip<T: LinalgScalar + AnyNum, F>(
     a: ArrayViewD<'_, T>,
@@ -147,9 +147,9 @@ where
 }
 
 /// Multiply two tensors with ndim > 2.
-/// 
+///
 /// The last two dimensions of `a` and `b` are treated as matrices and multiplied.
-/// 
+///
 /// The batch dimensions of `a` and `b` must be the same. The result will have the same batch
 /// dimensions as `a` and `b`.
 fn broadcasted_matmul<T: LinalgScalar + AnyNum>(
@@ -194,7 +194,7 @@ where
 }
 
 /// Multiply two tensors.
-/// 
+///
 /// if `a` and `b` are both 1d tensors, the result is a scalar;
 /// if `a` is a 1d tensor and `b` is a 2d tensor, the result is a 1d tensor;
 /// if `a` is a 2d tensor and `b` is a 1d tensor, the result is a 1d tensor, too;
@@ -312,9 +312,9 @@ binary_op!(
 
 mod state_compose {
     /// A helper struct to compose and decompose states. A state is a number that represents a
-    /// combination of multiple values. 
-    /// 
-    /// For example, if `shape` is \[2, 3, 4\], then 
+    /// combination of multiple values.
+    ///
+    /// For example, if `shape` is \[2, 3, 4\], then
     /// ```text
     /// State 0 -> [0, 0, 0]
     /// State 1 -> [0, 0, 1]

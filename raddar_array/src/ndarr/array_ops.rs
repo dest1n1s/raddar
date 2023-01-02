@@ -247,11 +247,11 @@ impl BroadcastOp {
         }
         cloned
     }
-    
+
     /// Calculate the broadcasted shape of two tensors.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the two shapes cannot be broadcasted.
     pub(crate) fn cobroadcast_shape(input: &[usize], other: &[usize]) -> Vec<usize> {
         let mut this_size = input.to_vec();
@@ -315,7 +315,6 @@ impl Operation for BroadcastOp {
         add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
-        let kind = tensor.as_view().kind();
         let size = tensor.as_view().size();
         drop(tensor);
 
@@ -330,7 +329,7 @@ impl Operation for BroadcastOp {
             .rev()
             .zip(size.iter().rev())
             .for_each(|((i, &b), &s)| if b != s {
-                assert_eq!(b, 1, "Received a broadcasted tensor with shape {:?} and original shape {:?}, but the broadcasted tensor has an unequal dimension that is not 1 in the original tensor", self.broadcast, size);
+                assert_eq!(s, 1, "Received a broadcasted tensor with shape {:?} and original shape {:?}, but the broadcasted tensor has an unequal dimension that is not 1 in the original tensor", self.broadcast, size);
                 keep_dims.push(i);
             });
 

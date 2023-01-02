@@ -190,4 +190,30 @@ mod tests {
         ts.grad().debug_print();
         ts2.grad().debug_print();
     }
+
+    #[test]
+    fn linear_fit_test() {
+        let x = NdArrayTensor::zeros(&[100], TensorKind::F32);
+        let y = NdArrayTensor::zeros(&[100], TensorKind::F32);
+        let mut w = NdArrayTensor::zeros(&[1], TensorKind::F32);
+        let mut b = NdArrayTensor::zeros(&[1], TensorKind::F32);
+        let learning_rate = 1e-4f64;
+        for i in 0..100 {
+            x.get(i).assign_scalar(i as f64);
+            y.get(i).assign_scalar(2.0f64 * i as f64 + 2.0f64);
+        }
+        w.set_requires_grad(true);
+        b.set_requires_grad(true);
+        for _ in 0..30000 {
+            w.zero_grad();
+            b.zero_grad();
+            let y_pred = &(&x * &w) + &b;
+            let mut loss = &(&y_pred - &y).pow_scalar(2).sum() / 100;
+            loss.backward();
+            w -= &w.grad() * learning_rate;
+            b -= &b.grad() * learning_rate;
+        }
+        w.debug_print();
+        b.debug_print();
+    }
 }

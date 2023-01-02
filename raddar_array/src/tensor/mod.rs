@@ -77,7 +77,8 @@ pub trait TensorMethods: Sized {
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;
     fn sum(&self) -> Self {
-        self.sum_dim(self.size().as_slice(), false)
+        let dim = (0..self.size().len()).collect::<Vec<_>>();
+        self.sum_dim(&dim, false)
     }
     fn unsqueeze(&self, dim: usize) -> Self;
     fn unsqueeze_(&mut self, dim: usize);
