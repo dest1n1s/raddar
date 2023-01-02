@@ -1665,7 +1665,9 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType {
-        assert_gt!(dim.len(), 0, "dim must not be empty");
+        if dim.is_empty() {
+            return self.upgrade();
+        }
         // sum from the first dimension to the last dimension
 
         // order the dimensions in ascending order

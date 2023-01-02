@@ -319,10 +319,23 @@ impl Operation for BroadcastOp {
         let size = tensor.as_view().size();
         drop(tensor);
 
-        let backward_grad = NdArrayTensor::zeros(&size, kind);
-        // todo: you cannot use broadcasted tensor as a mutable view!
-        let mut sub_grad = backward_grad.broadcast(&self.broadcast);
-        sub_grad += grad;
+        let new_ndim = self.broadcast.len() - size.len();
+
+        let mut keep_dims = vec![];
+        let drop_dims = (0..new_ndim).collect::<Vec<_>>();
+
+        self.broadcast
+            .iter()
+            .enumerate()
+            .rev()
+            .zip(size.iter().rev())
+            .for_each(|((i, &b), &s)| if b != s {
+                assert_eq!(b, 1, "Received a broadcasted tensor with shape {:?} and original shape {:?}, but the broadcasted tensor has an unequal dimension that is not 1 in the original tensor", self.broadcast, size);
+                keep_dims.push(i);
+            });
+
+        let backward_grad = grad.sum_dim(&keep_dims, true);
+        let backward_grad = backward_grad.sum_dim(&drop_dims, false);
 
         go_backward!(self.input, backward_grad);
     }
