@@ -46,18 +46,26 @@ pub trait TensorMethods: Sized {
     fn mul_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn div_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn pow_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn exp_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn ln(&self) -> Self {
         self.log_scalar(E)
+    }
+    fn exp(&self) -> Self{
+        self.exp_scalar(E)
     }
     fn add_scalar_<T: AnyNum>(&mut self, other: T);
     fn sub_scalar_<T: AnyNum>(&mut self, other: T);
     fn mul_scalar_<T: AnyNum>(&mut self, other: T);
     fn div_scalar_<T: AnyNum>(&mut self, other: T);
     fn pow_scalar_<T: AnyNum>(&mut self, other: T);
+    fn exp_scalar_<T: AnyNum>(&mut self, other: T);
     fn log_scalar_<T: AnyNum>(&mut self, other: T);
     fn ln_(&mut self) {
         self.log_scalar_(E)
+    }
+    fn exp_(&mut self){
+        self.exp_scalar_(E)
     }
 
     fn matmul(&self, other: &Self) -> Self;

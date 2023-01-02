@@ -380,6 +380,24 @@ unary_op_with_scalar!(
 );
 
 unary_op_with_scalar!(
+    ExpScalarOp,
+    scalar,
+    input,
+    grad,
+    output,
+    input.as_view().exp_scalar(scalar),
+    {
+        let scalar: f64 = cast(scalar).unwrap();
+        
+        let output = output.lock().unwrap();
+        let output_times_ln_scalar = output.as_view().mul_scalar(scalar.ln());
+        drop(output);
+
+        NdArrayTensor::from(&*grad.i().as_view() * &output_times_ln_scalar.view())
+    }
+);
+
+unary_op_with_scalar!(
     LogScalarOp,
     scalar,
     input,

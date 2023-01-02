@@ -10,7 +10,7 @@ use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
         AddOp, AddScalarOp, DivOp, DivScalarOp, GradAccumulateOp, MulOp, MulScalarOp, NegOp, PowOp,
-        PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp, LogScalarOp,
+        PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp, LogScalarOp, ExpScalarOp,
     },
     single_ops::matmul::MatmulOp,
 };
@@ -604,6 +604,10 @@ impl TensorMethods for NdArrayTensor {
         PowScalarOp::forward(self, other)
     }
 
+    fn exp_scalar<T: AnyNum>(&self, other: T) -> Self {
+        ExpScalarOp::forward(self, other)
+    }
+
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self {
         LogScalarOp::forward(self, other)
     }
@@ -626,6 +630,10 @@ impl TensorMethods for NdArrayTensor {
 
     fn pow_scalar_<T: AnyNum>(&mut self, other: T) {
         self.i().as_view_mut().pow_scalar_(other);
+    }
+
+    fn exp_scalar_<T: AnyNum>(&mut self, other: T) {
+        self.i().as_view_mut().exp_scalar_(other);
     }
     
     fn log_scalar_<T: AnyNum>(&mut self, other: T) {
@@ -796,6 +804,10 @@ impl TensorMethods for KindedArrayD {
         self.view().pow_scalar(other)
     }
 
+    fn exp_scalar<T: AnyNum>(&self, other: T) -> Self {
+        self.view().exp_scalar(other)
+    }
+
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self {
         self.view().log_scalar(other)
     }
@@ -822,6 +834,10 @@ impl TensorMethods for KindedArrayD {
 
     fn pow_scalar_<T: AnyNum>(&mut self, other: T) {
         self.view_mut().pow_scalar_(other);
+    }
+
+    fn exp_scalar_<T: AnyNum>(&mut self, other: T) {
+        self.view_mut().exp_scalar_(other);
     }
 
     fn log_scalar_<T: AnyNum>(&mut self, other: T) {
@@ -1058,6 +1074,7 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn mul_scalar_<T: AnyNum>(&mut self, other: T);
     fn div_scalar_<T: AnyNum>(&mut self, other: T);
     fn pow_scalar_<T: AnyNum>(&mut self, other: T);
+    fn exp_scalar_<T: AnyNum>(&mut self, other: T);
     fn log_scalar_<T: AnyNum>(&mut self, other: T);
     fn ln_(&mut self){
         self.log_scalar_(E);
@@ -1099,6 +1116,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn mul_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn div_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn pow_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
+    fn exp_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn ln(&self) -> Self::OwnedType {
         self.log_scalar(E)
@@ -1359,6 +1377,21 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         )
     }
 
+    fn exp_scalar_<T: AnyNum>(&mut self, other: T) {
+        obtain_kind_array_view_mut!(
+            self,
+            array,
+            {
+                let other = cast::<T, KindType>(other).unwrap();
+                array.mapv_inplace(|a| other.pow(a as u32));
+            },
+            {
+                let other = cast::<T, KindType>(other).unwrap();
+                array.mapv_inplace(|a| other.powf(a));
+            }
+        )
+    }
+
     fn log_scalar_<T: AnyNum>(&mut self, other: T) {
         obtain_kind_array_view_mut!(
             self,
@@ -1553,6 +1586,21 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
             {
                 let other = cast::<T, KindType>(other).unwrap();
                 KindedArrayD::from(array.mapv(|x| x.powf(other)))
+            }
+        )
+    }
+
+    fn exp_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType {
+        obtain_kind_array_view!(
+            self,
+            array,
+            {
+                let other = cast::<T, KindType>(other).unwrap();
+                KindedArrayD::from(array.mapv(|x| other.pow(x as u32) as KindType))
+            },
+            {
+                let other = cast::<T, KindType>(other).unwrap();
+                KindedArrayD::from(array.mapv(|x| other.powf(x)))
             }
         )
     }
