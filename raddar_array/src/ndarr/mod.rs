@@ -46,7 +46,9 @@ mod single_ops;
 ///                              │                       │         └─────────────────────────────────┘
 ///                              └───────────────────────┘
 /// ```
-///
+/// 
+/// **Edit**: `grad` is a `Option<KindedArrayD>` now, not a `NdArrayTensor`.
+/// 
 /// ## What happens if I call `&t1 + &t2`, where `t1` and `t2` are two tensors?
 ///
 /// 1. `t1.add(&t2)` is called, where `add` is a method of `TensorMethods` on `NdArrayTensor`;
@@ -63,7 +65,9 @@ pub struct NdArrayTensor {
     internal: Option<Arc<Mutex<NdArrayTensorInternal>>>,
 }
 
-/// ViewType is used to indicate whether the tensor is a view of some tensor.
+/// ViewType is used to record how a tensor should be viewed.
+/// 
+/// To get the proper view of a tensor, we need to apply the `AsView`s in it one by one to the original `KindedArrayD`.
 #[derive(Clone)]
 pub(crate) struct ViewType(Vec<Arc<dyn AsView>>);
 
@@ -81,7 +85,9 @@ impl DerefMut for ViewType {
     }
 }
 
-/// AsView is used to get a view of a tensor.
+/// AsView is used to process a view of a tensor. You pass in a tensor view, and it returns a transformed view.
+/// 
+/// todo: Is `ViewTransform` a better name?
 pub(crate) trait AsView {
     fn view<'a>(&self, tensor: KindedArrayViewD<'a>) -> KindedArrayViewD<'a>;
     fn view_mut<'a>(&self, tensor: KindedArrayViewMutD<'a>) -> KindedArrayViewMutD<'a>;
@@ -93,15 +99,20 @@ pub(crate) trait BorrowView {
     fn view_mut(&mut self) -> KindedArrayViewMutD<'_>;
 }
 
+/// The real data structure of a tensor. We separate it from `NdArrayTensor` to make the latter easier to clone,
+/// and make it possible to share the same data (i.e. tensor data, view, grad, etc.) between different `NdArrayTensor`s.
 pub(crate) struct NdArrayTensorInternal {
     /// The view type of this tensor.
     view: ViewType,
-    /// The reference to the actual data.
+    /// The reference to the actual data. We use `Arc` here to make it possible to share the same tensor data between different tensors.
     data: Arc<RwLock<KindedArrayD>>,
+    /// Whether this tensor is a leaf tensor.
     is_leaf: bool,
+    /// Whether this tensor requires gradient.
     requires_grad: bool,
+    /// The gradient of this tensor. Before the backward passes, it is `None`.
     grad: Option<KindedArrayD>,
-    /// The operation that generates this tensor.
+    /// The operation that produces this tensor. It should be `None` for leaf tensors.
     op: Option<Arc<dyn Operation>>,
 }
 
@@ -342,6 +353,7 @@ where
 /// and set the type `OriginalKindType` to the type of the `$array_name1`,
 /// and then cast the type of the `$array_name2` to `OriginalKindType` if necessary.
 /// Then run the code in `$execution`.
+/// 
 /// Note: the `$array_name2` will be either of the same type as `$array_name1`, or an `ArrayD` if it has been casted.
 macro_rules! obtain_2_kind_array_view_mut_with_immut {
     ($kind_array1:expr, $array_name1:ident, $kind_array2:expr, $array_name2:ident, $execution_for_int:block, $execution_for_float:block) => {
@@ -402,10 +414,14 @@ macro_rules! obtain_2_kind_array_view_mut_with_immut {
 }
 
 impl NdArrayTensor {
+    /// Initialize a new tensor with no data.
+    /// 
+    /// Note: you should never use this function directly or put it in the computation graph, which will cause a panic.
     fn none() -> Self {
         Self { internal: None }
     }
 
+    /// A debug function to print the data of the tensor.
     pub(crate) fn debug_print(&self) {
         match self.internal {
             Some(ref kinded_array) => {
@@ -416,7 +432,7 @@ impl NdArrayTensor {
         }
     }
 
-    /// Get the internal data of the tensor.
+    /// Get the internal data of the tensor, protected by a mutex guard.
     fn i(&self) -> MutexGuard<'_, NdArrayTensorInternal> {
         self.internal.as_ref().unwrap().lock().unwrap()
     }
@@ -462,6 +478,10 @@ impl Clone for NdArrayTensor {
 }
 
 impl NdArrayTensorInternal {
+    /// Get the tensor in the internal data (protected by a mutex guard) and apply view transformations
+    /// stored in the internal data to it. Return an owning handle to the mutex guard and the boxed view.
+    /// 
+    /// Note: only after you drop the owning handle, the lock will be released.
     pub(crate) fn as_view<'a>(
         &'a self,
     ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
@@ -476,6 +496,7 @@ impl NdArrayTensorInternal {
         })
     }
 
+    /// See `NdArrayTensorInternal::as_view`.
     pub(crate) fn as_view_mut<'a>(
         &'a self,
     ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
@@ -1070,7 +1091,7 @@ impl_from_arrayd_view_into_tensor!(
 // View and ViewMut's Methods and Implementations
 //
 // Below are the bottom implementations of the tensor arithmetic methods.
-// Upper structs' arithmetic methods should invoke these as needed.
+// Arithmetic methods of the structs which contain a View or ViewMut should invoke these as needed.
 // =================================================================================================
 pub(crate) trait SuperViewMethods {
     type OwnedType;

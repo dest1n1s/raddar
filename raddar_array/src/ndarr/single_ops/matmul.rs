@@ -13,6 +13,7 @@ use more_asserts::{assert_ge, assert_lt};
 use ndarray::{ArrayD, ArrayViewD, Ix1, Ix2, LinalgScalar, SliceInfoElem};
 use state_compose::StateCompose;
 
+/// Multiply two bivectors.
 fn bivector_mul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
@@ -32,6 +33,10 @@ fn bivector_mul<T: LinalgScalar + AnyNum>(
     res
 }
 
+/// Multiply a bivector with a matrix.
+/// 
+/// If `bivec_first` is true, the bivector is multiplied with the matrix from the left.
+/// Otherwise, the bivector is multiplied with the matrix from the right.
 fn bivector_mul_matrix<T: LinalgScalar + AnyNum>(
     bivec: ArrayViewD<'_, T>,
     mat: ArrayViewD<'_, T>,
@@ -55,6 +60,7 @@ where
     KindedArrayD::from(result.into_dyn())
 }
 
+/// Multiply two 2d matrices.
 fn matrix_mul<T: LinalgScalar + AnyNum>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> KindedArrayD
 where
     KindedArrayD: From<ArrayD<T>>,
@@ -70,6 +76,18 @@ where
     KindedArrayD::from(result.into_dyn())
 }
 
+/// Apply function `f` to each slice of `a` and `b` and return the result.
+/// 
+/// The slice's length will be thought to be the same as `element_shape`'s.
+/// 
+/// For example, if `a` and `b` are 3d tensors with shape `[2, 3, 4]` and `element_shape` is `[2, 2]`,
+/// `f` will be applied to each 2d slice of `a` and `b` with shape `[3, 4]` and expected to return a
+/// 2d tensor with shape `[2, 2]`; 
+/// 
+/// if `element_shape` is `[1]`, `f` will be applied to each 1d slice of `a` and `b` with shape `[4]` 
+/// and expected to return a 1d tensor with shape `[1]`.
+/// 
+/// The result of `f` will be concatenated along the batch dimensions and returned.
 pub(crate) fn batched_zip<T: LinalgScalar + AnyNum, F>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
@@ -128,6 +146,12 @@ where
     result
 }
 
+/// Multiply two tensors with ndim > 2.
+/// 
+/// The last two dimensions of `a` and `b` are treated as matrices and multiplied.
+/// 
+/// The batch dimensions of `a` and `b` must be the same. The result will have the same batch
+/// dimensions as `a` and `b`.
 fn broadcasted_matmul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
@@ -169,6 +193,13 @@ where
     batched_zip(a, b, kind, &element_shape, |a, b, _| matrix_mul(a, b))
 }
 
+/// Multiply two tensors.
+/// 
+/// if `a` and `b` are both 1d tensors, the result is a scalar;
+/// if `a` is a 1d tensor and `b` is a 2d tensor, the result is a 1d tensor;
+/// if `a` is a 2d tensor and `b` is a 1d tensor, the result is a 1d tensor, too;
+/// if `a` and `b` are both 2d tensors, the result is a 2d tensor.
+/// if one of `a` and `b`'s ndim > 2, they are treated as batched matrices.
 pub(crate) fn matmul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
@@ -186,6 +217,7 @@ where
     }
 }
 
+/// The backward pass for `matmul`.
 fn backward(
     grad: &KindedArrayViewD<'_>,
     a: &KindedArrayViewD<'_>,
@@ -279,6 +311,20 @@ binary_op!(
 );
 
 mod state_compose {
+    /// A helper struct to compose and decompose states. A state is a number that represents a
+    /// combination of multiple values. 
+    /// 
+    /// For example, if `shape` is \[2, 3, 4\], then 
+    /// ```text
+    /// State 0 -> [0, 0, 0]
+    /// State 1 -> [0, 0, 1]
+    /// State 2 -> [0, 0, 2]
+    /// State 3 -> [0, 0, 3]
+    /// ...
+    /// State 23 -> [1, 2, 3]
+    /// ```
+    /// You can use `decode` to decompose a state into its components. With the same `shape`,
+    /// `decode(23, 0) == 1`, `decode(23, 1) == 2`, `decode(23, 2) == 3`.
     pub(crate) struct StateCompose {
         shape: Vec<usize>,
         precomputed: Vec<usize>,
@@ -303,10 +349,12 @@ mod state_compose {
             }
         }
 
+        /// `O(1)` time to decompose a state into its components.
         pub(crate) fn decode(&self, state: usize, pos: usize) -> usize {
             state / self.precomputed[pos] % self.shape[pos]
         }
 
+        /// Return an iterator over all possible states.
         pub(crate) fn iter(&self) -> impl Iterator<Item = usize> {
             (0..self.shape.iter().product()).into_iter()
         }

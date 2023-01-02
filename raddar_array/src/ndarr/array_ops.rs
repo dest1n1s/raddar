@@ -16,6 +16,7 @@ use super::{
     NdArrayTensorInternal, ViewMethods, ViewMutMethods,
 };
 
+/// Some convenience methods for converting between our `IndexInfoItem` and ndarray's `SliceInfoElem`.
 impl From<IndexInfoItem> for SliceInfoElem {
     fn from(item: IndexInfoItem) -> Self {
         match item {
@@ -246,7 +247,12 @@ impl BroadcastOp {
         }
         cloned
     }
-
+    
+    /// Calculate the broadcasted shape of two tensors.
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if the two shapes cannot be broadcasted.
     pub(crate) fn cobroadcast_shape(input: &[usize], other: &[usize]) -> Vec<usize> {
         let mut this_size = input.to_vec();
         let mut other_size = other.to_vec();
