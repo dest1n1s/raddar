@@ -52,6 +52,9 @@ pub trait TensorMethods: Sized {
 
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;
+    fn sum(&self) -> Self {
+        self.sum_dim(self.size().as_slice(), false)
+    }
     fn unsqueeze(&self, dim: usize) -> Self;
     fn unsqueeze_(&mut self, dim: usize);
     fn squeeze(&self, dim: usize) -> Self;
@@ -196,7 +199,7 @@ macro_rules! arith_impl {
                 self.div_(other)
             }
         }
-        
+
         impl<T: num::NumCast + Copy + 'static> std::ops::AddAssign<T> for $impl_type {
             fn add_assign(&mut self, other: T) {
                 self.add_scalar_(other);
@@ -222,7 +225,6 @@ macro_rules! arith_impl {
         }
     };
 }
-
 
 #[cfg(test)]
 mod tests {

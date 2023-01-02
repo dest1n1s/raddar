@@ -21,9 +21,9 @@ impl From<IndexInfoItem> for SliceInfoElem {
         match item {
             IndexInfoItem::Single(i) => SliceInfoElem::Index(i),
             IndexInfoItem::Range(start, end, step) => SliceInfoElem::Slice {
-                start: start,
+                start,
                 end: Some(end),
-                step: step,
+                step,
             },
             IndexInfoItem::NewAxis => SliceInfoElem::NewAxis,
         }
