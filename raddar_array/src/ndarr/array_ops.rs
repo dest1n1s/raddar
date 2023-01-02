@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use ndarray::SliceInfoElem;
 
@@ -16,15 +16,12 @@ use super::{
     NdArrayTensorInternal, ViewMethods, ViewMutMethods,
 };
 
+/// Some convenience methods for converting between our `IndexInfoItem` and ndarray's `SliceInfoElem`.
 impl From<IndexInfoItem> for SliceInfoElem {
     fn from(item: IndexInfoItem) -> Self {
         match item {
             IndexInfoItem::Single(i) => SliceInfoElem::Index(i),
-            IndexInfoItem::Range(start, end, step) => SliceInfoElem::Slice {
-                start: start,
-                end: Some(end),
-                step: step,
-            },
+            IndexInfoItem::Range(start, end, step) => SliceInfoElem::Slice { start, end, step },
             IndexInfoItem::NewAxis => SliceInfoElem::NewAxis,
         }
     }
@@ -40,9 +37,7 @@ impl From<SliceInfoElem> for IndexInfoItem {
     fn from(item: SliceInfoElem) -> Self {
         match item {
             SliceInfoElem::Index(i) => IndexInfoItem::Single(i),
-            SliceInfoElem::Slice { start, end, step } => {
-                IndexInfoItem::Range(start, end.unwrap(), step)
-            }
+            SliceInfoElem::Slice { start, end, step } => IndexInfoItem::Range(start, end, step),
             SliceInfoElem::NewAxis => IndexInfoItem::NewAxis,
         }
     }
@@ -79,7 +74,7 @@ impl AsView for SliceView {
 pub(crate) struct SliceOp {
     slice: IndexInfo,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl SliceOp {
@@ -92,7 +87,7 @@ impl SliceOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(SliceOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 slice: index,
             }));
         }
@@ -140,7 +135,7 @@ impl AsView for PermuteView {
 pub(crate) struct PermuteOp {
     permute: Vec<usize>,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl PermuteOp {
@@ -153,7 +148,7 @@ impl PermuteOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(PermuteOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 permute: permute.to_vec(),
             }));
         }
@@ -233,7 +228,7 @@ impl AsView for BroadcastView {
 pub(crate) struct BroadcastOp {
     broadcast: Vec<usize>,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl BroadcastOp {
@@ -246,13 +241,18 @@ impl BroadcastOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(BroadcastOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 broadcast: broadcast.to_vec(),
             }));
         }
         cloned
     }
 
+    /// Calculate the broadcasted shape of two tensors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two shapes cannot be broadcasted.
     pub(crate) fn cobroadcast_shape(input: &[usize], other: &[usize]) -> Vec<usize> {
         let mut this_size = input.to_vec();
         let mut other_size = other.to_vec();
@@ -315,14 +315,26 @@ impl Operation for BroadcastOp {
         add_grad(self.output.clone(), grad.name_clone());
 
         let tensor = self.input.lock().unwrap();
-        let kind = tensor.as_view().kind();
         let size = tensor.as_view().size();
         drop(tensor);
 
-        let backward_grad = NdArrayTensor::zeros(&size, kind);
-        // todo: you cannot use broadcasted tensor as a mutable view!
-        let mut sub_grad = backward_grad.broadcast(&self.broadcast);
-        sub_grad += grad;
+        let new_ndim = self.broadcast.len() - size.len();
+
+        let mut keep_dims = vec![];
+        let drop_dims = (0..new_ndim).collect::<Vec<_>>();
+
+        self.broadcast
+            .iter()
+            .enumerate()
+            .rev()
+            .zip(size.iter().rev())
+            .for_each(|((i, &b), &s)| if b != s {
+                assert_eq!(s, 1, "Received a broadcasted tensor with shape {:?} and original shape {:?}, but the broadcasted tensor has an unequal dimension that is not 1 in the original tensor", self.broadcast, size);
+                keep_dims.push(i);
+            });
+
+        let backward_grad = grad.sum_dim(&keep_dims, true);
+        let backward_grad = backward_grad.sum_dim(&drop_dims, false);
 
         go_backward!(self.input, backward_grad);
     }
@@ -381,7 +393,7 @@ impl AsView for IdentityView {
 
 pub(crate) struct IdentityOp {
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl IdentityOp {
@@ -391,7 +403,7 @@ impl IdentityOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(IdentityOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
             }));
         }
         cloned
