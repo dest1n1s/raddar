@@ -402,7 +402,6 @@ unary_op_with_scalar!(
     scalar,
     input,
     grad,
-    output,
     input.as_view().log_scalar(scalar),
     {
         let scalar: f64 = cast(scalar).unwrap();

@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 use crate::{
     binary_op, go_backward,
     ndarr::{
-        array_ops::BroadcastOp, ops::add_grad, BorrowView, KindedArrayD, KindedArrayViewD,
-        NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods,
+        array_ops::BroadcastOp, kinded_batched_zip, ops::add_grad, BorrowView, KindedArrayD,
+        KindedArrayViewD, NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods,
     },
-    tensor::{TensorKind, TensorMethods}, AnyNum,
+    tensor::{TensorKind, TensorMethods},
+    AnyNum,
 };
-use more_asserts::assert_ge;
+use more_asserts::{assert_ge, assert_lt};
 use ndarray::{ArrayD, ArrayViewD, Ix1, Ix2, LinalgScalar, SliceInfoElem};
 use state_compose::StateCompose;
 
@@ -69,6 +70,64 @@ where
     KindedArrayD::from(result.into_dyn())
 }
 
+pub(crate) fn batched_zip<T: LinalgScalar + AnyNum, F>(
+    a: ArrayViewD<'_, T>,
+    b: ArrayViewD<'_, T>,
+    kind: TensorKind,
+    element_shape: &[usize],
+    f: F,
+) -> KindedArrayD
+where
+    KindedArrayD: From<ArrayD<T>>,
+    F: Fn(ArrayViewD<'_, T>, ArrayViewD<'_, T>, Vec<SliceInfoElem>) -> KindedArrayD,
+{
+    assert_eq!(a.ndim(), b.ndim());
+    let ndim = a.ndim();
+    let element_ndim = element_shape.len();
+    assert_lt!(element_ndim, ndim);
+    let batch_ndim = ndim - element_ndim;
+    let batch_shape = &a.shape()[..batch_ndim];
+    assert_eq!(batch_shape, &b.shape()[..batch_ndim]);
+
+    let result_shape = batch_shape
+        .iter()
+        .chain(element_shape.iter())
+        .copied()
+        .collect::<Vec<_>>();
+    let mut result = KindedArrayD::empty(&result_shape, kind);
+
+    let states = StateCompose::new(batch_shape);
+
+    for state in states.iter() {
+        let slice: Vec<SliceInfoElem> = (0..ndim)
+            .into_iter()
+            .map(|i| {
+                if i < batch_ndim {
+                    SliceInfoElem::Index(states.decode(state, i) as isize)
+                } else {
+                    SliceInfoElem::Slice {
+                        start: 0,
+                        end: None,
+                        step: 1,
+                    }
+                }
+            })
+            .collect();
+
+        let a_slice = a.slice(slice.as_slice());
+        let b_slice = b.slice(slice.as_slice());
+
+        let result_slice = f(a_slice, b_slice, slice.clone());
+
+        result
+            .view_mut()
+            .slice_mut(slice.into())
+            .assign(&result_slice.view());
+    }
+
+    result
+}
+
 fn broadcasted_matmul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
@@ -84,49 +143,30 @@ where
         "At least one of the arguments must have ndim > 2. Otherwise, use matrix_mul instead."
     );
 
-    let broadcasted_shape = BroadcastOp::cobroadcast_shape(a.shape(), b.shape());
+    let batched_a_shape = &a.shape()[..a.ndim() - 2];
+    let batched_b_shape = &b.shape()[..b.ndim() - 2];
+    let first_dim = a.shape()[a.ndim() - 2];
+    let second_dim = b.shape()[b.ndim() - 1];
+    let element_shape = [first_dim, second_dim];
+    let broadcasted_batched_shape =
+        BroadcastOp::cobroadcast_shape(batched_a_shape, batched_b_shape);
 
-    let a = a.broadcast(broadcasted_shape.clone()).unwrap();
-    let b = b.broadcast(broadcasted_shape.clone()).unwrap();
+    let broadcasted_a_shape = broadcasted_batched_shape
+        .iter()
+        .chain(&a.shape()[a.ndim() - 2..])
+        .copied()
+        .collect::<Vec<_>>();
 
-    let mut result = KindedArrayD::zeros(&broadcasted_shape, kind);
+    let broadcasted_b_shape = broadcasted_batched_shape
+        .iter()
+        .chain(&b.shape()[b.ndim() - 2..])
+        .copied()
+        .collect::<Vec<_>>();
 
-    // a naive implementation would be to iterate over the last two dimensions of a and b and
-    // multiply them. However, this is not efficient, because it does not take advantage of
-    // accelerated matrix multiplication routines. Reshape the arrays to 2D and then multiply
-    // them if possible in the future.
+    let a = a.broadcast(broadcasted_a_shape).unwrap();
+    let b = b.broadcast(broadcasted_b_shape).unwrap();
 
-    let broadcast_ndim = broadcasted_shape.len() - 2;
-    let states = StateCompose::new(&broadcasted_shape[..broadcast_ndim]);
-
-    for state in states.iter() {
-        let slice: Vec<SliceInfoElem> = (0..broadcasted_shape.len())
-            .into_iter()
-            .map(|i| {
-                if i < broadcast_ndim {
-                    SliceInfoElem::Index(states.decode(state, i) as isize)
-                } else {
-                    SliceInfoElem::Slice {
-                        start: 0,
-                        end: None,
-                        step: 1,
-                    }
-                }
-            })
-            .collect();
-
-        let a_slice = a.slice(slice.as_slice());
-        let b_slice = b.slice(slice.as_slice());
-
-        let result_slice = matrix_mul(a_slice, b_slice);
-
-        result
-            .view_mut()
-            .slice_mut(slice.into())
-            .assign(&result_slice.view());
-    }
-
-    result
+    batched_zip(a, b, kind, &element_shape, |a, b, _| matrix_mul(a, b))
 }
 
 pub(crate) fn matmul<T: LinalgScalar + AnyNum>(
@@ -152,56 +192,71 @@ fn backward(
     b: &KindedArrayViewD<'_>,
     for_a: bool,
 ) -> NdArrayTensor {
-    let res = match (a.size().len(), b.size().len()) {
-        (1, 1) => {
-            if for_a {
-                grad * b
-            } else {
-                grad * a
+    fn backward_to_array(
+        grad: &KindedArrayViewD<'_>,
+        a: &KindedArrayViewD<'_>,
+        b: &KindedArrayViewD<'_>,
+        for_a: bool,
+    ) -> KindedArrayD {
+        match (a.size().len(), b.size().len()) {
+            (1, 1) => {
+                if for_a {
+                    grad * b
+                } else {
+                    grad * a
+                }
             }
-        }
-        (1, 2) => {
-            // A(M), B(M,N) -> grad(N)
-            if for_a {
-                // (M,N) * (N) -> (M)
-                b.matmul(grad)
-            } else {
-                // (M) -> (M,1)
-                let expand_a = a.clone().into_unsqueeze(1);
-                // (N) -> (1,N)
-                let expand_grad = grad.clone().into_unsqueeze(0);
-                // (M,1) * (1,N) -> (M,N)
-                expand_a.matmul(expand_grad)
+            (1, 2) => {
+                // A(M), B(M,N) -> grad(N)
+                if for_a {
+                    // (M,N) * (N) -> (M)
+                    b.matmul(grad)
+                } else {
+                    // (M) -> (M,1)
+                    let expand_a = a.clone().into_unsqueeze(1);
+                    // (N) -> (1,N)
+                    let expand_grad = grad.clone().into_unsqueeze(0);
+                    // (M,1) * (1,N) -> (M,N)
+                    expand_a.matmul(expand_grad)
+                }
             }
-        }
-        (2, 1) => {
-            // A(M,N), B(N) -> grad(M)
-            if for_a {
-                // (N) -> (1,N)
-                let expand_b = b.clone().into_unsqueeze(0);
-                // (M) -> (M,1)
-                let expand_grad = grad.clone().into_unsqueeze(1);
-                // (M,1) * (1,N) -> (M,N)
-                expand_grad.matmul(expand_b)
-            } else {
-                // (M) * (M,N) -> (N)
-                grad.matmul(a)
+            (2, 1) => {
+                // A(M,N), B(N) -> grad(M)
+                if for_a {
+                    // (N) -> (1,N)
+                    let expand_b = b.clone().into_unsqueeze(0);
+                    // (M) -> (M,1)
+                    let expand_grad = grad.clone().into_unsqueeze(1);
+                    // (M,1) * (1,N) -> (M,N)
+                    expand_grad.matmul(expand_b)
+                } else {
+                    // (M) * (M,N) -> (N)
+                    grad.matmul(a)
+                }
             }
-        }
-        (2, 2) => {
-            // A(M,N), B(N,Q) -> grad(M,Q)
-            if for_a {
-                // (M,Q) * (Q,N) -> (M,N)
-                grad.matmul(b.t())
-            } else {
-                // (N,M) * (M,Q) -> (N,Q)
-                a.t().matmul(grad)
+            (2, 2) => {
+                // A(M,N), B(N,Q) -> grad(M,Q)
+                if for_a {
+                    // (M,Q) * (Q,N) -> (M,N)
+                    grad.matmul(b.t())
+                } else {
+                    // (N,M) * (M,Q) -> (N,Q)
+                    a.t().matmul(grad)
+                }
             }
-        }
-        (_, _) => unimplemented!("matmul backward for ndim > 2"),
-    };
+            (_, _) => {
+                let shape = if for_a { a.size() } else { b.size() };
+                let element_shape = &shape[shape.len() - 2..];
 
-    res.into()
+                kinded_batched_zip(a, b, element_shape, |a, b, slice| {
+                    let grad_slice = grad.slice(slice.into());
+                    backward_to_array(&grad_slice, &a, &b, for_a)
+                })
+            }
+        }
+    }
+
+    backward_to_array(grad, a, b, for_a).into()
 }
 
 binary_op!(

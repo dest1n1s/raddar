@@ -55,7 +55,7 @@ mod tests {
 
         let ts = ts.t().t();
         let ts_1 = ts.slice(IndexInfo {
-            infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, 2, 1)],
+            infos: vec![IndexInfoItem::Single(0), IndexInfoItem::Range(0, None, 1)],
         });
         let mut ts3 = &ts_1 + &ts2;
 
@@ -76,7 +76,7 @@ mod tests {
         ts2.set_requires_grad(true);
 
         let mut ts3 = &ts + &ts2;
-       
+
         ts3 = &ts3 * 2;
         ts3 = &ts3 * &ts2;
         ts3 = &ts3 / &ts2;
@@ -99,7 +99,7 @@ mod tests {
 
         let mut ts3 = &ts + &ts2;
         ts3 = &ts3 * 2;
-        
+
         ts3.backward();
 
         ts3.debug_print();
@@ -123,7 +123,7 @@ mod tests {
         ts3.backward();
 
         ts3.debug_print();
-        
+
         ts.grad().debug_print();
         ts2.grad().debug_print();
     }
@@ -145,28 +145,26 @@ mod tests {
 
     #[test]
     fn matmul_test() {
-        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        let mut ts = NdArrayTensor::ones(&[2, 2, 2], TensorKind::F32);
         ts *= 2.0f64;
         ts.debug_print();
-        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F32);
-
+        let mut ts2 = NdArrayTensor::ones(&[2, 2, 4], TensorKind::F32);
+        let mut ts2_2 = ts2.get(1);
+        ts2_2 *= 2.0f64;
         ts.set_requires_grad(true);
         ts2.set_requires_grad(true);
 
         let mut ts3 = ts.matmul(&ts2);
         ts3 = &ts3 * 2;
-        
-        ts3.backward();
 
-        let it: f32 = ts3.item();
-        println!("{:?}", it);
+        ts3.backward();
 
         ts.grad().debug_print();
         ts2.grad().debug_print();
     }
 
     #[test]
-    fn self_ref_test(){
+    fn self_ref_test() {
         let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
         ts *= 2.0f64;
         ts.debug_print();
@@ -175,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn ln_pow_test(){
+    fn ln_pow_test() {
         let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
         ts *= 2.0f64;
         let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F64);

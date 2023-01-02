@@ -20,11 +20,7 @@ impl From<IndexInfoItem> for SliceInfoElem {
     fn from(item: IndexInfoItem) -> Self {
         match item {
             IndexInfoItem::Single(i) => SliceInfoElem::Index(i),
-            IndexInfoItem::Range(start, end, step) => SliceInfoElem::Slice {
-                start,
-                end: Some(end),
-                step,
-            },
+            IndexInfoItem::Range(start, end, step) => SliceInfoElem::Slice { start, end, step },
             IndexInfoItem::NewAxis => SliceInfoElem::NewAxis,
         }
     }
@@ -40,9 +36,7 @@ impl From<SliceInfoElem> for IndexInfoItem {
     fn from(item: SliceInfoElem) -> Self {
         match item {
             SliceInfoElem::Index(i) => IndexInfoItem::Single(i),
-            SliceInfoElem::Slice { start, end, step } => {
-                IndexInfoItem::Range(start, end.unwrap(), step)
-            }
+            SliceInfoElem::Slice { start, end, step } => IndexInfoItem::Range(start, end, step),
             SliceInfoElem::NewAxis => IndexInfoItem::NewAxis,
         }
     }
