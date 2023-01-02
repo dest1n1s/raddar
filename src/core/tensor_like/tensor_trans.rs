@@ -1,13 +1,13 @@
 use tch::Tensor;
 
-use super::TensorOps;
+use super::{TensorOps, TensorTrigon};
 
 /// A trait for a tensor-like object that can perform basic algebraic operations on self.
 /// 
 /// These operations are largely similar to the operations in [TensorOps], but they are performed on self instead of another tensor, so they are more efficient and do not require to be put in a computational graph.
 /// 
 /// This trait will provide a default implementation for all the operations, but it's highly recommended to override them if you want to get better performance.
-pub trait TensorTrans: TensorOps {
+pub trait TensorOpsInplace: TensorOps {
     /// In-place version of [TensorOps::transpose].
     fn transpose_(&mut self, dim0: i64, dim1: i64) {
         *self = self.transpose(dim0, dim1);
@@ -37,7 +37,35 @@ pub trait TensorTrans: TensorOps {
     fn log_(&mut self) {
         *self = self.log();
     }
+}
 
+impl TensorOpsInplace for Tensor {
+    fn transpose_(&mut self, dim0: i64, dim1: i64) {
+        let _ = self.transpose_(dim0, dim1);
+    }
+
+    fn abs_(&mut self) {
+        let _ = self.abs_();
+    }
+
+    fn square_(&mut self) {
+        let _ = self.square_();
+    }
+
+    fn sqrt_(&mut self) {
+        let _ = self.sqrt_();
+    }
+
+    fn exp_(&mut self) {
+        let _ = self.exp_();
+    }
+
+    fn log_(&mut self) {
+        let _ = self.log_();
+    }
+}
+
+pub trait TensorTrigonInplace: TensorTrigon {
     /// In-place version of [TensorOps::sin].
     fn sin_(&mut self) {
         *self = self.sin();
@@ -99,31 +127,7 @@ pub trait TensorTrans: TensorOps {
     }
 }
 
-impl TensorTrans for Tensor {
-    fn transpose_(&mut self, dim0: i64, dim1: i64) {
-        let _ = self.transpose_(dim0, dim1);
-    }
-
-    fn abs_(&mut self) {
-        let _ = self.abs_();
-    }
-
-    fn square_(&mut self) {
-        let _ = self.square_();
-    }
-
-    fn sqrt_(&mut self) {
-        let _ = self.sqrt_();
-    }
-
-    fn exp_(&mut self) {
-        let _ = self.exp_();
-    }
-
-    fn log_(&mut self) {
-        let _ = self.log_();
-    }
-
+impl TensorTrigonInplace for Tensor {
     fn sin_(&mut self) {
         let _ = self.sin_();
     }

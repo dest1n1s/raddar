@@ -4,7 +4,7 @@ use tch::Tensor;
 
 use crate::core::TensorGrad;
 
-use super::{TensorOps, TensorOpsEx};
+use super::{TensorOps, TensorStatistics, TensorTrigon};
 
 pub enum Reduction {
     None,
@@ -322,10 +322,7 @@ pub trait TensorNN: TensorOps + TensorGrad {
     }
 
     /// Computes GELU of the input tensor.
-    fn gelu(&self) -> Self {
-        let z = (self + &self.pow_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
-        0.5 * self * (1 + z.tanh())
-    }
+    fn gelu(&self) -> Self;
 
     /// Computes softmax of the input tensor.
     fn softmax(&self, dim: i64) -> Self {
@@ -465,7 +462,7 @@ pub trait TensorNN: TensorOps + TensorGrad {
     ) -> Self;
 }
 
-default impl<T: TensorOpsEx + TensorGrad> TensorNN for T {
+default impl<T: TensorStatistics + TensorTrigon + TensorGrad> TensorNN for T {
     /// A default implementation of `dropout` that uses `bernoulli`.
     fn dropout(&self, p: f64, train: bool) -> Self {
         if train {
@@ -474,6 +471,11 @@ default impl<T: TensorOpsEx + TensorGrad> TensorNN for T {
         } else {
             self.copy()
         }
+    }
+
+    fn gelu(&self) -> Self  {
+        let z = (self + &self.pow_scalar(3) * 0.044715) * (2.0f64 / PI).sqrt();
+        0.5 * self * (1 + z.tanh())
     }
 }
 

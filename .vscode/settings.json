@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder}/tch-rs/torch-sys/libtch"
+    "cmake.sourceDirectory": "${workspaceFolder}/tch-rs/torch-sys/libtch",
+    "Codegeex.EnableExtension": false
 }
