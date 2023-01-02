@@ -195,42 +195,6 @@ pub trait TensorOps:
     /// Calculate the element-wise natural logarithm of the tensor-like object.
     fn log(&self) -> Self;
 
-    /// Calculate the element-wise sine of the tensor-like object.
-    fn sin(&self) -> Self;
-
-    /// Calculate the element-wise cosine of the tensor-like object.
-    fn cos(&self) -> Self;
-
-    /// Calculate the element-wise tangent of the tensor-like object.
-    fn tan(&self) -> Self;
-
-    /// Calculate the element-wise hyperbolic sine of the tensor-like object.
-    fn sinh(&self) -> Self;
-
-    /// Calculate the element-wise hyperbolic cosine of the tensor-like object.
-    fn cosh(&self) -> Self;
-
-    /// Calculate the element-wise hyperbolic tangent of the tensor-like object.
-    fn tanh(&self) -> Self;
-
-    /// Calculate the element-wise inverse sine of the tensor-like object.
-    fn asin(&self) -> Self;
-
-    /// Calculate the element-wise inverse cosine of the tensor-like object.
-    fn acos(&self) -> Self;
-
-    /// Calculate the element-wise inverse tangent of the tensor-like object.
-    fn atan(&self) -> Self;
-
-    /// Calculate the element-wise inverse hyperbolic sine of the tensor-like object.
-    fn asinh(&self) -> Self;
-
-    /// Calculate the element-wise inverse hyperbolic cosine of the tensor-like object.
-    fn acosh(&self) -> Self;
-
-    /// Calculate the element-wise inverse hyperbolic tangent of the tensor-like object.
-    fn atanh(&self) -> Self;
-
     /// Compute the element-wise less-than comparison of the tensor-like object and the given tensor-like object.
     ///
     /// The given tensor-like object must have a shape that is broadcastable to the shape of the tensor-like object.
@@ -388,54 +352,6 @@ impl TensorOps for Tensor {
         self.log()
     }
 
-    fn sin(&self) -> Self {
-        self.sin()
-    }
-
-    fn cos(&self) -> Self {
-        self.cos()
-    }
-
-    fn tan(&self) -> Self {
-        self.tan()
-    }
-
-    fn asin(&self) -> Self {
-        self.asin()
-    }
-
-    fn acos(&self) -> Self {
-        self.acos()
-    }
-
-    fn atan(&self) -> Self {
-        self.atan()
-    }
-
-    fn sinh(&self) -> Self {
-        self.sinh()
-    }
-
-    fn cosh(&self) -> Self {
-        self.cosh()
-    }
-
-    fn tanh(&self) -> Self {
-        self.tanh()
-    }
-
-    fn asinh(&self) -> Self {
-        self.asinh()
-    }
-
-    fn acosh(&self) -> Self {
-        self.acosh()
-    }
-
-    fn atanh(&self) -> Self {
-        self.atanh()
-    }
-
     fn lt<T: Borrow<Self>>(&self, other: T) -> Self {
         self.lt_tensor(other.borrow())
     }
@@ -510,5 +426,93 @@ impl TensorOps for Tensor {
     
     fn flatten(&self, start_dim: i64, end_dim: i64) -> Self {
         self.flatten(start_dim, end_dim)
+    }
+}
+
+pub trait TensorTrigon: TensorOps{
+    /// Calculate the element-wise sine of the tensor-like object.
+    fn sin(&self) -> Self;
+
+    /// Calculate the element-wise cosine of the tensor-like object.
+    fn cos(&self) -> Self;
+
+    /// Calculate the element-wise tangent of the tensor-like object.
+    fn tan(&self) -> Self;
+
+    /// Calculate the element-wise hyperbolic sine of the tensor-like object.
+    fn sinh(&self) -> Self;
+
+    /// Calculate the element-wise hyperbolic cosine of the tensor-like object.
+    fn cosh(&self) -> Self;
+
+    /// Calculate the element-wise hyperbolic tangent of the tensor-like object.
+    fn tanh(&self) -> Self;
+
+    /// Calculate the element-wise inverse sine of the tensor-like object.
+    fn asin(&self) -> Self;
+
+    /// Calculate the element-wise inverse cosine of the tensor-like object.
+    fn acos(&self) -> Self;
+
+    /// Calculate the element-wise inverse tangent of the tensor-like object.
+    fn atan(&self) -> Self;
+
+    /// Calculate the element-wise inverse hyperbolic sine of the tensor-like object.
+    fn asinh(&self) -> Self;
+
+    /// Calculate the element-wise inverse hyperbolic cosine of the tensor-like object.
+    fn acosh(&self) -> Self;
+
+    /// Calculate the element-wise inverse hyperbolic tangent of the tensor-like object.
+    fn atanh(&self) -> Self;
+}
+
+impl TensorTrigon for Tensor {  
+    fn sin(&self) -> Self {
+        self.sin()
+    }
+
+    fn cos(&self) -> Self {
+        self.cos()
+    }
+
+    fn tan(&self) -> Self {
+        self.tan()
+    }
+
+    fn asin(&self) -> Self {
+        self.asin()
+    }
+
+    fn acos(&self) -> Self {
+        self.acos()
+    }
+
+    fn atan(&self) -> Self {
+        self.atan()
+    }
+
+    fn sinh(&self) -> Self {
+        self.sinh()
+    }
+
+    fn cosh(&self) -> Self {
+        self.cosh()
+    }
+
+    fn tanh(&self) -> Self {
+        self.tanh()
+    }
+
+    fn asinh(&self) -> Self {
+        self.asinh()
+    }
+
+    fn acosh(&self) -> Self {
+        self.acosh()
+    }
+
+    fn atanh(&self) -> Self {
+        self.atanh()
     }
 }
