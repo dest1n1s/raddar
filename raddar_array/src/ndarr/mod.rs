@@ -11,7 +11,7 @@ use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
         AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp, MulOp,
-        MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp,
+        MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp, MeanOp,
     },
     single_ops::matmul::{batched_zip, MatmulOp},
 };
@@ -446,17 +446,17 @@ impl NdArrayTensor {
     ///
     /// Note: If you are going to store this reference in a struct which is referenced by this tensor,
     /// you should use `i_ref` instead. **If you use a strong reference, it will cause a memory leak.**
-    /// 
+    ///
     /// Note: this is a shallow copy, so the data is not copied.
     fn i_copy(&self) -> Arc<Mutex<NdArrayTensorInternal>> {
         self.internal.as_ref().unwrap().clone()
     }
 
     /// Get a weak reference of the internal data of the tensor.
-    /// 
+    ///
     /// This reference is useful when you are going to store this reference in a struct
     /// which is referenced by this tensor. **If you use a strong reference, it will cause a memory leak.**
-    /// 
+    ///
     /// Note: this reference does not ensure that its data is still alive.
     fn i_ref(&self) -> Weak<Mutex<NdArrayTensorInternal>> {
         Arc::downgrade(self.internal.as_ref().unwrap())
@@ -725,6 +725,10 @@ impl TensorMethods for NdArrayTensor {
         SumOp::forward(self, (dim.to_vec(), keep_dim))
     }
 
+    fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
+        MeanOp::forward(self, (dim.to_vec(), keep_dim))
+    }
+
     fn unsqueeze(&self, dim: usize) -> Self {
         UnsqueezeOp::forward(self, dim)
     }
@@ -920,6 +924,10 @@ impl TensorMethods for KindedArrayD {
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
         self.view().sum_dim(dim, keep_dim)
+    }
+
+    fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
+        self.view().mean_dim(dim, keep_dim)
     }
 
     fn unsqueeze(&self, dim: usize) -> Self {
@@ -1185,6 +1193,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
+    fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this>;
     fn into_squeeze(self, dim: usize) -> Self::ViewType<'this>;
 }
@@ -1683,28 +1692,21 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     }
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType {
-        if dim.is_empty() {
-            return self.upgrade();
-        }
-        // sum from the first dimension to the last dimension
+        self.op_through_dim(dim, keep_dim, |view, axis| {
+            obtain_kind_array_view!(view, array, { KindedArrayD::from(array.sum_axis(axis)) })
+        })
+    }
 
-        // order the dimensions in ascending order
-        let mut dim = dim.to_vec();
-        dim.sort_unstable();
-        let mut array = self.sum_one_dim(dim[0], keep_dim);
-        let mut removed_ndim = 1;
-        for i in 1..dim.len() {
-            array = array.view().sum_one_dim(
-                if keep_dim {
-                    dim[i]
-                } else {
-                    dim[i] - removed_ndim
-                },
-                keep_dim,
-            );
-            removed_ndim += 1;
-        }
-        array
+    fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType {
+        self.op_through_dim(dim, keep_dim, |view, axis| {
+            obtain_kind_array_view!(view, array, {
+                KindedArrayD::from(
+                    array
+                        .mean_axis(axis)
+                        .expect("Some axis is zero length, unable to compute mean."),
+                )
+            })
+        })
     }
 
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this> {
@@ -1721,13 +1723,41 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
 }
 
 impl<'a> KindedArrayViewD<'a> {
-    fn sum_one_dim(&self, dim: usize, keep_dim: bool) -> KindedArrayD {
-        obtain_kind_array_view!(self, array, {
-            let mut array = array.sum_axis(Axis(dim));
+    fn op_through_dim(
+        &self,
+        dim: &[usize],
+        keep_dim: bool,
+        op: impl Fn(&KindedArrayViewD, Axis) -> KindedArrayD,
+    ) -> KindedArrayD {
+        if dim.is_empty() {
+            return self.upgrade();
+        }
+
+        let mut dim = dim.to_vec();
+        dim.sort_unstable();
+        let mut array = op(self, Axis(dim[0]));
+        // insert the axis back if keep_dim is true
+        if keep_dim {
+            obtain_kind_array!(&mut array, array, {
+                array.insert_axis_inplace(Axis(dim[0]));
+            })
+        }
+        let mut removed_ndim = 1;
+        for i in 1..dim.len() {
+            let axis = if keep_dim {
+                Axis(dim[i])
+            } else {
+                Axis(dim[i] - removed_ndim)
+            };
+            array = op(&array.view(), axis);
+            // insert the axis back if keep_dim is true
             if keep_dim {
-                array.insert_axis_inplace(Axis(dim));
+                obtain_kind_array!(&mut array, array, {
+                    array.insert_axis_inplace(axis);
+                })
             }
-            KindedArrayD::from(array)
-        })
+            removed_ndim += 1;
+        }
+        array
     }
 }

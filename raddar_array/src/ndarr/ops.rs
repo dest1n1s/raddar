@@ -87,9 +87,9 @@ macro_rules! binary_op {
     };
     ($op_name: ident, $input_name:ident, $grad_name:ident, $output_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
-            a: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
-            b: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
-            $output_name: std::sync::Weak<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
+            b: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
+            $output_name: std::sync::Weak<std::sync::Mutex<NdArrayTensorInternal>>,
         }
 
         impl $op_name {
@@ -103,7 +103,7 @@ macro_rules! binary_op {
                 });
 
                 tensor.i().is_leaf = false;
-                use crate::tensor::AutoGradTensorMethods;
+                use $crate::tensor::AutoGradTensorMethods;
                 if $input_name.0.requires_grad() || $input_name.1.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a,
@@ -137,8 +137,8 @@ macro_rules! binary_op {
 macro_rules! unary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Weak<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
+            output: std::sync::Weak<std::sync::Mutex<NdArrayTensorInternal>>,
         }
 
         impl $op_name {
@@ -149,7 +149,7 @@ macro_rules! unary_op {
                     ret
                 };
                 tensor.i().is_leaf = false;
-                use crate::tensor::AutoGradTensorMethods;
+                use $crate::tensor::AutoGradTensorMethods;
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
@@ -185,8 +185,8 @@ macro_rules! unary_op_with_scalar {
     };
     ($op_name: ident, $param_name: ident, $input_name:ident, $grad_name:ident, $output_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name<T: $crate::AnyNum> {
-            a: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
-            $output_name: std::sync::Weak<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
+            $output_name: std::sync::Weak<std::sync::Mutex<NdArrayTensorInternal>>,
             $param_name: T,
         }
 
@@ -198,7 +198,7 @@ macro_rules! unary_op_with_scalar {
                     ret
                 };
                 tensor.i().is_leaf = false;
-                use crate::tensor::AutoGradTensorMethods;
+                use $crate::tensor::AutoGradTensorMethods;
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
@@ -227,8 +227,8 @@ macro_rules! unary_op_with_scalar {
 macro_rules! unary_op_with_non_generic_param {
     ($op_name: ident, $param_name: ident, $param_type: ty, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Weak<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
+            output: std::sync::Weak<std::sync::Mutex<NdArrayTensorInternal>>,
             $param_name: $param_type,
         }
 
@@ -447,6 +447,40 @@ unary_op_with_non_generic_param!(
 
         // broadcast the grad to the original shape
         grad.broadcast(&shape)
+    }
+);
+
+unary_op_with_non_generic_param!(
+    MeanOp,
+    axes_and_keep_dim,
+    (Vec<usize>, bool),
+    input,
+    grad,
+    input
+        .as_view()
+        .mean_dim(&axes_and_keep_dim.0, axes_and_keep_dim.1),
+    {
+        // get the original shape of the input
+        let input = input.lock().unwrap();
+        let shape = input.as_view().size();
+        // unlock the input as early as possible to avoid deadlock
+        drop(input);
+
+        let lens = axes_and_keep_dim
+            .0
+            .iter()
+            .fold(1, |acc, &axis| acc * shape[axis]);
+
+        let mut grad = grad;
+        // if keep_dim is false, we need to unsqueeze the grad to the original shape
+        if !axes_and_keep_dim.1 {
+            for &axis in &axes_and_keep_dim.0 {
+                grad.unsqueeze_(axis);
+            }
+        }
+
+        // broadcast the grad to the original shape
+        &grad.broadcast(&shape) / lens
     }
 );
 
