@@ -1,4 +1,6 @@
-use num::cast::NumCast;
+use std::f64::consts::E;
+
+use crate::AnyNum;
 
 use self::index::{IndexInfo, IndexInfoItem};
 
@@ -17,12 +19,13 @@ pub enum TensorKind {
 }
 pub trait TensorMethods: Sized {
     /// Constructors
+    fn empty(shape: &[usize], dtype: TensorKind) -> Self;
     fn zeros(shape: &[usize], dtype: TensorKind) -> Self;
     fn ones(shape: &[usize], dtype: TensorKind) -> Self;
     /// Properties
     fn size(&self) -> Vec<usize>;
     fn kind(&self) -> TensorKind;
-    fn item<T: NumCast + Copy + 'static>(&self) -> T;
+    fn item<T: AnyNum>(&self) -> T;
     /// Tensor operations
     fn t(&self) -> Self;
     /// Arithmetic operations
@@ -31,24 +34,37 @@ pub trait TensorMethods: Sized {
     fn sub(&self, other: &Self) -> Self;
     fn mul(&self, other: &Self) -> Self;
     fn div(&self, other: &Self) -> Self;
+    fn pow(&self, other: &Self) -> Self;
     fn add_(&mut self, other: &Self);
     fn sub_(&mut self, other: &Self);
     fn mul_(&mut self, other: &Self);
     fn div_(&mut self, other: &Self);
+    fn pow_(&mut self, other: &Self);
 
-    fn add_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn sub_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn mul_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn div_scalar<T: NumCast + Copy + 'static>(&self, other: T) -> Self;
-    fn add_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn sub_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn mul_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
-    fn div_scalar_<T: NumCast + Copy + 'static>(&mut self, other: T);
+    fn add_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn sub_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn mul_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn div_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn pow_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn log_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn ln(&self) -> Self {
+        self.log_scalar(E)
+    }
+    fn add_scalar_<T: AnyNum>(&mut self, other: T);
+    fn sub_scalar_<T: AnyNum>(&mut self, other: T);
+    fn mul_scalar_<T: AnyNum>(&mut self, other: T);
+    fn div_scalar_<T: AnyNum>(&mut self, other: T);
+    fn pow_scalar_<T: AnyNum>(&mut self, other: T);
+    fn log_scalar_<T: AnyNum>(&mut self, other: T);
+    fn ln_(&mut self) {
+        self.log_scalar_(E)
+    }
 
     fn matmul(&self, other: &Self) -> Self;
 
     /// Assignment operations
     fn assign(&mut self, other: &Self);
+    fn assign_scalar<T: AnyNum>(&mut self, other: T);
 
     /// Advanced arithmetic operations
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self;
@@ -124,28 +140,28 @@ macro_rules! arith_impl {
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Add<T> for &$impl_type {
+        impl<T: AnyNum> std::ops::Add<T> for &$impl_type {
             type Output = $impl_type;
             fn add(self, other: T) -> Self::Output {
                 TensorMethods::add_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Sub<T> for &$impl_type {
+        impl<T: AnyNum> std::ops::Sub<T> for &$impl_type {
             type Output = $impl_type;
             fn sub(self, other: T) -> Self::Output {
                 TensorMethods::sub_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Mul<T> for &$impl_type {
+        impl<T: AnyNum> std::ops::Mul<T> for &$impl_type {
             type Output = $impl_type;
             fn mul(self, other: T) -> Self::Output {
                 TensorMethods::mul_scalar(self, other)
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::Div<T> for &$impl_type {
+        impl<T: AnyNum> std::ops::Div<T> for &$impl_type {
             type Output = $impl_type;
             fn div(self, other: T) -> Self::Output {
                 TensorMethods::div_scalar(self, other)
@@ -200,25 +216,25 @@ macro_rules! arith_impl {
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::AddAssign<T> for $impl_type {
+        impl<T: AnyNum> std::ops::AddAssign<T> for $impl_type {
             fn add_assign(&mut self, other: T) {
                 self.add_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::SubAssign<T> for $impl_type {
+        impl<T: AnyNum> std::ops::SubAssign<T> for $impl_type {
             fn sub_assign(&mut self, other: T) {
                 self.sub_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::MulAssign<T> for $impl_type {
+        impl<T: AnyNum> std::ops::MulAssign<T> for $impl_type {
             fn mul_assign(&mut self, other: T) {
                 self.mul_scalar_(other);
             }
         }
 
-        impl<T: num::NumCast + Copy + 'static> std::ops::DivAssign<T> for $impl_type {
+        impl<T: AnyNum> std::ops::DivAssign<T> for $impl_type {
             fn div_assign(&mut self, other: T) {
                 self.div_scalar_(other);
             }

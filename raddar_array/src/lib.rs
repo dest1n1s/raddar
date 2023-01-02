@@ -6,6 +6,9 @@ pub mod ndarr;
 pub mod tensor;
 #[cfg(feature = "ndarray-backend")]
 pub type ArrayTensor = ndarr::NdArrayTensor;
+
+pub trait AnyNum = num::NumCast + num::Num + Copy + 'static;
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -169,5 +172,24 @@ mod tests {
         ts.debug_print();
         ts += &ts.name_clone();
         ts.debug_print();
+    }
+
+    #[test]
+    fn ln_pow_test(){
+        let mut ts = NdArrayTensor::ones(&[2], TensorKind::F32);
+        ts *= 2.0f64;
+        let mut ts2 = NdArrayTensor::ones(&[2], TensorKind::F64);
+        ts.set_requires_grad(true);
+        ts2.set_requires_grad(true);
+
+        let mut ts3 = &ts + &ts2;
+        ts3 = ts3.pow(&ts);
+
+        ts3.backward();
+
+        ts3.debug_print();
+
+        ts.grad().debug_print();
+        ts2.grad().debug_print();
     }
 }

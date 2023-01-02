@@ -6,14 +6,13 @@ use crate::{
         array_ops::BroadcastOp, ops::add_grad, BorrowView, KindedArrayD, KindedArrayViewD,
         NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods,
     },
-    tensor::{TensorKind, TensorMethods},
+    tensor::{TensorKind, TensorMethods}, AnyNum,
 };
 use more_asserts::assert_ge;
 use ndarray::{ArrayD, ArrayViewD, Ix1, Ix2, LinalgScalar, SliceInfoElem};
-use num::NumCast;
 use state_compose::StateCompose;
 
-fn bivector_mul<T: LinalgScalar + NumCast>(
+fn bivector_mul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
     kind: TensorKind,
@@ -32,7 +31,7 @@ fn bivector_mul<T: LinalgScalar + NumCast>(
     res
 }
 
-fn bivector_mul_matrix<T: LinalgScalar + NumCast>(
+fn bivector_mul_matrix<T: LinalgScalar + AnyNum>(
     bivec: ArrayViewD<'_, T>,
     mat: ArrayViewD<'_, T>,
     bivec_first: bool,
@@ -55,7 +54,7 @@ where
     KindedArrayD::from(result.into_dyn())
 }
 
-fn matrix_mul<T: LinalgScalar + NumCast>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> KindedArrayD
+fn matrix_mul<T: LinalgScalar + AnyNum>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> KindedArrayD
 where
     KindedArrayD: From<ArrayD<T>>,
 {
@@ -70,7 +69,7 @@ where
     KindedArrayD::from(result.into_dyn())
 }
 
-fn broadcasted_matmul<T: LinalgScalar + NumCast>(
+fn broadcasted_matmul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
     kind: TensorKind,
@@ -130,7 +129,7 @@ where
     result
 }
 
-pub(crate) fn matmul<T: LinalgScalar + NumCast>(
+pub(crate) fn matmul<T: LinalgScalar + AnyNum>(
     a: ArrayViewD<'_, T>,
     b: ArrayViewD<'_, T>,
     kind: TensorKind,
