@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use ndarray::SliceInfoElem;
 
@@ -74,7 +74,7 @@ impl AsView for SliceView {
 pub(crate) struct SliceOp {
     slice: IndexInfo,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl SliceOp {
@@ -87,7 +87,7 @@ impl SliceOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(SliceOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 slice: index,
             }));
         }
@@ -135,7 +135,7 @@ impl AsView for PermuteView {
 pub(crate) struct PermuteOp {
     permute: Vec<usize>,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl PermuteOp {
@@ -148,7 +148,7 @@ impl PermuteOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(PermuteOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 permute: permute.to_vec(),
             }));
         }
@@ -228,7 +228,7 @@ impl AsView for BroadcastView {
 pub(crate) struct BroadcastOp {
     broadcast: Vec<usize>,
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl BroadcastOp {
@@ -241,7 +241,7 @@ impl BroadcastOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(BroadcastOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
                 broadcast: broadcast.to_vec(),
             }));
         }
@@ -393,7 +393,7 @@ impl AsView for IdentityView {
 
 pub(crate) struct IdentityOp {
     input: Arc<Mutex<NdArrayTensorInternal>>,
-    output: Arc<Mutex<NdArrayTensorInternal>>,
+    output: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl IdentityOp {
@@ -403,7 +403,7 @@ impl IdentityOp {
         if cloned.i().requires_grad {
             cloned.i().op = Some(Arc::new(IdentityOp {
                 input: input.i_copy(),
-                output: cloned.i_copy(),
+                output: cloned.i_ref(),
             }));
         }
         cloned

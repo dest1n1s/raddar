@@ -4,7 +4,7 @@ use std::{
     borrow::Borrow,
     f64::consts::E,
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, Weak},
 };
 
 use self::{
@@ -442,11 +442,24 @@ impl NdArrayTensor {
         self.internal.as_ref().unwrap().lock().unwrap()
     }
 
-    /// Get a copy of the reference of the internal data of the tensor.
+    /// Get a strong reference of the internal data of the tensor.
     ///
+    /// Note: If you are going to store this reference in a struct which is referenced by this tensor,
+    /// you should use `i_ref` instead. **If you use a strong reference, it will cause a memory leak.**
+    /// 
     /// Note: this is a shallow copy, so the data is not copied.
     fn i_copy(&self) -> Arc<Mutex<NdArrayTensorInternal>> {
         self.internal.as_ref().unwrap().clone()
+    }
+
+    /// Get a weak reference of the internal data of the tensor.
+    /// 
+    /// This reference is useful when you are going to store this reference in a struct
+    /// which is referenced by this tensor. **If you use a strong reference, it will cause a memory leak.**
+    /// 
+    /// Note: this reference does not ensure that its data is still alive.
+    fn i_ref(&self) -> Weak<Mutex<NdArrayTensorInternal>> {
+        Arc::downgrade(self.internal.as_ref().unwrap())
     }
 
     /// Do a very shallow copy of the tensor.
@@ -956,7 +969,7 @@ impl AutoGradTensorMethods for NdArrayTensor {
     fn set_requires_grad(&mut self, requires_grad: bool) {
         self.i().requires_grad = requires_grad;
         if requires_grad && self.i().op.is_none() {
-            self.i().op = Some(Arc::new(GradAccumulateOp::new(self.i_copy())));
+            self.i().op = Some(Arc::new(GradAccumulateOp::new(self.i_ref())));
         } else if !requires_grad {
             self.i().op = None;
         }

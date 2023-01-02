@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use num::cast;
 
@@ -12,7 +12,12 @@ use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
 /// A helper method to add `grad` to the `tensor`'s grad.
 ///
 /// If the `tensor`'s grad is `None`, we will create a new grad with the same shape and dtype as the `tensor`.
-pub(crate) fn add_grad(tensor: Arc<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
+pub(crate) fn add_grad(tensor: Weak<Mutex<NdArrayTensorInternal>>, grad: NdArrayTensor) {
+    let tensor = tensor.upgrade();
+    if tensor.is_none() {
+        return;
+    }
+    let tensor = tensor.unwrap();
     let mut tensor = tensor.lock().unwrap();
 
     let shape = tensor.as_view().size();
@@ -39,7 +44,7 @@ macro_rules! go_backward {
 /// `$a` and `$b` are the two tensors to borrow, type `Arc<Mutex<NdArrayTensorInternal>>`.
 ///
 /// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal>, &MutexGuard<NdArrayTensorInternal>)`.
-/// 
+///
 /// `$execution` is the code block to execute.
 #[macro_export]
 macro_rules! borrow_two_tensor_internals {
@@ -82,9 +87,9 @@ macro_rules! binary_op {
     };
     ($op_name: ident, $input_name:ident, $grad_name:ident, $output_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            b: Arc<Mutex<NdArrayTensorInternal>>,
-            $output_name: Arc<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
+            b: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
+            $output_name: std::sync::Weak<Mutex<NdArrayTensorInternal>>,
         }
 
         impl $op_name {
@@ -103,7 +108,7 @@ macro_rules! binary_op {
                     tensor.i().op = Some(Arc::new($op_name {
                         a,
                         b,
-                        $output_name: tensor.i_copy(),
+                        $output_name: tensor.i_ref(),
                     }));
                     tensor.set_requires_grad(true);
                 }
@@ -116,7 +121,7 @@ macro_rules! binary_op {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let (a, b) = $crate::borrow_two_tensor_internals!(self.a, self.b, $input_name, {
-                    let $output_name = &self.$output_name;
+                    let $output_name = &self.$output_name.upgrade().expect("output is dropped");
                     let res_a = $backward_to_a;
                     let res_b = $backward_to_b;
                     (res_a, res_b)
@@ -133,7 +138,7 @@ macro_rules! unary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name {
             a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
+            output: Weak<Mutex<NdArrayTensorInternal>>,
         }
 
         impl $op_name {
@@ -148,7 +153,7 @@ macro_rules! unary_op {
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
-                        output: tensor.i_copy(),
+                        output: tensor.i_ref(),
                     }));
                     tensor.set_requires_grad(true);
                 }
@@ -180,8 +185,8 @@ macro_rules! unary_op_with_scalar {
     };
     ($op_name: ident, $param_name: ident, $input_name:ident, $grad_name:ident, $output_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name<T: $crate::AnyNum> {
-            a: Arc<Mutex<NdArrayTensorInternal>>,
-            $output_name: Arc<Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<Mutex<NdArrayTensorInternal>>,
+            $output_name: std::sync::Weak<Mutex<NdArrayTensorInternal>>,
             $param_name: T,
         }
 
@@ -197,7 +202,7 @@ macro_rules! unary_op_with_scalar {
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
-                        output: tensor.i_copy(),
+                        output: tensor.i_ref(),
                         $param_name,
                     }));
                     tensor.set_requires_grad(true);
@@ -211,7 +216,7 @@ macro_rules! unary_op_with_scalar {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
                 let $param_name = self.$param_name;
-                let $output_name = &self.$output_name;
+                let $output_name = &self.$output_name.upgrade().expect("output is dropped");
                 let $input_name = &self.a;
                 go_backward!(self.a, $backward_to);
             }
@@ -223,7 +228,7 @@ macro_rules! unary_op_with_non_generic_param {
     ($op_name: ident, $param_name: ident, $param_type: ty, $input_name:ident, $grad_name:ident, $forward_calculation:expr, $backward_to:expr) => {
         pub(crate) struct $op_name {
             a: Arc<Mutex<NdArrayTensorInternal>>,
-            output: Arc<Mutex<NdArrayTensorInternal>>,
+            output: Weak<Mutex<NdArrayTensorInternal>>,
             $param_name: $param_type,
         }
 
@@ -239,7 +244,7 @@ macro_rules! unary_op_with_non_generic_param {
                 if $input_name.requires_grad() {
                     tensor.i().op = Some(Arc::new($op_name {
                         a: $input_name.i_copy(),
-                        output: tensor.i_copy(),
+                        output: tensor.i_ref(),
                         $param_name,
                     }));
                     tensor.set_requires_grad(true);
@@ -388,7 +393,7 @@ unary_op_with_scalar!(
     input.as_view().exp_scalar(scalar),
     {
         let scalar: f64 = cast(scalar).unwrap();
-        
+
         let output = output.lock().unwrap();
         let output_times_ln_scalar = output.as_view().mul_scalar(scalar.ln());
         drop(output);
@@ -465,11 +470,11 @@ unary_op_with_non_generic_param!(
     grad.squeeze(*dim)
 );
 pub(crate) struct GradAccumulateOp {
-    tensor: Arc<Mutex<NdArrayTensorInternal>>,
+    tensor: Weak<Mutex<NdArrayTensorInternal>>,
 }
 
 impl GradAccumulateOp {
-    pub(crate) fn new(tensor: Arc<Mutex<NdArrayTensorInternal>>) -> Self {
+    pub(crate) fn new(tensor: Weak<Mutex<NdArrayTensorInternal>>) -> Self {
         Self { tensor }
     }
 }
