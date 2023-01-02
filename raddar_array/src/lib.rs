@@ -192,6 +192,15 @@ mod tests {
     }
 
     #[test]
+    fn argmax_test() {
+        let ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts2 = ts.get(0);
+        ts2 *= 2.0f64;
+        ts.debug_print();
+        ts.argext_dim(0, false, true).debug_print();
+    }
+
+    #[test]
     fn linear_fit_test() {
         let x = NdArrayTensor::zeros(&[100], TensorKind::F32);
         let y = NdArrayTensor::zeros(&[100], TensorKind::F32);

@@ -10,8 +10,9 @@ use std::{
 use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
-        AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp, MulOp,
-        MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp, UnsqueezeOp, MeanOp,
+        AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp, MeanOp,
+        MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp,
+        UnsqueezeOp,
     },
     single_ops::matmul::{batched_zip, MatmulOp},
 };
@@ -729,6 +730,10 @@ impl TensorMethods for NdArrayTensor {
         MeanOp::forward(self, (dim.to_vec(), keep_dim))
     }
 
+    fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self {
+        Self::from(self.i().as_view().argext_dim(dim, keep_dim, is_max))
+    }
+
     fn unsqueeze(&self, dim: usize) -> Self {
         UnsqueezeOp::forward(self, dim)
     }
@@ -928,6 +933,10 @@ impl TensorMethods for KindedArrayD {
 
     fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self {
         self.view().mean_dim(dim, keep_dim)
+    }
+
+    fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self {
+        self.view().argext_dim(dim, keep_dim, is_max)
     }
 
     fn unsqueeze(&self, dim: usize) -> Self {
@@ -1194,6 +1203,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
 
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
     fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
+    fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self::OwnedType;
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this>;
     fn into_squeeze(self, dim: usize) -> Self::ViewType<'this>;
 }
@@ -1706,6 +1716,26 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
                         .expect("Some axis is zero length, unable to compute mean."),
                 )
             })
+        })
+    }
+
+    fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            let axis = Axis(dim);
+            let argext = array.map_axis(axis, |x| {
+                let enumerater = x.iter().enumerate();
+                let ext_index = if is_max {
+                    enumerater.max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                } else {
+                    enumerater.min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                };
+                ext_index.unwrap().0 as i32
+            });
+            if keep_dim {
+                KindedArrayD::from(argext.insert_axis(axis))
+            } else {
+                KindedArrayD::from(argext)
+            }
         })
     }
 

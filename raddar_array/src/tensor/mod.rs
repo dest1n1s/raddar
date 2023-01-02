@@ -85,6 +85,7 @@ pub trait TensorMethods: Sized {
         let dim = (0..self.size().len()).collect::<Vec<_>>();
         self.mean_dim(&dim, false)
     }
+    fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self;
     fn unsqueeze(&self, dim: usize) -> Self;
     fn unsqueeze_(&mut self, dim: usize);
     fn squeeze(&self, dim: usize) -> Self;
