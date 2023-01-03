@@ -230,6 +230,19 @@ mod tests {
     }
 
     #[test]
+    fn abs_test(){
+        let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts1 = ts.get(0);
+        ts1 *= -2.0f64;
+        ts.set_requires_grad(true);
+        let mut ts2 = ts.abs();
+
+        ts2.backward();
+
+        ts.grad().debug_print();
+    }
+
+    #[test]
     fn linear_fit_test() {
         let x = NdArrayTensor::zeros(&[100], TensorKind::F32);
         let y = NdArrayTensor::zeros(&[100], TensorKind::F32);

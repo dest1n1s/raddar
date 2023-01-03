@@ -221,7 +221,10 @@ macro_rules! unary_op {
             fn backward(&self, $grad_name: NdArrayTensor) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
-                go_backward!(self.a, $backward_to);
+                let $input_name = self.a.lock().unwrap();
+                let result = $backward_to;
+                drop($input_name);
+                go_backward!(self.a, result);
             }
         }
     };
@@ -322,6 +325,10 @@ macro_rules! unary_op_with_non_generic_param {
 }
 
 unary_op!(NegOp, input, grad, -&*input.as_view(), -&grad);
+
+unary_op!(AbsOp, input, grad, input.as_view().abs(), &grad * &NdArrayTensor::from(input.as_view().sgn()));
+
+unary_op!(SgnOp, input, grad, input.as_view().sgn(), &grad * 0);
 
 binary_op!(
     AddOp,

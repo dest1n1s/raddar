@@ -42,11 +42,14 @@ pub trait TensorMethods: Sized {
     fn mul(&self, other: &Self) -> Self;
     fn div(&self, other: &Self) -> Self;
     fn pow(&self, other: &Self) -> Self;
+    fn abs(&self) -> Self;
+    fn sgn(&self) -> Self;
     fn add_(&mut self, other: &Self);
     fn sub_(&mut self, other: &Self);
     fn mul_(&mut self, other: &Self);
     fn div_(&mut self, other: &Self);
     fn pow_(&mut self, other: &Self);
+    fn abs_(&mut self);
 
     fn add_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn sub_scalar<T: AnyNum>(&self, other: T) -> Self;

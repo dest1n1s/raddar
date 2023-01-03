@@ -12,7 +12,7 @@ use self::{
     ops::{
         AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp, MeanOp,
         MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp,
-        UnsqueezeOp,
+        UnsqueezeOp, AbsOp, SgnOp,
     },
     single_ops::{
         ext::ExtOp,
@@ -27,7 +27,7 @@ use crate::{
     },
     AnyNum,
 };
-use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, IxDyn, SliceInfoElem, Zip, Dimension};
+use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, Dimension, IxDyn, SliceInfoElem, Zip};
 use num::cast;
 use owning_ref::OwningHandle;
 
@@ -595,6 +595,14 @@ impl TensorMethods for NdArrayTensor {
         PowOp::forward((&self_, &other_))
     }
 
+    fn abs(&self) -> Self {
+        AbsOp::forward(self)
+    }
+
+    fn sgn(&self) -> Self {
+        SgnOp::forward(self)
+    }
+
     fn add_(&mut self, other: &Self) {
         borrow_two_tensor_internals!(
             self.internal.as_mut().unwrap(),
@@ -648,6 +656,10 @@ impl TensorMethods for NdArrayTensor {
                 inputs.0.as_view_mut().pow_(&*inputs.1.as_view());
             }
         )
+    }
+
+    fn abs_(&mut self) {
+        self.i().as_view_mut().abs_();
     }
 
     fn add_scalar<T: AnyNum>(&self, other: T) -> Self {
@@ -855,6 +867,14 @@ impl TensorMethods for KindedArrayD {
         self.view().pow(&other.view())
     }
 
+    fn abs(&self) -> Self {
+        self.view().abs()
+    }
+
+    fn sgn(&self) -> Self {
+        self.view().sgn()
+    }
+
     fn add_(&mut self, other: &Self) {
         let mut self_view = self.view_mut();
         self_view += &other.view();
@@ -877,6 +897,10 @@ impl TensorMethods for KindedArrayD {
 
     fn pow_(&mut self, other: &Self) {
         self.view_mut().pow_(&other.view());
+    }
+
+    fn abs_(&mut self) {
+        self.view_mut().abs_();
     }
 
     fn add_scalar<T: AnyNum>(&self, other: T) -> Self {
@@ -1180,6 +1204,7 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn mul_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
     fn div_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
     fn pow_(&mut self, other: impl Borrow<Self::ViewType<'_>>);
+    fn abs_(&mut self);
 
     fn add_scalar_<T: AnyNum>(&mut self, other: T);
     fn sub_scalar_<T: AnyNum>(&mut self, other: T);
@@ -1229,6 +1254,8 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn mul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
     fn div(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
     fn pow(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
+    fn abs(&self) -> Self::OwnedType;
+    fn sgn(&self) -> Self::OwnedType;
 
     fn add_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn sub_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
@@ -1457,6 +1484,12 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         )
     }
 
+    fn abs_(&mut self) {
+        obtain_kind_array_view_mut!(self, array, {
+            array.mapv_inplace(KindType::abs);
+        })
+    }
+
     fn add_scalar_<T: AnyNum>(&mut self, other: T) {
         obtain_kind_array_view_mut!(self, array, {
             *array += cast::<T, KindType>(other).unwrap();
@@ -1549,7 +1582,11 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         obtain_2_kind_array_view_mut_with_immut!(self, dst, src, src, {
             obtain_kind_array_view!(index, index, {
                 for (i, &j) in index.indexed_iter() {
-                    let mut index_info = i.slice().into_iter().map(|x| *x as usize).collect::<Vec<_>>();
+                    let mut index_info = i
+                        .slice()
+                        .into_iter()
+                        .map(|x| *x as usize)
+                        .collect::<Vec<_>>();
                     let src = src.get(index_info.as_slice()).unwrap();
 
                     index_info[dim] = j as usize;
@@ -1687,6 +1724,18 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
             },
             { KindedArrayD::from(Zip::from(array1).and(array2).map_collect(|x, y| x.powf(*y)),) }
         )
+    }
+
+    fn abs(&self) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayD::from(array.mapv(KindType::abs))
+        })
+    }
+
+    fn sgn(&self) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayD::from(array.mapv(KindType::signum))
+        })
     }
 
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
