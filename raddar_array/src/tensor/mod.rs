@@ -121,6 +121,7 @@ pub trait TensorMethods: Sized {
         let unsqueezed = tensors.into_iter().map(|t| t.unsqueeze(dim)).collect::<Vec<_>>();
         Self::cat(unsqueezed.iter().collect::<Vec<_>>().as_slice(), dim)
     }
+    fn reshape(&self, shape: &[usize]) -> Self;
 }
 
 pub trait ArrayMethods: TensorMethods + Sized {

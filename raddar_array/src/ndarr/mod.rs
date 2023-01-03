@@ -16,9 +16,11 @@ use self::{
         SubOp, SubScalarOp, SumOp, UnsqueezeOp,
     },
     single_ops::{
+        concat::CatOp,
         ext::ExtOp,
         matmul::{batched_zip, MatmulOp},
-        where_::WhereOp, concat::CatOp,
+        reshape::ReshapeOp,
+        where_::WhereOp,
     },
 };
 use crate::{
@@ -843,6 +845,10 @@ impl TensorMethods for NdArrayTensor {
     fn cat(tensors: &[&Self], dim: usize) -> Self {
         CatOp::forward(tensors, dim)
     }
+
+    fn reshape(&self, shape: &[usize]) -> Self {
+        ReshapeOp::forward(self, shape)
+    }
 }
 
 impl ArrayMethods for NdArrayTensor {
@@ -1090,8 +1096,23 @@ impl TensorMethods for KindedArrayD {
         let views = tensors.iter().map(|t| t.view()).collect::<Vec<_>>();
         KindedArrayViewD::cat(&views, dim)
     }
+
+    /// Copy the array to a new array with the given shape.
+    ///
+    /// If you want to avoid copying, use `into_reshape` instead.
+    fn reshape(&self, shape: &[usize]) -> Self {
+        self.view().into_reshape(shape).unwrap().upgrade()
+    }
 }
 
+impl KindedArrayD {
+    /// The in-place version of `reshape`.
+    ///
+    /// Compared to `reshape`, this method prevents any copy of the underlying data.
+    fn into_reshape(self, shape: &[usize]) -> Option<Self> {
+        obtain_kind_array!(self, array, { Some(array.into_shape(shape).ok()?.into()) })
+    }
+}
 arith_impl!(KindedArrayD);
 
 // =================================================================================================
@@ -1317,6 +1338,7 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
 
     fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
     fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
+    fn into_reshape_mut(self, shape: &[usize]) -> Option<Self::ViewMutType<'this>>;
 
     fn downgrade<'a>(&'a self) -> Self::ViewType<'a>;
 }
@@ -1377,6 +1399,8 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     ) -> Self::OwnedType;
 
     fn cat(tensors: &[impl Borrow<Self::ViewType<'_>>], dim: usize) -> Self::OwnedType;
+    fn into_reshape(self, shape: &[usize]) -> Option<Self::ViewType<'this>>;
+    fn standard_layout(&self) -> Self::OwnedType;
 }
 
 macro_rules! impl_arith_for_all {
@@ -1707,6 +1731,12 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
     fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this> {
         obtain_kind_array_view_mut!(self, array, {
             KindedArrayViewMutD::from(array.remove_axis(Axis(axis)))
+        })
+    }
+
+    fn into_reshape_mut(self, shape: &[usize]) -> Option<Self::ViewMutType<'this>> {
+        obtain_kind_array_view_mut!(self, array, {
+            Some(KindedArrayViewMutD::from(array.into_shape(shape).ok()?))
         })
     }
 
@@ -2083,13 +2113,31 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
                 )))
                 .chain((dim + 1..shape.len()).map(|_| ALL))
                 .collect::<Vec<_>>();
-            
+
             view.into_slice_mut(slice.into()).assign(tensor);
 
             offset += size as isize;
         }
 
         result.into()
+    }
+
+    fn into_reshape(self, shape: &[usize]) -> Option<Self::ViewType<'this>> {
+        assert_eq!(
+            self.size().iter().product::<usize>(),
+            shape.iter().product::<usize>(),
+            "The new shape must have the same number of elements as the original shape."
+        );
+
+        obtain_kind_array_view!(self, array, {
+            Some(KindedArrayViewD::from(array.into_shape(shape).ok()?))
+        })
+    }
+
+    fn standard_layout(&self) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            KindedArrayD::from(array.as_standard_layout().into_owned())
+        })
     }
 }
 
