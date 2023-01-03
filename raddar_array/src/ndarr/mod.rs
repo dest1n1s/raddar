@@ -17,6 +17,7 @@ use self::{
     single_ops::{
         ext::ExtOp,
         matmul::{batched_zip, MatmulOp},
+        where_::WhereOp,
     },
 };
 use crate::{
@@ -609,9 +610,7 @@ impl TensorMethods for NdArrayTensor {
             self_.internal.as_ref().unwrap(),
             other_.internal.as_ref().unwrap(),
             inputs,
-            { 
-                inputs.0.as_view().cmp(&*inputs.1.as_view(), mode).into() 
-            }
+            { inputs.0.as_view().cmp(&*inputs.1.as_view(), mode).into() }
         )
     }
 
@@ -800,6 +799,10 @@ impl TensorMethods for NdArrayTensor {
 
     fn squeeze_(&mut self, dim: usize) {
         self.i().view.push(Arc::new(SqueezeView::new(dim)));
+    }
+
+    fn r#where(&self, cond: &Self, other: &Self) -> Self {
+        WhereOp::forward(cond, self, other)
     }
 }
 
@@ -1035,6 +1038,10 @@ impl TensorMethods for KindedArrayD {
     fn squeeze_(&mut self, _: usize) {
         unimplemented!()
     }
+
+    fn r#where(&self, cond: &Self, other: &Self) -> Self {
+        self.view().r#where(&cond.view(), &other.view())
+    }
 }
 
 arith_impl!(KindedArrayD);
@@ -1099,6 +1106,15 @@ impl From<Arc<RwLock<KindedArrayD>>> for NdArrayTensor {
         }
     }
 }
+
+impl From<&Arc<Mutex<NdArrayTensorInternal>>> for NdArrayTensor {
+    fn from(internal: &Arc<Mutex<NdArrayTensorInternal>>) -> Self {
+        NdArrayTensor {
+            internal: Some(internal.clone()),
+        }
+    }
+}
+
 macro_rules! impl_from_arrayd_into_tensor {
     ($typ:ty, $from:ident, $data:expr) => {
         impl From<ArrayD<$typ>> for NdArrayTensor {
@@ -1305,6 +1321,11 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     ) -> (Self::OwnedType, Self::OwnedType);
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this>;
     fn into_squeeze(self, dim: usize) -> Self::ViewType<'this>;
+    fn r#where(
+        &self,
+        cond: impl Borrow<Self::ViewType<'_>>,
+        other: impl Borrow<Self::ViewType<'_>>,
+    ) -> Self::OwnedType;
 }
 
 macro_rules! impl_arith_for_all {
@@ -1937,6 +1958,24 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
     fn into_squeeze(self, dim: usize) -> Self::ViewType<'this> {
         obtain_kind_array_view!(self, array, {
             KindedArrayViewD::from(array.remove_axis(Axis(dim)))
+        })
+    }
+
+    fn r#where(
+        &self,
+        cond: impl Borrow<Self::ViewType<'_>>,
+        other: impl Borrow<Self::ViewType<'_>>,
+    ) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
+            obtain_kind_array_view!(cond.borrow(), cond, CondType, {
+                let zero = CondType::zero();
+                KindedArrayD::from(
+                    Zip::from(array1)
+                        .and(array2)
+                        .and(cond)
+                        .map_collect(|x, y, c| if c.ne(&zero) { *x } else { *y }),
+                )
+            })
         })
     }
 }
