@@ -230,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn abs_test(){
+    fn abs_test() {
         let mut ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
         let mut ts1 = ts.get(0);
         ts1 *= -2.0f64;
@@ -243,13 +243,32 @@ mod tests {
     }
 
     #[test]
-    fn cmp_test(){
+    fn cmp_test() {
         let ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
         let mut ts1 = ts.get(0);
         ts1 *= -2.0f64;
         let ts2 = ts.cmp(&ts1, crate::tensor::CmpMode::GT);
 
         ts2.debug_print();
+    }
+
+    #[test]
+    fn cat_test() {
+        let ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts1 = ts.get(0);
+        ts1 *= -2.0f64;
+        let mut ts2 = ts.get(1);
+        ts2 *= 2.0f64;
+        ts1.set_requires_grad(true);
+        ts2.set_requires_grad(true);
+        let mut ts3 = NdArrayTensor::cat(&[&ts1, &ts2], 0);
+
+        ts3 = &ts3 * 2;
+
+        ts3.backward();
+
+        ts1.grad().debug_print();
+        ts2.grad().debug_print();
     }
 
     #[test]

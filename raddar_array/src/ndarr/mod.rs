@@ -3,6 +3,7 @@
 use std::{
     borrow::Borrow,
     f64::consts::E,
+    iter::once,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, Weak},
 };
@@ -10,24 +11,26 @@ use std::{
 use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
-        AbsOp, AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp,
-        MeanOp, MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SgnOp, SqueezeOp, SubOp,
-        SubScalarOp, SumOp, UnsqueezeOp, CastOp,
+        AbsOp, AddOp, AddScalarOp, CastOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp,
+        LogScalarOp, MeanOp, MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SgnOp, SqueezeOp,
+        SubOp, SubScalarOp, SumOp, UnsqueezeOp,
     },
     single_ops::{
         ext::ExtOp,
         matmul::{batched_zip, MatmulOp},
-        where_::WhereOp,
+        where_::WhereOp, concat::CatOp,
     },
 };
 use crate::{
     arith_impl, borrow_three_tensor_internals, borrow_two_tensor_internals,
     tensor::{
-        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, CmpMode,
-        ScatterReduction, TensorKind, TensorMethods,
+        index::{IndexInfo, IndexInfoItem, ALL},
+        ops::Operation,
+        ArrayMethods, AutoGradTensorMethods, CmpMode, ScatterReduction, TensorKind, TensorMethods,
     },
     AnyNum,
 };
+use more_asserts::assert_gt;
 use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, Dimension, IxDyn, SliceInfoElem, Zip};
 use num::cast;
 use owning_ref::OwningHandle;
@@ -836,6 +839,10 @@ impl TensorMethods for NdArrayTensor {
     fn r#where(&self, cond: &Self, other: &Self) -> Self {
         WhereOp::forward(cond, self, other)
     }
+
+    fn cat(tensors: &[&Self], dim: usize) -> Self {
+        CatOp::forward(tensors, dim)
+    }
 }
 
 impl ArrayMethods for NdArrayTensor {
@@ -1077,6 +1084,11 @@ impl TensorMethods for KindedArrayD {
 
     fn r#where(&self, cond: &Self, other: &Self) -> Self {
         self.view().r#where(&cond.view(), &other.view())
+    }
+
+    fn cat(tensors: &[&Self], dim: usize) -> Self {
+        let views = tensors.iter().map(|t| t.view()).collect::<Vec<_>>();
+        KindedArrayViewD::cat(&views, dim)
     }
 }
 
@@ -1363,6 +1375,8 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
         cond: impl Borrow<Self::ViewType<'_>>,
         other: impl Borrow<Self::ViewType<'_>>,
     ) -> Self::OwnedType;
+
+    fn cat(tensors: &[impl Borrow<Self::ViewType<'_>>], dim: usize) -> Self::OwnedType;
 }
 
 macro_rules! impl_arith_for_all {
@@ -2022,6 +2036,60 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
                 )
             })
         })
+    }
+
+    fn cat(tensors: &[impl Borrow<Self::ViewType<'_>>], dim: usize) -> Self::OwnedType {
+        assert_gt!(tensors.len(), 0, "No tensors to concatenate");
+
+        let mut first_shape = KindedArrayViewD::size(tensors[0].borrow());
+        let mut cat_dim_size = first_shape[dim];
+        for tensor in tensors.iter().skip(1) {
+            let tensor: &KindedArrayViewD<'_> = tensor.borrow();
+            let shape = tensor.size();
+
+            // some sanity check
+            assert_eq!(
+                shape.len(),
+                first_shape.len(),
+                "All tensors to concatenate must have the same rank"
+            );
+            first_shape.iter().enumerate().zip(shape.iter()).for_each(|((i, x), y)| {
+                if i != dim {
+                    assert_eq!(*x, *y, "All tensors to concatenate must have the same shape except the dimension to concatenate");
+                }
+            });
+
+            // update the size of the dimension to concatenate
+            cat_dim_size += shape[dim];
+        }
+
+        first_shape[dim] = cat_dim_size;
+
+        // do the actual concatenation
+        let mut result = KindedArrayD::empty(&first_shape, tensors[0].borrow().kind());
+        let mut offset = 0;
+        for tensor in tensors {
+            let tensor: &KindedArrayViewD<'_> = tensor.borrow();
+            let shape = tensor.size();
+            let size = shape[dim];
+            let view = result.view_mut();
+
+            let slice = (0..dim)
+                .map(|_| ALL)
+                .chain(once(IndexInfoItem::Range(
+                    offset,
+                    Some(offset + size as isize),
+                    1,
+                )))
+                .chain((dim + 1..shape.len()).map(|_| ALL))
+                .collect::<Vec<_>>();
+            
+            view.into_slice_mut(slice.into()).assign(tensor);
+
+            offset += size as isize;
+        }
+
+        result.into()
     }
 }
 

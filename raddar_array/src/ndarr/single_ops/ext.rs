@@ -25,7 +25,7 @@ impl ExtOp {
         let input_i = input.i();
         let (ext, argext) = input_i.as_view().ext_dim(dim, keep_dim, is_max);
         drop(input_i);
-        let (ext, argext): (NdArrayTensor, NdArrayTensor) = (ext.into(), argext.into());
+        let (mut ext, argext): (NdArrayTensor, NdArrayTensor) = (ext.into(), argext.into());
 
         if input.requires_grad() {
             ext.i().op = Some(Arc::new(ExtOp {
@@ -35,7 +35,8 @@ impl ExtOp {
                 input: input.i_copy(),
                 output_ext: ext.i_ref(),
                 output_argext: argext.i_copy(),
-            }))
+            }));
+            ext.set_requires_grad(true);
         }
 
         (ext, argext)

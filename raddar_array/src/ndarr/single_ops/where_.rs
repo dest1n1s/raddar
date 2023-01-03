@@ -19,7 +19,7 @@ impl WhereOp {
         x: &NdArrayTensor,
         y: &NdArrayTensor,
     ) -> NdArrayTensor {
-        let output: NdArrayTensor = borrow_three_tensor_internals!(
+        let mut output: NdArrayTensor = borrow_three_tensor_internals!(
             condition.internal.as_ref().unwrap(),
             x.internal.as_ref().unwrap(),
             y.internal.as_ref().unwrap(),
@@ -39,7 +39,8 @@ impl WhereOp {
                 condition: condition.i_copy(),
                 x: x.i_copy(),
                 y: y.i_copy(),
-            }))
+            }));
+            output.set_requires_grad(true);
         }
         output
     }

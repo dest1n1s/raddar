@@ -116,6 +116,7 @@ pub trait TensorMethods: Sized {
     fn squeeze(&self, dim: usize) -> Self;
     fn squeeze_(&mut self, dim: usize);
     fn r#where(&self, cond: &Self, other: &Self) -> Self;
+    fn cat(tensors: &[&Self], dim: usize) -> Self;
 }
 
 pub trait ArrayMethods: TensorMethods + Sized {

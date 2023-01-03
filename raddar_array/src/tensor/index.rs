@@ -1,9 +1,9 @@
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IndexInfo {
     pub infos: Vec<IndexInfoItem>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum IndexInfoItem {
     Single(isize),
     Range(isize, Option<isize>, isize),
@@ -20,6 +20,12 @@ impl IndexInfo {
             infos.push(ALL);
             rest -= 1;
         }
+        IndexInfo { infos }
+    }
+}
+
+impl From<Vec<IndexInfoItem>> for IndexInfo {
+    fn from(infos: Vec<IndexInfoItem>) -> Self {
         IndexInfo { infos }
     }
 }

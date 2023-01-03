@@ -7,7 +7,7 @@ use crate::{
     tensor::{ops::Operation, ArrayMethods, TensorMethods, TensorKind},
 };
 
-use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
+use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods};
 
 /// A helper method to add `grad` to the `tensor`'s grad.
 ///
@@ -26,7 +26,7 @@ pub(crate) fn add_grad(tensor: Weak<Mutex<NdArrayTensorInternal>>, grad: NdArray
     if tensor.grad.is_none() {
         tensor.grad = Some(KindedArrayD::zeros(&shape, dtype));
     }
-    *tensor.grad.as_mut().unwrap() += &*grad.i().data.read().unwrap();
+    tensor.grad.as_mut().unwrap().view_mut().add_(&*grad.i().as_view());
 }
 
 #[macro_export]
