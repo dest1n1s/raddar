@@ -117,6 +117,10 @@ pub trait TensorMethods: Sized {
     fn squeeze_(&mut self, dim: usize);
     fn r#where(&self, cond: &Self, other: &Self) -> Self;
     fn cat(tensors: &[&Self], dim: usize) -> Self;
+    fn stack(tensors: &[&Self], dim: usize) -> Self {
+        let unsqueezed = tensors.into_iter().map(|t| t.unsqueeze(dim)).collect::<Vec<_>>();
+        Self::cat(unsqueezed.iter().collect::<Vec<_>>().as_slice(), dim)
+    }
 }
 
 pub trait ArrayMethods: TensorMethods + Sized {
