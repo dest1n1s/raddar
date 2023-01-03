@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, Weak};
 
 use crate::{
     borrow_three_tensor_internals,
-    ndarr::{ops::add_grad, KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods},
+    ndarr::{ops::add_grad, NdArrayTensor, NdArrayTensorInternal, ViewMethods},
     tensor::{ops::Operation, AutoGradTensorMethods, TensorMethods}, go_backward,
 };
 

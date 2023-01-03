@@ -4,7 +4,7 @@ use num::cast;
 
 use crate::{
     ndarr::BorrowView,
-    tensor::{ops::Operation, ArrayMethods, TensorMethods},
+    tensor::{ops::Operation, ArrayMethods, TensorMethods, TensorKind},
 };
 
 use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods};
@@ -566,6 +566,17 @@ unary_op_with_non_generic_param!(
     input.as_view().clone().into_unsqueeze(dim).upgrade(),
     grad.squeeze(*dim)
 );
+
+unary_op_with_non_generic_param!(
+    CastOp,
+    dtype,
+    TensorKind,
+    input,
+    grad,
+    input.as_view().cast(dtype),
+    grad
+);
+
 pub(crate) struct GradAccumulateOp {
     tensor: Weak<Mutex<NdArrayTensorInternal>>,
 }

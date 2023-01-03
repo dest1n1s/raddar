@@ -45,6 +45,7 @@ pub trait TensorMethods: Sized {
     fn item<T: AnyNum>(&self) -> T;
     /// Tensor operations
     fn t(&self) -> Self;
+    fn cast(&self, dtype: TensorKind) -> Self;
     /// Arithmetic operations
     fn neg(&self) -> Self;
     fn add(&self, other: &Self) -> Self;

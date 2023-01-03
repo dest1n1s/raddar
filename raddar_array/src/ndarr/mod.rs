@@ -12,7 +12,7 @@ use self::{
     ops::{
         AbsOp, AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp,
         MeanOp, MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SgnOp, SqueezeOp, SubOp,
-        SubScalarOp, SumOp, UnsqueezeOp,
+        SubScalarOp, SumOp, UnsqueezeOp, CastOp,
     },
     single_ops::{
         ext::ExtOp,
@@ -423,6 +423,34 @@ macro_rules! obtain_2_kind_array_view_mut_with_immut {
     };
 }
 
+#[macro_export]
+macro_rules! kind_type {
+    ($kind: expr, $type_name: ident, $execution: block) => {
+        match $kind {
+            TensorKind::F32 => {
+                type $type_name = f32;
+                $execution
+            }
+            TensorKind::F64 => {
+                type $type_name = f64;
+                $execution
+            }
+            TensorKind::I16 => {
+                type $type_name = i16;
+                $execution
+            }
+            TensorKind::I32 => {
+                type $type_name = i32;
+                $execution
+            }
+            TensorKind::I64 => {
+                type $type_name = i64;
+                $execution
+            }
+            _ => unimplemented!(),
+        }
+    };
+}
 impl NdArrayTensor {
     /// Initialize a new tensor with no data.
     ///
@@ -565,6 +593,10 @@ impl TensorMethods for NdArrayTensor {
 
     fn t(&self) -> Self {
         TransposeOp::forward(self, -1, -2)
+    }
+
+    fn cast(&self, dtype: TensorKind) -> Self {
+        CastOp::forward(self, dtype)
     }
 
     fn neg(&self) -> Self {
@@ -860,6 +892,10 @@ impl TensorMethods for KindedArrayD {
 
     fn t(&self) -> Self {
         obtain_kind_array!(self, array, { KindedArrayD::from(array.t().into_owned()) })
+    }
+
+    fn cast(&self, dtype: TensorKind) -> Self {
+        self.view().cast(dtype)
     }
 
     fn neg(&self) -> Self {
@@ -1286,6 +1322,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn broadcast<'a>(&'a self, shape: &[usize]) -> Self::ViewType<'a>;
     fn into_broadcast(self, shape: &[usize]) -> Self::ViewType<'this>;
     fn t<'a>(&'a self) -> Self::ViewType<'a>;
+    fn cast(&self, kind: TensorKind) -> Self::OwnedType;
 
     fn neg(&self) -> Self::OwnedType;
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
@@ -1730,6 +1767,14 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
 
     fn t<'a>(&'a self) -> Self::ViewType<'a> {
         obtain_kind_array_view!(self, array, { KindedArrayViewD::from(array.t()) })
+    }
+
+    fn cast(&self, kind: TensorKind) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            kind_type!(kind, T, {
+                KindedArrayD::from(array.mapv(|x| cast::<KindType, T>(x).unwrap()))
+            })
+        })
     }
 
     fn add(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
