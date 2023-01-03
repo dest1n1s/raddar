@@ -14,17 +14,20 @@ use self::{
         MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp,
         UnsqueezeOp,
     },
-    single_ops::matmul::{batched_zip, MatmulOp},
+    single_ops::{
+        ext::ExtOp,
+        matmul::{batched_zip, MatmulOp},
+    },
 };
 use crate::{
-    arith_impl, borrow_two_tensor_internals,
+    arith_impl, borrow_three_tensor_internals, borrow_two_tensor_internals,
     tensor::{
-        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, TensorKind,
-        TensorMethods,
+        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, ScatterReduction,
+        TensorKind, TensorMethods,
     },
     AnyNum,
 };
-use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, IxDyn, SliceInfoElem, Zip};
+use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, IxDyn, SliceInfoElem, Zip, Dimension};
 use num::cast;
 use owning_ref::OwningHandle;
 
@@ -734,6 +737,27 @@ impl TensorMethods for NdArrayTensor {
         Self::from(self.i().as_view().argext_dim(dim, keep_dim, is_max))
     }
 
+    fn ext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> (Self, Self) {
+        ExtOp::forward(self, (dim, keep_dim, is_max))
+    }
+
+    fn scatter_dim_(&mut self, dim: usize, index: &Self, src: &Self, reduction: ScatterReduction) {
+        borrow_three_tensor_internals!(
+            self.internal.as_mut().unwrap(),
+            index.internal.as_ref().unwrap(),
+            src.internal.as_ref().unwrap(),
+            inputs,
+            {
+                inputs.0.as_view_mut().scatter_dim_(
+                    dim,
+                    &*inputs.1.as_view(),
+                    &*inputs.2.as_view(),
+                    reduction,
+                );
+            }
+        )
+    }
+
     fn unsqueeze(&self, dim: usize) -> Self {
         UnsqueezeOp::forward(self, dim)
     }
@@ -937,6 +961,15 @@ impl TensorMethods for KindedArrayD {
 
     fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self {
         self.view().argext_dim(dim, keep_dim, is_max)
+    }
+
+    fn ext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> (Self, Self) {
+        self.view().ext_dim(dim, keep_dim, is_max)
+    }
+
+    fn scatter_dim_(&mut self, dim: usize, index: &Self, src: &Self, reduction: ScatterReduction) {
+        self.view_mut()
+            .scatter_dim_(dim, &index.view(), &src.view(), reduction);
     }
 
     fn unsqueeze(&self, dim: usize) -> Self {
@@ -1161,6 +1194,13 @@ pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
 
     fn assign(&mut self, other: impl Borrow<Self::ViewType<'_>>);
     fn assign_scalar<T: AnyNum>(&mut self, other: T);
+    fn scatter_dim_(
+        &mut self,
+        dim: usize,
+        index: &Self::ViewType<'_>,
+        src: &Self::ViewType<'_>,
+        reduction: ScatterReduction,
+    );
 
     fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
     fn into_squeeze_mut(self, axis: usize) -> Self::ViewMutType<'this>;
@@ -1204,6 +1244,12 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn sum_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
     fn mean_dim(&self, dim: &[usize], keep_dim: bool) -> Self::OwnedType;
     fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self::OwnedType;
+    fn ext_dim(
+        &self,
+        dim: usize,
+        keep_dim: bool,
+        is_max: bool,
+    ) -> (Self::OwnedType, Self::OwnedType);
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this>;
     fn into_squeeze(self, dim: usize) -> Self::ViewType<'this>;
 }
@@ -1492,6 +1538,31 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
+    fn scatter_dim_(
+        &mut self,
+        dim: usize,
+        index: &Self::ViewType<'_>,
+        src: &Self::ViewType<'_>,
+        reduction: ScatterReduction,
+    ) {
+        assert_eq!(src.size(), index.size());
+        obtain_2_kind_array_view_mut_with_immut!(self, dst, src, src, {
+            obtain_kind_array_view!(index, index, {
+                for (i, &j) in index.indexed_iter() {
+                    let mut index_info = i.slice().into_iter().map(|x| *x as usize).collect::<Vec<_>>();
+                    let src = src.get(index_info.as_slice()).unwrap();
+
+                    index_info.insert(dim, j as usize);
+                    let dst = dst.get_mut(index_info.as_slice()).unwrap();
+                    match reduction {
+                        ScatterReduction::Add => *dst += src,
+                        ScatterReduction::Mul => *dst *= src,
+                    }
+                }
+            })
+        })
+    }
+
     fn into_unsqueeze_mut(self, axis: usize) -> Self::ViewMutType<'this> {
         obtain_kind_array_view_mut!(self, array, {
             KindedArrayViewMutD::from(array.insert_axis(Axis(axis)))
@@ -1737,6 +1808,32 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
                 KindedArrayD::from(argext)
             }
         })
+    }
+
+    fn ext_dim(
+        &self,
+        dim: usize,
+        keep_dim: bool,
+        is_max: bool,
+    ) -> (Self::OwnedType, Self::OwnedType) {
+        let result = obtain_kind_array_view!(self, array, {
+            let axis = Axis(dim);
+            let ext = array.map_axis(axis, |x| {
+                let iter = x.iter();
+                let ext_result = if is_max {
+                    iter.max_by(|a, b| a.partial_cmp(b).unwrap())
+                } else {
+                    iter.min_by(|a, b| a.partial_cmp(b).unwrap())
+                };
+                *ext_result.unwrap()
+            });
+            if keep_dim {
+                KindedArrayD::from(ext.insert_axis(axis))
+            } else {
+                KindedArrayD::from(ext)
+            }
+        });
+        (result, self.argext_dim(dim, keep_dim, is_max))
     }
 
     fn into_unsqueeze(self, dim: usize) -> Self::ViewType<'this> {

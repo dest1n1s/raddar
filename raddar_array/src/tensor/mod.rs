@@ -17,6 +17,13 @@ pub enum TensorKind {
     I64,
     OTHER,
 }
+
+#[derive(Clone, Copy)]
+pub enum ScatterReduction {
+    Add,
+    Mul,
+}
+
 pub trait TensorMethods: Sized {
     /// Constructors
     fn empty(shape: &[usize], dtype: TensorKind) -> Self;
@@ -51,7 +58,7 @@ pub trait TensorMethods: Sized {
     fn ln(&self) -> Self {
         self.log_scalar(E)
     }
-    fn exp(&self) -> Self{
+    fn exp(&self) -> Self {
         self.exp_scalar(E)
     }
     fn add_scalar_<T: AnyNum>(&mut self, other: T);
@@ -64,7 +71,7 @@ pub trait TensorMethods: Sized {
     fn ln_(&mut self) {
         self.log_scalar_(E)
     }
-    fn exp_(&mut self){
+    fn exp_(&mut self) {
         self.exp_scalar_(E)
     }
 
@@ -86,6 +93,8 @@ pub trait TensorMethods: Sized {
         self.mean_dim(&dim, false)
     }
     fn argext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> Self;
+    fn ext_dim(&self, dim: usize, keep_dim: bool, is_max: bool) -> (Self, Self);
+    fn scatter_dim_(&mut self, dim: usize, index: &Self, src: &Self, reduction: ScatterReduction);
     fn unsqueeze(&self, dim: usize) -> Self;
     fn unsqueeze_(&mut self, dim: usize);
     fn squeeze(&self, dim: usize) -> Self;

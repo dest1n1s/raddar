@@ -73,6 +73,62 @@ macro_rules! borrow_two_tensor_internals {
 }
 
 #[macro_export]
+macro_rules! borrow_three_tensor_internals {
+    ($a:expr, $b:expr, $c:expr, $tuple_name: ident, $execution: block) => {{
+        let tmp_a_in_borrow_three_tensor_internals = &$a;
+        let tmp_b_in_borrow_three_tensor_internals = &$b;
+        let tmp_c_in_borrow_three_tensor_internals = &$c;
+        let first = tmp_a_in_borrow_three_tensor_internals.lock().unwrap();
+
+        let tmp_a_eq_b = std::sync::Arc::ptr_eq(
+            &tmp_a_in_borrow_three_tensor_internals,
+            &tmp_b_in_borrow_three_tensor_internals,
+        );
+        let tmp_a_eq_c = std::sync::Arc::ptr_eq(
+            &tmp_a_in_borrow_three_tensor_internals,
+            &tmp_c_in_borrow_three_tensor_internals,
+        );
+        let tmp_b_eq_c = std::sync::Arc::ptr_eq(
+            &tmp_b_in_borrow_three_tensor_internals,
+            &tmp_c_in_borrow_three_tensor_internals,
+        );
+
+        let result = if tmp_a_eq_b && tmp_a_eq_c {
+            let $tuple_name = (&first, &first, &first);
+            $execution
+        } else if tmp_a_eq_b {
+            let second = tmp_c_in_borrow_three_tensor_internals.lock().unwrap();
+            let $tuple_name = (&first, &first, &second);
+            let result = $execution;
+            drop(second);
+            result
+        } else if tmp_a_eq_c {
+            let second = tmp_b_in_borrow_three_tensor_internals.lock().unwrap();
+            let $tuple_name = (&first, &second, &first);
+            let result = $execution;
+            drop(second);
+            result
+        } else if tmp_b_eq_c {
+            let second = tmp_a_in_borrow_three_tensor_internals.lock().unwrap();
+            let $tuple_name = (&second, &first, &first);
+            let result = $execution;
+            drop(second);
+            result
+        } else {
+            let second = tmp_b_in_borrow_three_tensor_internals.lock().unwrap();
+            let third = tmp_c_in_borrow_three_tensor_internals.lock().unwrap();
+            let $tuple_name = (&first, &second, &third);
+            let result = $execution;
+            drop(third);
+            drop(second);
+            result
+        };
+
+        result
+    }};
+}
+
+#[macro_export]
 macro_rules! binary_op {
     ($op_name: ident, $input_name:ident, $grad_name:ident,  $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         $crate::binary_op!(

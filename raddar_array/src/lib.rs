@@ -201,6 +201,17 @@ mod tests {
     }
 
     #[test]
+    fn scatter_test(){
+        let mut ts = NdArrayTensor::zeros(&[2, 2], TensorKind::F32);
+        let ts2 = NdArrayTensor::zeros(&[2], TensorKind::I32);
+        let ts3 = NdArrayTensor::ones(&[2], TensorKind::F64);
+        ts2.get(0).assign_scalar(1);
+        ts2.get(1).assign_scalar(0);
+        ts.scatter_dim_(0, &ts2, &ts3, crate::tensor::ScatterReduction::Add);
+        ts.debug_print();
+    }
+
+    #[test]
     fn linear_fit_test() {
         let x = NdArrayTensor::zeros(&[100], TensorKind::F32);
         let y = NdArrayTensor::zeros(&[100], TensorKind::F32);
