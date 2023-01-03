@@ -1552,7 +1552,7 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
                     let mut index_info = i.slice().into_iter().map(|x| *x as usize).collect::<Vec<_>>();
                     let src = src.get(index_info.as_slice()).unwrap();
 
-                    index_info.insert(dim, j as usize);
+                    index_info[dim] = j as usize;
                     let dst = dst.get_mut(index_info.as_slice()).unwrap();
                     match reduction {
                         ScatterReduction::Add => *dst += src,

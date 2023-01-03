@@ -13,7 +13,7 @@ pub(crate) struct ExtOp {
     is_max: bool,
     input: Arc<Mutex<NdArrayTensorInternal>>,
     output_ext: Weak<Mutex<NdArrayTensorInternal>>,
-    output_argext: Weak<Mutex<NdArrayTensorInternal>>,
+    output_argext: Arc<Mutex<NdArrayTensorInternal>>,
 }
 
 impl ExtOp {
@@ -24,6 +24,7 @@ impl ExtOp {
         let (dim, keep_dim, is_max) = params;
         let input_i = input.i();
         let (ext, argext) = input_i.as_view().ext_dim(dim, keep_dim, is_max);
+        drop(input_i);
         let (ext, argext): (NdArrayTensor, NdArrayTensor) = (ext.into(), argext.into());
 
         if input.requires_grad() {
@@ -33,7 +34,7 @@ impl ExtOp {
                 is_max,
                 input: input.i_copy(),
                 output_ext: ext.i_ref(),
-                output_argext: argext.i_ref(),
+                output_argext: argext.i_copy(),
             }))
         }
 
@@ -45,25 +46,28 @@ impl Operation for ExtOp {
     fn backward(&self, grad: NdArrayTensor) {
         add_grad(self.output_ext.clone(), grad.name_clone());
 
-        let argext = self.output_argext.upgrade().expect("output is dropped");
-
         let input = self.input.lock().unwrap();
         let shape = input.as_view().size();
         let dtype = input.as_view().kind();
         drop(input);
 
         let grad = grad.i();
-        let mut cloned_grad = grad.as_view().upgrade();
+        let argext = self.output_argext.lock().unwrap();
+        let (argext_view, grad_view) = if self.keep_dim {
+            (argext.as_view().clone(), grad.as_view().clone())
+        } else {
+            (
+                argext.as_view().clone().into_unsqueeze(self.dim),
+                grad.as_view().clone().into_unsqueeze(self.dim),
+            )
+        };
+        let mut factor = KindedArrayD::zeros(&shape, dtype);
+        factor
+            .view_mut()
+            .scatter_dim_(self.dim, &argext_view, &grad_view, ScatterReduction::Add);
+        drop(argext);
         drop(grad);
 
-        let argext = argext.lock().unwrap();
-        let argext = argext.as_view();
-        let factor = KindedArrayD::zeros(&shape, dtype);
-        cloned_grad
-            .view_mut()
-            .scatter_dim_(self.dim, &*argext, &factor.view(), ScatterReduction::Mul);
-        drop(argext);
-
-        go_backward!(self.input, cloned_grad.into());
+        go_backward!(self.input, factor.into());
     }
 }
