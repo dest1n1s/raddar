@@ -1,4 +1,6 @@
-use std::f64::consts::E;
+use std::{f64::consts::E, iter::once};
+
+use more_asserts::{assert_lt, assert_le};
 
 use crate::AnyNum;
 
@@ -118,10 +120,28 @@ pub trait TensorMethods: Sized {
     fn r#where(&self, cond: &Self, other: &Self) -> Self;
     fn cat(tensors: &[&Self], dim: usize) -> Self;
     fn stack(tensors: &[&Self], dim: usize) -> Self {
-        let unsqueezed = tensors.into_iter().map(|t| t.unsqueeze(dim)).collect::<Vec<_>>();
+        let unsqueezed = tensors
+            .into_iter()
+            .map(|t| t.unsqueeze(dim))
+            .collect::<Vec<_>>();
         Self::cat(unsqueezed.iter().collect::<Vec<_>>().as_slice(), dim)
     }
     fn reshape(&self, shape: &[usize]) -> Self;
+    fn flatten(&self, start_dim: usize, end_dim: usize) -> Self {
+        assert_lt!(start_dim, end_dim, "start_dim must be less than end_dim");
+        let shape = self.size();
+        assert_le!(end_dim, shape.len(), "end_dim must be less than or equal to the number of dimensions");
+        
+        let new_shape = shape
+            .iter()
+            .take(start_dim)
+            .cloned()
+            .chain(once(shape[start_dim..end_dim].iter().product::<usize>()))
+            .chain(shape.iter().skip(end_dim).cloned())
+            .collect::<Vec<_>>();
+
+        self.reshape(new_shape.as_slice())
+    }
 }
 
 pub trait ArrayMethods: TensorMethods + Sized {
