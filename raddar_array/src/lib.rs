@@ -7,7 +7,7 @@ pub mod tensor;
 #[cfg(feature = "ndarray-backend")]
 pub type ArrayTensor = ndarr::NdArrayTensor;
 
-pub trait AnyNum = num::NumCast + num::Num + Copy + 'static;
+pub trait AnyNum = num::NumCast + num::Num + PartialOrd + Copy + 'static;
 
 #[cfg(test)]
 mod tests {
@@ -240,6 +240,16 @@ mod tests {
         ts2.backward();
 
         ts.grad().debug_print();
+    }
+
+    #[test]
+    fn cmp_test(){
+        let ts = NdArrayTensor::ones(&[2, 2], TensorKind::F32);
+        let mut ts1 = ts.get(0);
+        ts1 *= -2.0f64;
+        let ts2 = ts.cmp(&ts1, crate::tensor::CmpMode::GT);
+
+        ts2.debug_print();
     }
 
     #[test]

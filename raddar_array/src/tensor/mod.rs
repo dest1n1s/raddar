@@ -24,6 +24,16 @@ pub enum ScatterReduction {
     Mul,
 }
 
+#[derive(Clone, Copy)]
+pub enum CmpMode {
+    EQ,
+    NE,
+    LT,
+    LE,
+    GT,
+    GE,
+}
+
 pub trait TensorMethods: Sized {
     /// Constructors
     fn empty(shape: &[usize], dtype: TensorKind) -> Self;
@@ -44,6 +54,7 @@ pub trait TensorMethods: Sized {
     fn pow(&self, other: &Self) -> Self;
     fn abs(&self) -> Self;
     fn sgn(&self) -> Self;
+    fn cmp(&self, other: &Self, mode: CmpMode) -> Self;
     fn add_(&mut self, other: &Self);
     fn sub_(&mut self, other: &Self);
     fn mul_(&mut self, other: &Self);
@@ -58,6 +69,7 @@ pub trait TensorMethods: Sized {
     fn pow_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn exp_scalar<T: AnyNum>(&self, other: T) -> Self;
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self;
+    fn cmp_scalar<T: AnyNum>(&self, other: T, mode: CmpMode) -> Self;
     fn ln(&self) -> Self {
         self.log_scalar(E)
     }

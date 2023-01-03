@@ -10,9 +10,9 @@ use std::{
 use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
     ops::{
-        AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp, MeanOp,
-        MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SqueezeOp, SubOp, SubScalarOp, SumOp,
-        UnsqueezeOp, AbsOp, SgnOp,
+        AbsOp, AddOp, AddScalarOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp, LogScalarOp,
+        MeanOp, MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SgnOp, SqueezeOp, SubOp,
+        SubScalarOp, SumOp, UnsqueezeOp,
     },
     single_ops::{
         ext::ExtOp,
@@ -22,8 +22,8 @@ use self::{
 use crate::{
     arith_impl, borrow_three_tensor_internals, borrow_two_tensor_internals,
     tensor::{
-        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, ScatterReduction,
-        TensorKind, TensorMethods,
+        index::IndexInfo, ops::Operation, ArrayMethods, AutoGradTensorMethods, CmpMode,
+        ScatterReduction, TensorKind, TensorMethods,
     },
     AnyNum,
 };
@@ -603,6 +603,18 @@ impl TensorMethods for NdArrayTensor {
         SgnOp::forward(self)
     }
 
+    fn cmp(&self, other: &Self, mode: CmpMode) -> Self {
+        let (self_, other_) = BroadcastOp::cobroadcast(self, other);
+        borrow_two_tensor_internals!(
+            self_.internal.as_ref().unwrap(),
+            other_.internal.as_ref().unwrap(),
+            inputs,
+            { 
+                inputs.0.as_view().cmp(&*inputs.1.as_view(), mode).into() 
+            }
+        )
+    }
+
     fn add_(&mut self, other: &Self) {
         borrow_two_tensor_internals!(
             self.internal.as_mut().unwrap(),
@@ -688,6 +700,10 @@ impl TensorMethods for NdArrayTensor {
 
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self {
         LogScalarOp::forward(self, other)
+    }
+
+    fn cmp_scalar<T: AnyNum>(&self, other: T, mode: CmpMode) -> Self {
+        self.i().as_view().cmp_scalar(other, mode).into()
     }
 
     fn add_scalar_<T: AnyNum>(&mut self, other: T) {
@@ -875,6 +891,10 @@ impl TensorMethods for KindedArrayD {
         self.view().sgn()
     }
 
+    fn cmp(&self, other: &Self, mode: CmpMode) -> Self {
+        self.view().cmp(&other.view(), mode)
+    }
+
     fn add_(&mut self, other: &Self) {
         let mut self_view = self.view_mut();
         self_view += &other.view();
@@ -929,6 +949,10 @@ impl TensorMethods for KindedArrayD {
 
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self {
         self.view().log_scalar(other)
+    }
+
+    fn cmp_scalar<T: AnyNum>(&self, other: T, mode: CmpMode) -> Self {
+        self.view().cmp_scalar(other, mode)
     }
 
     fn add_scalar_<T: AnyNum>(&mut self, other: T) {
@@ -1256,6 +1280,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn pow(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType;
     fn abs(&self) -> Self::OwnedType;
     fn sgn(&self) -> Self::OwnedType;
+    fn cmp(&self, other: impl Borrow<Self::ViewType<'_>>, mode: CmpMode) -> Self::OwnedType;
 
     fn add_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn sub_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
@@ -1264,6 +1289,7 @@ pub(crate) trait ViewMethods<'this>: SuperViewMethods + 'this {
     fn pow_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn exp_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
     fn log_scalar<T: AnyNum>(&self, other: T) -> Self::OwnedType;
+    fn cmp_scalar<T: AnyNum>(&self, other: T, mode: CmpMode) -> Self::OwnedType;
     fn ln(&self) -> Self::OwnedType {
         self.log_scalar(E)
     }
@@ -1738,6 +1764,16 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         })
     }
 
+    fn cmp(&self, other: impl Borrow<Self::ViewType<'_>>, mode: CmpMode) -> Self::OwnedType {
+        obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
+            KindedArrayD::from(
+                Zip::from(array1)
+                    .and(array2)
+                    .map_collect(|x, y| cmp::<_, i16>(x, y, mode)),
+            )
+        })
+    }
+
     fn matmul(&self, other: impl Borrow<Self::ViewType<'_>>) -> Self::OwnedType {
         obtain_2_kind_array_views!(self, array1, other.borrow(), array2, {
             single_ops::matmul::matmul(array1.view(), array2.view(), self.kind())
@@ -1811,6 +1847,13 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
                 KindedArrayD::from(array.mapv(|x| x.log(other)))
             }
         )
+    }
+
+    fn cmp_scalar<T: AnyNum>(&self, other: T, mode: CmpMode) -> Self::OwnedType {
+        obtain_kind_array_view!(self, array, {
+            let other = cast::<T, KindType>(other).unwrap();
+            KindedArrayD::from(array.map(|x| cmp::<_, i16>(x, &other, mode)))
+        })
     }
 
     fn kind(&self) -> TensorKind {
@@ -1935,5 +1978,21 @@ impl<'a> KindedArrayViewD<'a> {
             removed_ndim += 1;
         }
         array
+    }
+}
+
+fn cmp<T: AnyNum, U: AnyNum>(a: &T, b: &T, mode: CmpMode) -> U {
+    let result = match mode {
+        CmpMode::EQ => a.eq(b),
+        CmpMode::NE => a.ne(b),
+        CmpMode::GT => a.gt(b),
+        CmpMode::GE => a.ge(b),
+        CmpMode::LT => a.lt(b),
+        CmpMode::LE => a.le(b),
+    };
+    if result {
+        U::one()
+    } else {
+        U::zero()
     }
 }
