@@ -44,20 +44,30 @@ mod single_ops;
 /// A tensor exported to users. It holds a reference to the actual data.
 ///
 /// ```text
-///      ┌───────────────┐
-/// ┌───►│ NdArrayTensor │
-/// │    │               │       ┌───────────────────────┐
-/// │    │  internal─────┼──────►│ NdArrayTensorInternal │
-/// │    │               │       │                       │         ┌─────────────────────────────────┐
-/// │    └───────────────┘       │  data─────────────────┼────────►│ KindedArrayD                    │
-/// │                            │                       │         │                                 │
-/// └────────────────────────────┼──grad (could be None) │         │  (Holding the real tensor data) │
-///                              │                       │         └─────────────────────────────────┘
-///                              └───────────────────────┘
+/// ┌───────────────┐
+/// │ NdArrayTensor │
+/// │               │Arc+Mutex ┌───────────────────────┐
+/// │  internal─────┼─────────►│ NdArrayTensorInternal │
+/// │               │          │                       │Arc+Mutex┌─────────────────────────────────┐
+/// └───────────────┘          │  data─────────────────┼────────►│ KindedArrayD                    │
+///                            │                       │         │                                 │
+///                            │  grad (could be None)─┼─────┐   │  (Holding the real tensor data) │
+///                       Arc  │                       │     │   └─────────────────────────────────┘
+///   ┌───────────┐      ┌─────┼──op                   │     │
+///   │ Operation │◄─────┘     │                       │     │Arc+Mutex
+///   │           │Arc+Mutex   │                       │     │   ┌─────────────────────────────────┐
+///   │ input─────┼───────────►│                       │     └──►│ KindedArrayD                    │
+///   │           │Weak+Mutex  │                       │         │                                 │
+///   │ output────┼───────────►│                       │         │  (Holding the real tensor data) │
+///   │           │            │                       │Vec      └─────────────────────────────────┘
+///   │ backward()│            │  view─────────────────┼────┐
+///   │           │            │                       │    │    ┌─────────────────────────────────┐
+///   └───────────┘            └───────────────────────┘    └───►│ AsView                          │
+///                                                              │                                 │
+///                                                              │ fn view(View) -> View           │
+///                                                              └─────────────────────────────────┘
+///
 /// ```
-///
-/// **Edit**: `grad` is a `Option<KindedArrayD>` now, not a `NdArrayTensor`.
-///
 /// ## What happens if I call `&t1 + &t2`, where `t1` and `t2` are two tensors?
 ///
 /// 1. `t1.add(&t2)` is called, where `add` is a method of `TensorMethods` on `NdArrayTensor`;
