@@ -74,6 +74,6 @@ impl<Ts: TensorNN> Module<Ts> for Embedding<Ts> {
     fn forward(&self, input: &Ts) -> Ts {
         let one_hotted = (self.one_hot)(input);
         let weight = self.weight.lock();
-        one_hotted.type_as(&*weight).matmul(&*weight)
+        one_hotted.to_env(weight.env()).matmul(&*weight)
     }
 }

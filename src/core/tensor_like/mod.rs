@@ -1,22 +1,19 @@
+pub mod tensor_grad;
+pub mod tensor_nn;
 pub mod tensor_ops;
 pub mod tensor_ops_ex;
 pub mod tensor_trans;
-pub mod tensor_nn;
-pub mod tensor_grad;
 
-use std::{
-    borrow::Borrow,
-    fmt::Debug,
-    path::Path,
-};
+use std::{borrow::Borrow, fmt::Debug, path::Path};
 
-use tch::{Device, Kind, Tensor, Scalar};
+use raddar_array::{ArrayTensor, tensor::{TensorKind, TensorMethods}};
+use tch::{Device, Kind, Scalar, Tensor};
 
+pub use tensor_grad::*;
+pub use tensor_nn::*;
 pub use tensor_ops::*;
 pub use tensor_ops_ex::*;
 pub use tensor_trans::*;
-pub use tensor_nn::*;
-pub use tensor_grad::*;
 
 pub trait Element: Clone + tch::kind::Element + Into<Scalar> {}
 
@@ -37,7 +34,7 @@ impl Element for bool {}
 /// - It should also be able to perform some other operations, such as reshaping, transposing, and slicing.
 ///
 /// Of course, a real tensor-like object should also be able to perform some tensor operations, such as arithmetic operations, matrix multiplication, gradient calculation, and so on. However, this trait just focuses on the properties of tensor-like objects, and does not require further functions.
-pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default + 'static {
+pub trait TensorLike: Debug + Sized + 'static {
     /// The type of data kind.
     type Kind: Default + Clone + Debug + PartialEq + Eq + Copy;
 
@@ -64,16 +61,6 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default + 'static 
 
     /// Get the dimension of the tensor-like object.
     fn dim(&self) -> usize;
-
-    /// Create a tensor-like object from a slice.
-    fn of_slice<T: Element>(data: &[T]) -> Self;
-
-    /// Create a 2-D tensor-like object from a slice of slices.
-    fn of_slice2<T: Element, U: AsRef<[T]>>(v: &[U]) -> Self
-    {
-        let inner: Vec<Self> = v.iter().map(|v| Self::of_slice(v.as_ref())).collect();
-        Self::stack(&inner, 0)
-    }
 
     /// Stack a list of tensor-like objects into a tensor-like object.
     fn stack<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self;
@@ -107,12 +94,6 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default + 'static 
 
     /// Create a 2-D tensor-like object with ones on the diagonal and zeros elsewhere.
     fn eye(size: i64, env: Self::Env) -> Self;
-
-    /// Read named tensor-like objects from a .npz file.
-    fn read_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
-
-    /// Read named tensor-like objects from a .ot file.
-    fn read_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
 
     /// Copy the tensor-like object to self.
     fn copy_(&mut self, other: &Self);
@@ -155,9 +136,6 @@ pub trait TensorLike: PartialEq<Self> + AsRef<Self> + Debug + Default + 'static 
 
     /// Concatenate a slice of tensor-like objects along the given dimension.
     fn concat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self;
-
-    /// Convert the tensor-like object to type as the given tensor-like object.
-    fn type_as<T: Borrow<Self>>(&self, other: T) -> Self;
 }
 
 impl TensorLike for Tensor {
@@ -188,10 +166,6 @@ impl TensorLike for Tensor {
         self.dim()
     }
 
-    fn of_slice<T: Element>(data: &[T]) -> Self {
-        Tensor::of_slice(data)
-    }
-
     fn stack<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
         Tensor::stack(tensors, dim)
     }
@@ -216,14 +190,6 @@ impl TensorLike for Tensor {
         Tensor::eye(size, env)
     }
 
-    fn read_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error> {
-        Ok(Tensor::read_npz(path)?)
-    }
-
-    fn read_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error> {
-        Ok(Tensor::load_multi(path)?)
-    }
-
     fn copy_(&mut self, other: &Self) {
         Tensor::copy_(self, other)
     }
@@ -239,7 +205,7 @@ impl TensorLike for Tensor {
     fn reshape(&self, size: &[i64]) -> Self {
         Tensor::reshape(self, size)
     }
-    
+
     fn view(&self, size: &[i64]) -> Self {
         Tensor::view(self, size)
     }
@@ -247,8 +213,111 @@ impl TensorLike for Tensor {
     fn concat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
         Tensor::concat(tensors, dim)
     }
+}
 
-    fn type_as<T: Borrow<Self>>(&self, other: T) -> Self {
-        Tensor::type_as(self, other.borrow())
+impl TensorLike for ArrayTensor {
+    type Kind = TensorKind;
+    type Device = ();
+    type Env = TensorKind;
+
+    fn env(&self) -> Self::Env {
+        self.kind()
+    }
+
+    fn to_kind(&self, kind: Self::Kind) -> Self {
+        TensorMethods::cast(self, kind)
+    }
+
+    fn to_device(&self, _device: Self::Device) -> Self {
+        self.clone()
+    }
+
+    fn to_env(&self, env: Self::Env) -> Self {
+        self.to_kind(env)
+    }
+
+    fn shape(&self) -> Vec<i64> {
+        TensorMethods::size(self)
+            .iter()
+            .map(|&x| x as i64)
+            .collect::<Vec<_>>()
+    }
+
+    fn dim(&self) -> usize {
+        TensorMethods::size(self).len()
+    }
+
+    fn stack<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
+        let tensors: Vec<_> = tensors.iter().map(|t| t.borrow()).collect();
+        TensorMethods::stack(&tensors, dim.try_into().unwrap())
+    }
+
+    fn cat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
+        let tensors: Vec<_> = tensors.iter().map(|t| t.borrow()).collect();
+        TensorMethods::cat(&tensors, dim.try_into().unwrap()) 
+    }
+
+    fn zeros(size: &[i64], env: Self::Env) -> Self {
+        let size: Vec<_> = size.iter().map(|&x| x.try_into().unwrap()).collect();
+        TensorMethods::zeros(&size, env)
+    }
+
+    fn ones(size: &[i64], env: Self::Env) -> Self {
+        let size: Vec<_> = size.iter().map(|&x| x.try_into().unwrap()).collect();
+        TensorMethods::ones(&size, env)
+    }
+
+    fn empty(size: &[i64], env: Self::Env) -> Self {
+        let size: Vec<_> = size.iter().map(|&x| x.try_into().unwrap()).collect();
+        TensorMethods::empty(&size, env)
+    }
+
+    fn eye(size: i64, env: Self::Env) -> Self {
+        TensorMethods::eye(size.try_into().unwrap(), env)
+    }
+
+    fn copy_(&mut self, other: &Self) {
+        *self = other.clone();
+    }
+
+    fn fill_(&mut self, value: impl Element) {
+        todo!()
+    }
+
+    fn uniform_(&mut self, low: f64, high: f64) {
+        todo!()
+    }
+
+    fn reshape(&self, size: &[i64]) -> Self {
+        let size: Vec<_> = size.iter().map(|&x| x.try_into().unwrap()).collect();
+        TensorMethods::reshape(self, &size)
+    }
+
+    fn view(&self, size: &[i64]) -> Self {
+        todo!()
+    }
+
+    fn concat<T: Borrow<Self>>(tensors: &[T], dim: i64) -> Self {
+        todo!()
+    }
+}
+
+pub trait FromNpz: Sized {
+    fn from_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
+}
+
+impl FromNpz for Tensor {
+    fn from_npz<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error> {
+        Ok(Tensor::read_npz(path)?)
+    }
+}
+
+pub trait FromOt: Sized {
+    fn from_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Self)>, anyhow::Error>;
+}
+
+impl FromOt for Tensor {
+    fn from_ot<T: AsRef<Path>>(path: T) -> Result<Vec<(String, Tensor)>, anyhow::Error> {
+        Ok(Tensor::load_multi(path)?)
     }
 }

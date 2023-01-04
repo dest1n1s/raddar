@@ -3,6 +3,7 @@
 use std::{
     borrow::Borrow,
     f64::consts::E,
+    fmt::{Debug, Formatter},
     iter::once,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, Weak},
@@ -33,7 +34,7 @@ use crate::{
     AnyNum,
 };
 use more_asserts::assert_gt;
-use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, Dimension, IxDyn, SliceInfoElem, Zip};
+use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, Dimension, IxDyn, SliceInfoElem, Zip, ShapeError};
 use num::cast;
 use owning_ref::OwningHandle;
 
@@ -70,6 +71,7 @@ mod single_ops;
 /// 6. `KindedArrayViewD::add` extracts the underlying `ArrayViewD` from `t1_view` and `t2_view`, and calls `add` on `ArrayViewD` (**the actual addition is done here**) to get the result of the addition, an `ArrayD`. It then wraps the result into a `KindedArrayD` and returns;
 /// 7. `AddOp::forward` now has the result of the addition in a `KindedArrayD`, which is a wrapper of `ArrayD`. It then wraps the result and an AddOp into a `NdArrayTensorInternal`, and returns a `NdArrayTensor` with this internal;
 /// 8. The `NdArrayTensor` is returned to the user from `NdArrayTensor::add`.
+#[derive(Debug)]
 pub struct NdArrayTensor {
     internal: Option<Arc<Mutex<NdArrayTensorInternal>>>,
 }
@@ -123,6 +125,13 @@ pub(crate) struct NdArrayTensorInternal {
     grad: Option<KindedArrayD>,
     /// The operation that produces this tensor. It should be `None` for leaf tensors.
     op: Option<Arc<dyn Operation>>,
+}
+
+impl Debug for NdArrayTensorInternal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NdArrayTensorInternal")
+            .finish()
+    }
 }
 
 impl Clone for NdArrayTensorInternal {
@@ -584,6 +593,10 @@ impl TensorMethods for NdArrayTensor {
         NdArrayTensor::from(KindedArrayD::ones(shape, dtype))
     }
 
+    fn eye(n: usize, dtype: TensorKind) -> Self {
+        NdArrayTensor::from(KindedArrayD::eye(n, dtype))
+    }
+
     fn size(&self) -> Vec<usize> {
         self.i().as_view().size()
     }
@@ -889,6 +902,15 @@ impl TensorMethods for KindedArrayD {
 
     fn ones(shape: &[usize], dtype: TensorKind) -> Self {
         new_kinded_array!(ArrayD::ones(IxDyn(&shape)), dtype)
+    }
+
+    fn eye(size: usize, dtype: TensorKind) -> Self {
+        let mut zeros = Self::zeros(&[size, size], dtype);
+        obtain_kind_array!(&mut zeros, array, {
+            let mut diag = array.diag_mut();
+            diag.fill(KindType::one());
+        });
+        zeros
     }
 
     fn size(&self) -> Vec<usize> {

@@ -55,7 +55,7 @@ impl<Ts: TensorNN> Module<Ts> for Conv1d<Ts> {
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv1d(
-            weight.as_ref(),
+            &*weight,
             bias,
             &self.stride,
             &self.padding,
@@ -138,7 +138,7 @@ impl<Ts: TensorNN> Module<Ts> for Conv2d<Ts> {
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv2d(
-            weight.as_ref(),
+            &**weight,
             bias,
             &self.stride,
             &self.padding,
@@ -232,7 +232,7 @@ impl<Ts: TensorNN> Module<Ts> for Conv3d<Ts> {
         let bias = self.conv_bias.as_ref().map(|bias| bias.lock());
         let bias = bias.as_deref();
         input.conv3d(
-            weight.as_ref(),
+            &**weight,
             bias,
             &self.stride,
             &self.padding,

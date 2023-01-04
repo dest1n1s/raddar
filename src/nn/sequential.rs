@@ -5,13 +5,25 @@ use std::ops::{Deref, DerefMut};
 use super::{Mod, Trainable, TrainableDict};
 
 /// A module composed by a sequential of modules.
-#[derive(Debug, Default, Module)]
+#[derive(Debug, Module)]
 #[module(tensor_type="Ts")]
 pub struct Sequential<Ts: TensorNN>(Vec<Mod<dyn Module<Ts>, Ts>>);
 
-#[derive(Debug, Default, Module)]
+#[derive(Debug, Module)]
 #[module(tensor_type="Ts")]
 pub struct NamedSequential<Ts: TensorNN>(Vec<(String, Mod<dyn Module<Ts>, Ts>)>);
+
+impl<Ts: TensorNN> Default for Sequential<Ts> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<Ts: TensorNN> Default for NamedSequential<Ts> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
 
 impl<Ts: TensorNN> Deref for Sequential<Ts> {
     type Target = Vec<Mod<dyn Module<Ts>, Ts>>;

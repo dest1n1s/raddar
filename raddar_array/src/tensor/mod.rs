@@ -1,6 +1,7 @@
 use std::{f64::consts::E, iter::once};
 
 use more_asserts::{assert_lt, assert_le};
+use ndarray::ShapeError;
 
 use crate::AnyNum;
 
@@ -10,8 +11,9 @@ pub mod index;
 pub mod ops;
 
 #[non_exhaustive]
-#[derive(Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum TensorKind {
+    #[default]
     F32,
     F64,
     I16,
@@ -41,6 +43,7 @@ pub trait TensorMethods: Sized {
     fn empty(shape: &[usize], dtype: TensorKind) -> Self;
     fn zeros(shape: &[usize], dtype: TensorKind) -> Self;
     fn ones(shape: &[usize], dtype: TensorKind) -> Self;
+    fn eye(n: usize, dtype: TensorKind) -> Self;
     /// Properties
     fn size(&self) -> Vec<usize>;
     fn kind(&self) -> TensorKind;

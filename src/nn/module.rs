@@ -10,7 +10,7 @@ use linked_hash_map::LinkedHashMap;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
-    core::{Cellable, TensorCell, TensorNN},
+    core::{Cellable, TensorCell, TensorNN, FromNpz, FromOt},
     util::DropGuard,
 };
 
@@ -331,9 +331,9 @@ impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Mod<T, Ts> {
     /// layer2.weight.npy
     /// layer2.bias.npy
     /// ```
-    pub fn load_npz<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    pub fn load_npz<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> where Ts: FromNpz {
         self.load(
-            Ts::read_npz(path)?
+            Ts::from_npz(path)?
                 .into_iter()
                 .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
@@ -342,9 +342,9 @@ impl<T: Trainable<Ts> + ?Sized, Ts: TensorNN> Mod<T, Ts> {
     }
 
     /// Load parameters from a .ot file. This type of file is used by OpenTorch. It's also the default format used by `StateDict::save`. This method won't load static tensors.
-    pub fn load_ot<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    pub fn load_ot<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> where Ts: FromOt {
         Ok(self.load(
-            Ts::read_ot(path)?
+            Ts::from_ot(path)?
                 .into_iter()
                 .map(|(key, tensor)| (key, tensor.cell()))
                 .collect(),
