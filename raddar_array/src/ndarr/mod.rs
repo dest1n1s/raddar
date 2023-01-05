@@ -5,7 +5,7 @@ use std::{
     f64::consts::E,
     iter::once,
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, Weak},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
 };
 
 use self::{
@@ -16,7 +16,7 @@ use self::{
         SubOp, SubScalarOp, SumOp, UnsqueezeOp,
     },
     single_ops::{
-        concat::CatOp,
+        concat::{borrow_arc_rwlocks, CatOp},
         ext::ExtOp,
         matmul::{batched_zip, MatmulOp},
         reshape::ReshapeOp,
@@ -544,15 +544,11 @@ impl Clone for NdArrayTensor {
 }
 
 impl NdArrayTensorInternal {
-    /// Get the tensor in the internal data (protected by a mutex guard) and apply view transformations
-    /// stored in the internal data to it. Return an owning handle to the mutex guard and the boxed view.
-    ///
-    /// Note: only after you drop the owning handle, the lock will be released.
-    pub(crate) fn as_view<'a>(
+    pub(crate) fn array_as_view<'a>(
         &'a self,
+        array: RwLockReadGuard<'a, KindedArrayD>,
     ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
-        let data = self.data.read().unwrap();
-        OwningHandle::new_with_fn(data, |data| {
+        OwningHandle::new_with_fn(array, |data| {
             let tensor = unsafe { &*data };
             let mut view = tensor.view();
             for viewer in self.view.iter() {
@@ -562,12 +558,11 @@ impl NdArrayTensorInternal {
         })
     }
 
-    /// See `NdArrayTensorInternal::as_view`.
-    pub(crate) fn as_view_mut<'a>(
+    pub(crate) fn array_as_view_mut<'a>(
         &'a self,
-    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
-        let data = self.data.read().unwrap();
-        OwningHandle::new_with_fn(data, |data| {
+        array: RwLockWriteGuard<'a, KindedArrayD>,
+    ) -> OwningHandle<RwLockWriteGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
+        OwningHandle::new_with_fn(array, |data| {
             let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
             let mut view = tensor.view_mut();
             for viewer in self.view.iter() {
@@ -575,6 +570,23 @@ impl NdArrayTensorInternal {
             }
             Box::new(view)
         })
+    }
+
+    /// Get the tensor in the internal data (protected by a mutex guard) and apply view transformations
+    /// stored in the internal data to it. Return an owning handle to the mutex guard and the boxed view.
+    ///
+    /// Note: only after you drop the owning handle, the lock will be released.
+    pub(crate) fn as_view<'a>(
+        &'a self,
+    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
+        self.array_as_view(self.data.read().unwrap())
+    }
+
+    /// See `NdArrayTensorInternal::as_view`.
+    pub(crate) fn as_view_mut<'a>(
+        &'a self,
+    ) -> OwningHandle<RwLockWriteGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
+        self.array_as_view_mut(self.data.write().unwrap())
     }
 }
 
@@ -667,7 +679,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                *inputs.0.as_view_mut() += &*inputs.1.as_view();
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .add_(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -678,7 +695,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                *inputs.0.as_view_mut() -= &*inputs.1.as_view();
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .sub_(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -689,7 +711,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                *inputs.0.as_view_mut() *= &*inputs.1.as_view();
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .mul_(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -700,7 +727,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                *inputs.0.as_view_mut() /= &*inputs.1.as_view();
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .div_(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -711,7 +743,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                inputs.0.as_view_mut().pow_(&*inputs.1.as_view());
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .pow_(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -790,7 +827,12 @@ impl TensorMethods for NdArrayTensor {
             other.internal.as_ref().unwrap(),
             inputs,
             {
-                inputs.0.as_view_mut().assign(&*inputs.1.as_view());
+                borrow_arc_rwlocks(&inputs.0.data, &[&inputs.1.data], |self_mut, mut others| {
+                    inputs
+                        .0
+                        .array_as_view_mut(self_mut)
+                        .assign(&*inputs.1.array_as_view(others.pop().unwrap()));
+                })
             }
         )
     }
@@ -822,11 +864,19 @@ impl TensorMethods for NdArrayTensor {
             src.internal.as_ref().unwrap(),
             inputs,
             {
-                inputs.0.as_view_mut().scatter_dim_(
-                    dim,
-                    &*inputs.1.as_view(),
-                    &*inputs.2.as_view(),
-                    reduction,
+                borrow_arc_rwlocks(
+                    &inputs.0.data,
+                    &[&inputs.1.data, &inputs.2.data],
+                    |self_mut, mut others| {
+                        let b = others.pop().unwrap();
+                        let a = others.pop().unwrap();
+                        inputs.0.array_as_view_mut(self_mut).scatter_dim_(
+                            dim,
+                            &*inputs.1.array_as_view(a),
+                            &*inputs.2.array_as_view(b),
+                            reduction,
+                        );
+                    },
                 );
             }
         )
@@ -2204,5 +2254,25 @@ fn cmp<T: AnyNum, U: AnyNum>(a: &T, b: &T, mode: CmpMode) -> U {
         U::one()
     } else {
         U::zero()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tensor::{ArrayMethods, TensorMethods};
+
+    use super::{single_ops::concat::borrow_arc_rwlocks, NdArrayTensor, ViewMutMethods};
+
+    #[test]
+    fn test_deadlock() {
+        let a = NdArrayTensor::ones(&[2, 2], crate::tensor::TensorKind::F32);
+        let a = a.get(0);
+        let b = a.get(1);
+
+        let (a_i, b_i) = (a.i(), b.i());
+        borrow_arc_rwlocks(&a_i.data, &[&b_i.data], |a, mut bs| {
+            a_i.array_as_view_mut(a)
+                .assign(&*b_i.array_as_view(bs.pop().unwrap()));
+        });
     }
 }

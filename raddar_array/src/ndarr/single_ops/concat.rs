@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, Weak},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
 };
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     tensor::{
         index::{IndexInfo, IndexInfoItem},
         ops::Operation,
-        AutoGradTensorMethods, TensorMethods, ArrayMethods,
+        ArrayMethods, AutoGradTensorMethods, TensorMethods,
     },
 };
 pub(crate) struct CatOp {
@@ -46,6 +46,37 @@ fn borrow_arc_mutexes<T, U>(inputs: &[&Arc<Mutex<U>>], f: impl Fn(&[&MutexGuard<
         .map(|i| &guards[&i])
         .collect::<Vec<_>>();
     f(guard_refs.as_slice())
+}
+
+pub(crate) fn borrow_arc_rwlocks<T, U: Clone>(
+    input_mut: &Arc<RwLock<U>>,
+    inputs: &[&Arc<RwLock<U>>],
+    f: impl Fn(RwLockWriteGuard<U>, Vec<RwLockReadGuard<U>>) -> T,
+) -> T {
+    let mut cloned_input_mut: Option<RwLock<U>> = None;
+    let mut guards = Vec::with_capacity(inputs.len());
+    let mut_guard = input_mut.write().expect("The rwlock is poisoned");
+    for input in inputs.iter() {
+        if Arc::ptr_eq(input, input_mut) {
+            if cloned_input_mut.is_none() {
+                cloned_input_mut = Some(RwLock::new(U::clone(&*mut_guard)));
+            }
+            guards.push(None);
+        } else {
+            guards.push(Some(input.read().unwrap()));
+        }
+    }
+    let ret = f(
+        mut_guard,
+        guards
+            .into_iter()
+            .map(|guard| match guard {
+                Some(guard) => guard,
+                None => cloned_input_mut.as_ref().unwrap().read().unwrap(),
+            })
+            .collect::<Vec<_>>(),
+    );
+    ret
 }
 
 impl CatOp {
