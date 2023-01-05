@@ -1,6 +1,6 @@
 use std::{f64::consts::E, iter::once};
 
-use more_asserts::{assert_lt, assert_le};
+use more_asserts::{assert_le, assert_lt};
 
 use crate::AnyNum;
 
@@ -48,6 +48,7 @@ pub trait TensorMethods: Sized {
     /// Tensor operations
     fn t(&self) -> Self;
     fn cast(&self, dtype: TensorKind) -> Self;
+    fn fill_<T: AnyNum>(&mut self, value: T);
     /// Arithmetic operations
     fn neg(&self) -> Self;
     fn add(&self, other: &Self) -> Self;
@@ -130,8 +131,12 @@ pub trait TensorMethods: Sized {
     fn flatten(&self, start_dim: usize, end_dim: usize) -> Self {
         assert_lt!(start_dim, end_dim, "start_dim must be less than end_dim");
         let shape = self.size();
-        assert_le!(end_dim, shape.len(), "end_dim must be less than or equal to the number of dimensions");
-        
+        assert_le!(
+            end_dim,
+            shape.len(),
+            "end_dim must be less than or equal to the number of dimensions"
+        );
+
         let new_shape = shape
             .iter()
             .take(start_dim)

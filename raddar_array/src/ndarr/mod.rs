@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_macros)]
 use std::{
+    any::Any,
     borrow::Borrow,
     f64::consts::E,
     iter::once,
@@ -44,20 +45,30 @@ mod single_ops;
 /// A tensor exported to users. It holds a reference to the actual data.
 ///
 /// ```text
-///      ┌───────────────┐
-/// ┌───►│ NdArrayTensor │
-/// │    │               │       ┌───────────────────────┐
-/// │    │  internal─────┼──────►│ NdArrayTensorInternal │
-/// │    │               │       │                       │         ┌─────────────────────────────────┐
-/// │    └───────────────┘       │  data─────────────────┼────────►│ KindedArrayD                    │
-/// │                            │                       │         │                                 │
-/// └────────────────────────────┼──grad (could be None) │         │  (Holding the real tensor data) │
-///                              │                       │         └─────────────────────────────────┘
-///                              └───────────────────────┘
+/// ┌───────────────┐
+/// │ NdArrayTensor │
+/// │               │Arc+Mutex ┌───────────────────────┐
+/// │  internal─────┼─────────►│ NdArrayTensorInternal │
+/// │               │          │                       │Arc+Mutex┌─────────────────────────────────┐
+/// └───────────────┘          │  data─────────────────┼────────►│ KindedArrayD                    │
+///                            │                       │         │                                 │
+///                            │  grad (could be None)─┼─────┐   │  (Holding the real tensor data) │
+///                       Arc  │                       │     │   └─────────────────────────────────┘
+///   ┌───────────┐      ┌─────┼──op                   │     │
+///   │ Operation │◄─────┘     │                       │     │Arc+Mutex
+///   │           │Arc+Mutex   │                       │     │   ┌─────────────────────────────────┐
+///   │ input─────┼───────────►│                       │     └──►│ KindedArrayD                    │
+///   │           │Weak+Mutex  │                       │         │                                 │
+///   │ output────┼───────────►│                       │         │  (Holding the real tensor data) │
+///   │           │            │                       │Vec      └─────────────────────────────────┘
+///   │ backward()│            │  view─────────────────┼────┐
+///   │           │            │                       │    │    ┌─────────────────────────────────┐
+///   └───────────┘            └───────────────────────┘    └───►│ AsView                          │
+///                                                              │                                 │
+///                                                              │ fn view(View) -> View           │
+///                                                              └─────────────────────────────────┘
+///
 /// ```
-///
-/// **Edit**: `grad` is a `Option<KindedArrayD>` now, not a `NdArrayTensor`.
-///
 /// ## What happens if I call `&t1 + &t2`, where `t1` and `t2` are two tensors?
 ///
 /// 1. `t1.add(&t2)` is called, where `add` is a method of `TensorMethods` on `NdArrayTensor`;
@@ -604,6 +615,10 @@ impl TensorMethods for NdArrayTensor {
         CastOp::forward(self, dtype)
     }
 
+    fn fill_<T: AnyNum>(&mut self, value: T) {
+        self.i().as_view_mut().fill_(value);
+    }
+
     fn neg(&self) -> Self {
         NegOp::forward(self)
     }
@@ -909,6 +924,10 @@ impl TensorMethods for KindedArrayD {
 
     fn cast(&self, dtype: TensorKind) -> Self {
         self.view().cast(dtype)
+    }
+
+    fn fill_<T: AnyNum>(&mut self, value: T) {
+        self.view_mut().fill_(value)
     }
 
     fn neg(&self) -> Self {
@@ -1303,6 +1322,7 @@ pub(crate) trait SuperViewMethods {
 pub(crate) trait ViewMutMethods<'this>: SuperViewMethods + 'this {
     fn upgrade(&self) -> Self::OwnedType;
 
+    fn fill_<T: AnyNum>(&mut self, value: T);
     fn slice_mut<'a>(&'a mut self, info: IndexInfo) -> Self::ViewMutType<'a>;
     fn into_slice_mut(self, info: IndexInfo) -> Self::ViewMutType<'this>;
     fn permute_mut<'a>(&'a mut self, axes: &[usize]) -> Self::ViewMutType<'a>;
@@ -1541,6 +1561,12 @@ impl SuperViewMethods for KindedArrayViewMutD<'_> {
 impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
     fn upgrade(&self) -> Self::OwnedType {
         obtain_kind_array_view_mut!(self, array, { KindedArrayD::from(array.to_owned()) })
+    }
+
+    fn fill_<T: AnyNum>(&mut self, value: T) {
+        obtain_kind_array_view_mut!(self, array, {
+            array.fill(cast::<T, KindType>(value).unwrap())
+        })
     }
 
     fn slice_mut<'a>(&'a mut self, info: IndexInfo) -> Self::ViewMutType<'a> {
