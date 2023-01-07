@@ -20,3 +20,5 @@ pub mod dataset;
 pub mod nn;
 pub mod optim;
 pub mod util;
+
+pub extern crate tch;
