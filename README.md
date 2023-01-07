@@ -4,7 +4,59 @@ A Rust-native approach to deep learning.
 
 Currently since there's no mature solution for n-dimensional array computing on gpu in rust, we temporarily use the `Tensor` and other CUDA toolkit from `tch`, which provides Rust bindings for `libtorch`. But we won't use high-level parts of it.
 
-## Getting-Started
+## A Quick View 👀: Pytorch vs Raddar
+**Pytorch version**
+```python
+# create tensor X:
+inputs = torch.tensor([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]])
+# create tensor Y:
+labels = torch.tensor([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
+# build a model with one linear layer:
+model = torch.nn.Linear(1, 1)
+# create an SGD optimizer:
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+# train the model on (X, Y):
+for epoch in range(5000):
+    # clear the gradients
+    optimizer.zero_grad()
+    # go forward, and ...
+    loss = torch.nn.functional.mse_loss(model(inputs), labels, reduction='mean')
+    # ... go backward!
+    loss.backward()
+    # update the model parameters:
+    optimizer.step()
+# predict with the trained model:
+pred = model(inputs)
+print("prediction: ", pred)
+```
+
+**Raddar version**
+```rust
+// create tensor X:
+let inputs = tensor!([[1.0], [3.0], [5.0], [4.0], [8.0], [10.0], [2.0], [6.0]]);
+// create tensor Y:
+let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]]);
+// build a model with one linear layer:
+let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
+// create an SGD optimizer:
+let mut optimizer = Optimizer::new(model.training_parameters(), GradientDescent::new(0.01), None);
+// train the model on (X, Y):
+for epoch in 1..=5000 {
+    // clear the gradients
+    model.zero_grad();
+    // go forward, and ...
+    let loss = model(&inputs).mse_loss(&labels, Reduction::Mean);
+    // ... go backward!
+    loss.backward();
+    // update the model parameters:
+    optimizer.step();
+}
+// predict with the trained model:
+let pred = model(&inputs);
+println!("prediction: {:?}", pred);
+```
+
+## Getting Started
 
 This crate requires CUDA and `libtorch` support. You need to:
 
@@ -12,7 +64,7 @@ This crate requires CUDA and `libtorch` support. You need to:
 
 - Install `libtorch`. You can follow the instructions in [tch-rs](https://github.com/LaurentMazare/tch-rs/blob/main/README.md#getting-started). 
 
-- (On Windows) Check if your rust use a MSVC-based toolchain. The GNU toolchain could not successfully compile `torch-sys`. You can check the current toolchain by running
+- (Only on Windows) Check if you are using a MSVC-based toolchain. The GNU toolchain can NOT successfully compile `torch-sys` on Windows. You can check the current toolchain by running
 
   ```shell
   rustup toolchain list
@@ -28,9 +80,16 @@ This crate requires CUDA and `libtorch` support. You need to:
   to switch the toolchain.
 
 - You should now be able to run the project. Try ```device_test``` in ```tests/tch_test.rs``` to see if the all settings are correct.
+- Include the following in your `Cargo.toml`:
+
+    ``` toml
+    [dependencies]
+    raddar = "*"
+    ```
+  And you are ready to go! 🚀
+
 
 ## Examples
-
 ### Basic Tensor Operations
 
 ### Training a Model via Gradient Descent
