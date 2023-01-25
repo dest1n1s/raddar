@@ -39,7 +39,7 @@ let labels = tensor!([[4.0], [10.0], [16.], [13.0], [25.], [31.], [7.], [19.0]])
 // build a model with one linear layer:
 let model = LinearBuilder::default().input_dim(1).output_dim(1).build();
 // create an SGD optimizer:
-let mut optimizer = Optimizer::new(model.training_parameters(), GradientDescent::new(0.01), None);
+let mut optimizer = opt(model.training_parameters(), GradientDescent::new(0.01));
 // train the model on (X, Y):
 for epoch in 1..=5000 {
     // clear the gradients
@@ -91,6 +91,8 @@ This crate requires CUDA and `libtorch` support. You need to:
 
 ## Examples
 ### Basic Tensor Operations
+
+See some details in [raddar_array](https://github.com/dest1n1s/raddar/blob/master/raddar_array/README.md).
 
 ### Training a Model via Gradient Descent
 
