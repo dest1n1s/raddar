@@ -34,7 +34,7 @@ fn bivector_mul<T: LinalgScalar + AnyNum>(
 }
 
 /// Multiply a bivector with a matrix.
-/// 
+///
 /// If `bivec_first` is true, the bivector is multiplied with the matrix from the left.
 /// Otherwise, the bivector is multiplied with the matrix from the right.
 fn bivector_mul_matrix<T: LinalgScalar + AnyNum>(
@@ -295,19 +295,9 @@ binary_op!(
     MatmulOp,
     inputs,
     grad,
-    inputs.0.as_view().matmul(&*inputs.1.as_view()),
-    backward(
-        &*grad.i().as_view(),
-        &*inputs.0.as_view(),
-        &*inputs.1.as_view(),
-        true
-    ),
-    backward(
-        &*grad.i().as_view(),
-        &*inputs.0.as_view(),
-        &*inputs.1.as_view(),
-        false
-    )
+    inputs[0].matmul(&*inputs[1]),
+    backward(&*grad.i().as_view(), &*inputs[0], &*inputs[1], true),
+    backward(&*grad.i().as_view(), &*inputs[0], &*inputs[1], false)
 );
 
 mod state_compose {

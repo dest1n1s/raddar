@@ -4,7 +4,7 @@ use num::cast;
 
 use crate::{
     ndarr::BorrowView,
-    tensor::{ops::Operation, ArrayMethods, TensorMethods, TensorKind},
+    tensor::{ops::Operation, ArrayMethods, TensorKind, TensorMethods},
 };
 
 use super::{KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods};
@@ -26,7 +26,12 @@ pub(crate) fn add_grad(tensor: Weak<Mutex<NdArrayTensorInternal>>, grad: NdArray
     if tensor.grad.is_none() {
         tensor.grad = Some(KindedArrayD::zeros(&shape, dtype));
     }
-    tensor.grad.as_mut().unwrap().view_mut().add_(&*grad.i().as_view());
+    tensor
+        .grad
+        .as_mut()
+        .unwrap()
+        .view_mut()
+        .add_(&*grad.i().as_view());
 }
 
 #[macro_export]
@@ -35,97 +40,9 @@ macro_rules! go_backward {
         let tmp_tensor_in_go_backward = $tensor_data.lock().unwrap();
         if let Some(op) = $crate::ndarr::IntoOp::op(tmp_tensor_in_go_backward) {
             op.backward($backward_grad);
+            drop(op);
         }
     };
-}
-
-/// A helper method to borrow two tensor's internals.
-///
-/// `$a` and `$b` are the two tensors to borrow, type `Arc<Mutex<NdArrayTensorInternal>>`.
-///
-/// `$tuple_name` is the name of the tuple to store the two borrowed internals, type `(&MutexGuard<NdArrayTensorInternal>, &MutexGuard<NdArrayTensorInternal>)`.
-///
-/// `$execution` is the code block to execute.
-#[macro_export]
-macro_rules! borrow_two_tensor_internals {
-    ($a:expr, $b:expr, $tuple_name: ident, $execution: block) => {{
-        let tmp_a_in_borrow_two_tensor_internals = &$a;
-        let tmp_b_in_borrow_two_tensor_internals = &$b;
-        let first = tmp_a_in_borrow_two_tensor_internals.lock().unwrap();
-
-        let result = if std::sync::Arc::ptr_eq(
-            &tmp_a_in_borrow_two_tensor_internals,
-            &tmp_b_in_borrow_two_tensor_internals,
-        ) {
-            let $tuple_name = (&first, &first);
-            $execution
-        } else {
-            let second = tmp_b_in_borrow_two_tensor_internals.lock().unwrap();
-            let $tuple_name = (&first, &second);
-            let result = $execution;
-            drop(second);
-            result
-        };
-        drop(first);
-
-        result
-    }};
-}
-
-#[macro_export]
-macro_rules! borrow_three_tensor_internals {
-    ($a:expr, $b:expr, $c:expr, $tuple_name: ident, $execution: block) => {{
-        let tmp_a_in_borrow_three_tensor_internals = &$a;
-        let tmp_b_in_borrow_three_tensor_internals = &$b;
-        let tmp_c_in_borrow_three_tensor_internals = &$c;
-        let first = tmp_a_in_borrow_three_tensor_internals.lock().unwrap();
-
-        let tmp_a_eq_b = std::sync::Arc::ptr_eq(
-            &tmp_a_in_borrow_three_tensor_internals,
-            &tmp_b_in_borrow_three_tensor_internals,
-        );
-        let tmp_a_eq_c = std::sync::Arc::ptr_eq(
-            &tmp_a_in_borrow_three_tensor_internals,
-            &tmp_c_in_borrow_three_tensor_internals,
-        );
-        let tmp_b_eq_c = std::sync::Arc::ptr_eq(
-            &tmp_b_in_borrow_three_tensor_internals,
-            &tmp_c_in_borrow_three_tensor_internals,
-        );
-
-        let result = if tmp_a_eq_b && tmp_a_eq_c {
-            let $tuple_name = (&first, &first, &first);
-            $execution
-        } else if tmp_a_eq_b {
-            let second = tmp_c_in_borrow_three_tensor_internals.lock().unwrap();
-            let $tuple_name = (&first, &first, &second);
-            let result = $execution;
-            drop(second);
-            result
-        } else if tmp_a_eq_c {
-            let second = tmp_b_in_borrow_three_tensor_internals.lock().unwrap();
-            let $tuple_name = (&first, &second, &first);
-            let result = $execution;
-            drop(second);
-            result
-        } else if tmp_b_eq_c {
-            let second = tmp_a_in_borrow_three_tensor_internals.lock().unwrap();
-            let $tuple_name = (&second, &first, &first);
-            let result = $execution;
-            drop(second);
-            result
-        } else {
-            let second = tmp_b_in_borrow_three_tensor_internals.lock().unwrap();
-            let third = tmp_c_in_borrow_three_tensor_internals.lock().unwrap();
-            let $tuple_name = (&first, &second, &third);
-            let result = $execution;
-            drop(third);
-            drop(second);
-            result
-        };
-
-        result
-    }};
 }
 
 #[macro_export]
@@ -143,20 +60,27 @@ macro_rules! binary_op {
     };
     ($op_name: ident, $input_name:ident, $grad_name:ident, $output_name:ident, $forward_calculation:expr, $backward_to_a:expr, $backward_to_b:expr) => {
         pub(crate) struct $op_name {
-            a: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
-            b: std::sync::Arc<std::sync::Mutex<NdArrayTensorInternal>>,
-            $output_name: std::sync::Weak<std::sync::Mutex<NdArrayTensorInternal>>,
+            a: std::sync::Arc<std::sync::Mutex<$crate::ndarr::NdArrayTensorInternal>>,
+            b: std::sync::Arc<std::sync::Mutex<$crate::ndarr::NdArrayTensorInternal>>,
+            $output_name: std::sync::Weak<std::sync::Mutex<$crate::ndarr::NdArrayTensorInternal>>,
         }
 
         impl $op_name {
-            pub fn forward($input_name: (&NdArrayTensor, &NdArrayTensor)) -> NdArrayTensor {
+            pub fn forward(
+                $input_name: (&$crate::ndarr::NdArrayTensor, &$crate::ndarr::NdArrayTensor),
+            ) -> $crate::ndarr::NdArrayTensor {
                 // CAUTION: decide whether the tuple is the same or not first,
                 // if the tuple is the same, we should prevent locking the tensor twice.
                 let (a, b) = ($input_name.0.i_copy(), $input_name.1.i_copy());
 
-                let mut tensor = $crate::borrow_two_tensor_internals!(a, b, $input_name, {
-                    NdArrayTensor::from($forward_calculation)
-                });
+                use $crate::ndarr::lens::{CompositeLen, LookThrough};
+                let mut tensor = $crate::ndarr::lens::ViewLens::with(a.clone()).and(b.clone()).look_through(
+                    higher_order_closure::higher_order_closure! {
+                        |$input_name: $crate::ndarr::ViewsImmut| -> $crate::ndarr::NdArrayTensor{
+                            NdArrayTensor::from($forward_calculation)
+                        }
+                    },
+                );
 
                 tensor.i().is_leaf = false;
                 use $crate::tensor::AutoGradTensorMethods;
@@ -176,13 +100,17 @@ macro_rules! binary_op {
             fn backward(&self, $grad_name: NdArrayTensor) {
                 add_grad(self.output.clone(), $grad_name.name_clone());
 
-                let (a, b) = $crate::borrow_two_tensor_internals!(self.a, self.b, $input_name, {
-                    let $output_name = &self.$output_name.upgrade().expect("output is dropped");
-                    let res_a = $backward_to_a;
-                    let res_b = $backward_to_b;
-                    (res_a, res_b)
-                });
-
+                use $crate::ndarr::lens::{CompositeLen, LookThrough};
+                let (a, b) = $crate::ndarr::lens::ViewLens::with(self.a.clone()).and(self.b.clone()).look_through(
+                    higher_order_closure::higher_order_closure! {
+                        |$input_name: $crate::ndarr::ViewsImmut| -> ($crate::ndarr::NdArrayTensor, $crate::ndarr::NdArrayTensor){
+                            let $output_name = &self.$output_name.upgrade().expect("output is dropped");
+                            let res_a = $backward_to_a;
+                            let res_b = $backward_to_b;
+                            (res_a, res_b)
+                        }
+                    },
+                );
                 go_backward!(self.a, a);
                 go_backward!(self.b, b);
             }
@@ -326,7 +254,13 @@ macro_rules! unary_op_with_non_generic_param {
 
 unary_op!(NegOp, input, grad, -&*input.as_view(), -&grad);
 
-unary_op!(AbsOp, input, grad, input.as_view().abs(), &grad * &NdArrayTensor::from(input.as_view().sgn()));
+unary_op!(
+    AbsOp,
+    input,
+    grad,
+    input.as_view().abs(),
+    &grad * &NdArrayTensor::from(input.as_view().sgn())
+);
 
 unary_op!(SgnOp, input, grad, input.as_view().sgn(), &grad * 0);
 
@@ -334,7 +268,7 @@ binary_op!(
     AddOp,
     inputs,
     grad,
-    &*inputs.0.as_view() + &*inputs.1.as_view(),
+    &*inputs[0] + &*inputs[1],
     grad.clone(),
     grad
 );
@@ -343,7 +277,7 @@ binary_op!(
     SubOp,
     inputs,
     grad,
-    &*inputs.0.as_view() - &*inputs.1.as_view(),
+    &*inputs[0] - &*inputs[1],
     grad.clone(),
     -&grad
 );
@@ -352,21 +286,18 @@ binary_op!(
     MulOp,
     inputs,
     grad,
-    &*inputs.0.as_view() * &*inputs.1.as_view(),
-    NdArrayTensor::from(&*grad.i().as_view() * &*inputs.1.as_view()),
-    NdArrayTensor::from(&*grad.i().as_view() * &*inputs.0.as_view())
+    &*inputs[0] * &*inputs[1],
+    NdArrayTensor::from(&*grad.i().as_view() * &*inputs[1]),
+    NdArrayTensor::from(&*grad.i().as_view() * &*inputs[0])
 );
 
 binary_op!(
     DivOp,
     inputs,
     grad,
-    &*inputs.0.as_view() / &*inputs.1.as_view(),
-    NdArrayTensor::from(&*grad.i().as_view() / &*inputs.1.as_view()),
-    NdArrayTensor::from(
-        -&(&(&*grad.i().as_view() * &*inputs.0.as_view())
-            / &(&*inputs.1.as_view() * &*inputs.1.as_view()))
-    )
+    &*inputs[0] / &*inputs[1],
+    NdArrayTensor::from(&*grad.i().as_view() / &*inputs[1]),
+    NdArrayTensor::from(-&(&(&*grad.i().as_view() * &*inputs[0]) / &(&*inputs[1] * &*inputs[1])))
 );
 
 binary_op!(
@@ -374,17 +305,17 @@ binary_op!(
     inputs,
     grad,
     output,
-    inputs.0.as_view().pow(&*inputs.1.as_view()),
+    inputs[0].pow(&*inputs[1]),
     {
         // todo: is this implementation correct?
-        let a = &*inputs.0.as_view();
-        let b = &*inputs.1.as_view();
+        let a = &*inputs[0];
+        let b = &*inputs[1];
         let a_pow_b_minus_1 = a.pow((b - 1.0).view());
         let b_times_a_pow_b_minus_1 = b * &a_pow_b_minus_1.view();
         NdArrayTensor::from(&*grad.i().as_view() * &b_times_a_pow_b_minus_1.view())
     },
     {
-        let a = &*inputs.0.as_view();
+        let a = &*inputs[0];
         let a_log = a.ln();
         let a_pow_b = output.lock().unwrap();
         let a_pow_b_times_log_a = &*a_pow_b.as_view() * &a_log.view();

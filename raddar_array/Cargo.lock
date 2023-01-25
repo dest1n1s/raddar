@@ -220,6 +220,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
+name = "higher-order-closure"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c450d87a307c754cbd7718dfca84b8904e313157191fae5b249d37aab216c89"
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -471,6 +477,7 @@ dependencies = [
 name = "raddar_array"
 version = "0.1.0"
 dependencies = [
+ "higher-order-closure",
  "more-asserts",
  "ndarray",
  "num",

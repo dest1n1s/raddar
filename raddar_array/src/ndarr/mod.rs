@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 #![allow(unused_macros)]
 use std::{
-    any::Any,
     borrow::Borrow,
     f64::consts::E,
     iter::once,
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, Weak},
+    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak},
 };
 
 use self::{
     array_ops::{BroadcastOp, PermuteOp, SliceOp, SqueezeView, TransposeOp, UnsqueezeView},
+    lens::{CompositeLen, LookThrough, ViewLens},
     ops::{
         AbsOp, AddOp, AddScalarOp, CastOp, DivOp, DivScalarOp, ExpScalarOp, GradAccumulateOp,
         LogScalarOp, MeanOp, MulOp, MulScalarOp, NegOp, PowOp, PowScalarOp, SgnOp, SqueezeOp,
@@ -25,7 +25,7 @@ use self::{
     },
 };
 use crate::{
-    arith_impl, borrow_three_tensor_internals, borrow_two_tensor_internals,
+    arith_impl,
     tensor::{
         index::{IndexInfo, IndexInfoItem, ALL},
         ops::Operation,
@@ -33,12 +33,14 @@ use crate::{
     },
     AnyNum,
 };
+use higher_order_closure::hrtb;
 use more_asserts::assert_gt;
 use ndarray::{ArrayD, ArrayViewD, ArrayViewMutD, Axis, Dimension, IxDyn, SliceInfoElem, Zip};
 use num::cast;
 use owning_ref::OwningHandle;
 
 pub mod array_ops;
+mod lens;
 pub mod ops;
 mod single_ops;
 
@@ -545,15 +547,11 @@ impl Clone for NdArrayTensor {
 }
 
 impl NdArrayTensorInternal {
-    /// Get the tensor in the internal data (protected by a mutex guard) and apply view transformations
-    /// stored in the internal data to it. Return an owning handle to the mutex guard and the boxed view.
-    ///
-    /// Note: only after you drop the owning handle, the lock will be released.
-    pub(crate) fn as_view<'a>(
-        &'a self,
-    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'a>>> {
-        let data = self.data.read().unwrap();
-        OwningHandle::new_with_fn(data, |data| {
+    pub(crate) fn array_as_view<'lock, 'inner>(
+        &self,
+        array: RwLockReadGuard<'lock, KindedArrayD>,
+    ) -> OwningHandle<RwLockReadGuard<'lock, KindedArrayD>, Box<KindedArrayViewD<'inner>>> {
+        OwningHandle::new_with_fn(array, |data| {
             let tensor = unsafe { &*data };
             let mut view = tensor.view();
             for viewer in self.view.iter() {
@@ -563,12 +561,11 @@ impl NdArrayTensorInternal {
         })
     }
 
-    /// See `NdArrayTensorInternal::as_view`.
-    pub(crate) fn as_view_mut<'a>(
-        &'a self,
-    ) -> OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
-        let data = self.data.read().unwrap();
-        OwningHandle::new_with_fn(data, |data| {
+    pub(crate) fn array_as_view_mut<'a, 'b>(
+        &self,
+        array: RwLockWriteGuard<'a, KindedArrayD>,
+    ) -> OwningHandle<RwLockWriteGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'b>>> {
+        OwningHandle::new_with_fn(array, |data| {
             let tensor = unsafe { &mut *(data as *mut KindedArrayD) };
             let mut view = tensor.view_mut();
             for viewer in self.view.iter() {
@@ -577,11 +574,36 @@ impl NdArrayTensorInternal {
             Box::new(view)
         })
     }
+
+    /// Get the tensor in the internal data (protected by a mutex guard) and apply view transformations
+    /// stored in the internal data to it. Return an owning handle to the mutex guard and the boxed view.
+    ///
+    /// Note: only after you drop the owning handle, the lock will be released.
+    pub(crate) fn as_view<'lock, 'inner: 'lock>(
+        &'inner self,
+    ) -> OwningHandle<RwLockReadGuard<'lock, KindedArrayD>, Box<KindedArrayViewD<'inner>>> {
+        self.array_as_view(self.data.read().unwrap())
+    }
+
+    /// See `NdArrayTensorInternal::as_view`.
+    pub(crate) fn as_view_mut<'a>(
+        &'a self,
+    ) -> OwningHandle<RwLockWriteGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'a>>> {
+        self.array_as_view_mut(self.data.write().unwrap())
+    }
 }
 
 // =================================================================================================
 // Implementations for `NdArrayTensor` and `KindedArrayD`.
 // =================================================================================================
+
+pub(crate) type ViewsImmut<'a, 'b> =
+    Vec<OwningHandle<RwLockReadGuard<'a, KindedArrayD>, Box<KindedArrayViewD<'b>>>>;
+
+pub(crate) type ViewsMut<'a, 'b, 'c, 'd> = (
+    OwningHandle<RwLockWriteGuard<'a, KindedArrayD>, Box<KindedArrayViewMutD<'b>>>,
+    ViewsImmut<'c, 'd>,
+);
 
 impl TensorMethods for NdArrayTensor {
     fn empty(shape: &[usize], dtype: TensorKind) -> Self {
@@ -658,67 +680,56 @@ impl TensorMethods for NdArrayTensor {
 
     fn cmp(&self, other: &Self, mode: CmpMode) -> Self {
         let (self_, other_) = BroadcastOp::cobroadcast(self, other);
-        borrow_two_tensor_internals!(
-            self_.internal.as_ref().unwrap(),
-            other_.internal.as_ref().unwrap(),
-            inputs,
-            { inputs.0.as_view().cmp(&*inputs.1.as_view(), mode).into() }
-        )
+        ViewLens::with_tensor(&self_)
+            .and(&other_)
+            .look_through(hrtb!(|inputs: ViewsImmut<'_, '_>| -> NdArrayTensor {
+                inputs[0].cmp(&*inputs[1], mode).into()
+            }))
     }
 
     fn add_(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                *inputs.0.as_view_mut() += &*inputs.1.as_view();
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                *self_ += &*others_[0];
+            }));
     }
 
     fn sub_(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                *inputs.0.as_view_mut() -= &*inputs.1.as_view();
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                *self_ -= &*others_[0];
+            }));
     }
 
     fn mul_(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                *inputs.0.as_view_mut() *= &*inputs.1.as_view();
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                *self_ *= &*others_[0];
+            }));
     }
 
     fn div_(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                *inputs.0.as_view_mut() /= &*inputs.1.as_view();
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                *self_ /= &*others_[0];
+            }));
     }
 
     fn pow_(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                inputs.0.as_view_mut().pow_(&*inputs.1.as_view());
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                self_.pow_(&*others_[0]);
+            }));
     }
 
     fn abs_(&mut self) {
@@ -790,14 +801,12 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn assign(&mut self, other: &Self) {
-        borrow_two_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            other.internal.as_ref().unwrap(),
-            inputs,
-            {
-                inputs.0.as_view_mut().assign(&*inputs.1.as_view());
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(other)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                self_.assign(&*others_[0]);
+            }));
     }
 
     fn assign_scalar<T: AnyNum>(&mut self, other: T) {
@@ -821,20 +830,13 @@ impl TensorMethods for NdArrayTensor {
     }
 
     fn scatter_dim_(&mut self, dim: usize, index: &Self, src: &Self, reduction: ScatterReduction) {
-        borrow_three_tensor_internals!(
-            self.internal.as_mut().unwrap(),
-            index.internal.as_ref().unwrap(),
-            src.internal.as_ref().unwrap(),
-            inputs,
-            {
-                inputs.0.as_view_mut().scatter_dim_(
-                    dim,
-                    &*inputs.1.as_view(),
-                    &*inputs.2.as_view(),
-                    reduction,
-                );
-            }
-        )
+        ViewLens::with_mut_tensor(self)
+            .and(index)
+            .and(src)
+            .look_through(hrtb!(|inputs: ViewsMut<'_, '_, '_, '_>| -> () {
+                let (mut self_, others_) = inputs;
+                self_.scatter_dim_(dim, &*others_[0], &*others_[1], reduction);
+            }));
     }
 
     fn unsqueeze(&self, dim: usize) -> Self {
@@ -1583,8 +1585,8 @@ impl<'this> ViewMutMethods<'this> for KindedArrayViewMutD<'this> {
         })
     }
 
-    fn permute_mut<'a>(&'a mut self, axes: &[usize]) -> Self::ViewMutType<'a> {
-        todo!()
+    fn permute_mut<'a>(&'a mut self, _axes: &[usize]) -> Self::ViewMutType<'a> {
+        unimplemented!()
     }
 
     fn into_permute_mut(self, axes: &[usize]) -> Self::ViewMutType<'this> {
@@ -1809,8 +1811,8 @@ impl<'this> ViewMethods<'this> for KindedArrayViewD<'this> {
         })
     }
 
-    fn permute<'a>(&'a self, order: &[usize]) -> Self::ViewType<'a> {
-        todo!()
+    fn permute<'a>(&'a self, _order: &[usize]) -> Self::ViewType<'a> {
+        unimplemented!()
     }
 
     fn into_permute(self, order: &[usize]) -> Self::ViewType<'this> {

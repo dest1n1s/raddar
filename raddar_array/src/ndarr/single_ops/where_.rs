@@ -1,9 +1,13 @@
 use std::sync::{Arc, Mutex, Weak};
-
+use higher_order_closure::hrtb;
 use crate::{
-    borrow_three_tensor_internals,
-    ndarr::{ops::add_grad, NdArrayTensor, NdArrayTensorInternal, ViewMethods},
-    tensor::{ops::Operation, AutoGradTensorMethods, TensorMethods}, go_backward,
+    go_backward,
+    ndarr::{
+        lens::{CompositeLen, LookThrough, ViewLens},
+        ops::add_grad,
+        KindedArrayD, NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewsImmut,
+    },
+    tensor::{ops::Operation, AutoGradTensorMethods, TensorMethods},
 };
 
 pub(crate) struct WhereOp {
@@ -19,20 +23,27 @@ impl WhereOp {
         x: &NdArrayTensor,
         y: &NdArrayTensor,
     ) -> NdArrayTensor {
-        let mut output: NdArrayTensor = borrow_three_tensor_internals!(
-            condition.internal.as_ref().unwrap(),
-            x.internal.as_ref().unwrap(),
-            y.internal.as_ref().unwrap(),
-            inputs,
-            {
-                inputs
-                    .1
-                    .as_view()
-                    .r#where(&*inputs.0.as_view(), &*inputs.2.as_view())
-            }
-        )
-        .into();
+        // let mut output: NdArrayTensor = borrow_three_tensor_internals!(
+        //     condition.internal.as_ref().unwrap(),
+        //     x.internal.as_ref().unwrap(),
+        //     y.internal.as_ref().unwrap(),
+        //     inputs,
+        //     {
+        //         inputs
+        //             .1
+        //             .as_view()
+        //             .r#where(&*inputs.0.as_view(), &*inputs.2.as_view())
+        //     }
+        // )
+        // .into();
 
+        let mut output: NdArrayTensor = ViewLens::with_tensor(x)
+            .and(condition)
+            .and(y)
+            .look_through(hrtb!(|inputs: ViewsImmut<'_, '_>| -> KindedArrayD {
+                inputs[0].r#where(&*inputs[1], &*inputs[2])
+            }))
+            .into();
         if x.requires_grad() || y.requires_grad() {
             output.i().op = Some(Arc::new(WhereOp {
                 output: output.i_ref(),
