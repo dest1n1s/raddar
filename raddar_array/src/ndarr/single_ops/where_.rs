@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex, Weak};
-use higher_order_closure::hrtb;
 use crate::{
     go_backward,
     ndarr::{
@@ -9,6 +7,8 @@ use crate::{
     },
     tensor::{ops::Operation, AutoGradTensorMethods, TensorMethods},
 };
+use higher_order_closure::hrtb;
+use std::sync::{Arc, Mutex, Weak};
 
 pub(crate) struct WhereOp {
     output: Weak<Mutex<NdArrayTensorInternal>>,
@@ -47,10 +47,7 @@ impl Operation for WhereOp {
     fn backward(&self, grad: NdArrayTensor) {
         add_grad(self.output.clone(), grad.name_clone());
 
-        let shape = self.x.lock().unwrap().as_view().size();
-        let dtype = self.x.lock().unwrap().as_view().kind();
-
-        let mask = NdArrayTensor::zeros(&shape, dtype);
+        let mask = NdArrayTensor::zeros_like(&NdArrayTensor::from(&self.x));
 
         let cond: NdArrayTensor = (&self.condition).into();
 

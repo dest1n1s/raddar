@@ -41,6 +41,12 @@ pub trait TensorMethods: Sized {
     fn empty(shape: &[usize], dtype: TensorKind) -> Self;
     fn zeros(shape: &[usize], dtype: TensorKind) -> Self;
     fn ones(shape: &[usize], dtype: TensorKind) -> Self;
+    fn zeros_like(&self) -> Self {
+        Self::zeros(&self.size(), self.kind())
+    }
+    fn ones_like(&self) -> Self {
+        Self::ones(&self.size(), self.kind())
+    }
     /// Properties
     fn size(&self) -> Vec<usize>;
     fn kind(&self) -> TensorKind;
