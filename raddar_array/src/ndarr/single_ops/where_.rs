@@ -23,20 +23,6 @@ impl WhereOp {
         x: &NdArrayTensor,
         y: &NdArrayTensor,
     ) -> NdArrayTensor {
-        // let mut output: NdArrayTensor = borrow_three_tensor_internals!(
-        //     condition.internal.as_ref().unwrap(),
-        //     x.internal.as_ref().unwrap(),
-        //     y.internal.as_ref().unwrap(),
-        //     inputs,
-        //     {
-        //         inputs
-        //             .1
-        //             .as_view()
-        //             .r#where(&*inputs.0.as_view(), &*inputs.2.as_view())
-        //     }
-        // )
-        // .into();
-
         let mut output: NdArrayTensor = ViewLens::with_tensor(x)
             .and(condition)
             .and(y)

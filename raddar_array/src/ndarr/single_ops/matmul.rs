@@ -4,7 +4,7 @@ use crate::{
     binary_op, go_backward,
     ndarr::{
         array_ops::BroadcastOp, kinded_batched_zip, ops::add_grad, BorrowView, KindedArrayD,
-        KindedArrayViewD, NdArrayTensor, NdArrayTensorInternal, ViewMethods, ViewMutMethods,
+        KindedArrayViewD, NdArrayTensor, ViewMethods, ViewMutMethods,
     },
     tensor::{TensorKind, TensorMethods},
     AnyNum,
